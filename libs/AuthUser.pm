@@ -1,5 +1,6 @@
 package AuthUser;
 
+use strict;
 # We use Object::Tiny::RW to generate getters/setters for the attributes
 # and save ourselves some tedium
 use Object::Tiny::RW qw {
