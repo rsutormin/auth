@@ -7,8 +7,8 @@ use AuthUser;
 sub new() {
     my $class = shift;
     my $self = { 'error_msg' => ''};
+    print "$class\n";
     bless $self, $class;
-
     return $self;
 }
 
