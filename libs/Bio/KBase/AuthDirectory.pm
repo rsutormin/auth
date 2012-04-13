@@ -9,7 +9,7 @@ sub new() {
     my $self = { 'error_msg' => ''};
     print "$class\n";
     bless $self, $class;
-    return $self;
+    return($self);
 }
 
 

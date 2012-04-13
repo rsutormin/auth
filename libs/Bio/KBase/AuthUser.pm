@@ -45,7 +45,7 @@ sub new() {
     # Initialize a few basic things
     $self->{'oauth_creds'} = {};
     $self->{'user_id'} = 'jqpublic';
-    return $self;
+    return($self);
 }
 
 1;

@@ -11,7 +11,7 @@ sub new() {
 	      'logged_in' => 0,
 	      'error_msg' => ""};
     bless $self,$class;
-    return $self;
+    return($self);
 }
 
 sub login() {

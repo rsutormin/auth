@@ -19,19 +19,19 @@ sub new() {
     };
     bless $self, $class;
 
-    return $self;
+    return($self);
 }
 
 sub validate_request() {
     my $self=shift @_;
 
-    return 1;
+    return(1);
 }
 
 sub validate_auth_token() {
     my $self=shift @_;
 
-    return 1;
+    return(1);
 }
 
 1;
