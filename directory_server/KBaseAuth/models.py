@@ -50,7 +50,7 @@ class OAuthKeys(models.Model):
 class OAuthTokens(models.Model):
     user_id = models.ForeignKey(Profile)
     oauth_key = models.ForeignKey(OAuthKeys)
-    oauth_token = models.CharField(max_length=200)
+    oauth_token = models.CharField(max_length=200,unique=True)
     access_token = models.BooleanField(default=False)
     creation_time = models.DateTimeField(auto_now_add=True)
 
