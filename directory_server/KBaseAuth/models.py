@@ -10,7 +10,7 @@ class Profile(models.Model):
         ('F', 'Female'),
     )
 
-    user_id = models.CharField(max_length=64, primary_key=True)
+    user_id = models.CharField(max_length=64,primary_key=True)
     enabled = models.BooleanField(default=False)
     last_login_time = models.DateTimeField(blank=True,null=True)
     last_login_ip = models.IPAddressField(blank=True,null=True)
@@ -40,24 +40,24 @@ class Profile(models.Model):
 # so it needs to be unique across all users
 # For 2 legged oauth this is all that is necessary
 class OAuthKeys(models.Model):
-    user_id = models.ForeignKey(Profile)
-    oauth_key = models.CharField(max_length=74, unique=True)
+    user_id = models.ForeignKey(Profile,related_name='oauth_creds')
+    oauth_key = models.CharField(max_length=74, primary_key=True, unique=True)
     oauth_secret = models.CharField(max_length=200)
+
     def __unicode__(self):
         return '{0} {1}'.format(self.user_id,self.oauth_key)
 
 # Stores the access tokens used for 3 legged OAuth
 class OAuthTokens(models.Model):
-    user_id = models.ForeignKey(Profile)
-    oauth_key = models.ForeignKey(OAuthKeys)
-    oauth_token = models.CharField(max_length=200,unique=True)
+    oauth_key = models.ForeignKey(OAuthKeys,related_name='oauth_tokens')
+    oauth_token = models.CharField(max_length=200,primary_key=True,unique=True)
     access_token = models.BooleanField(default=False)
     creation_time = models.DateTimeField(auto_now_add=True)
 
 # Group membership. No actual ACL's are stored here, just
 # membership
 class Group(models.Model):
-    name = models.CharField(max_length=64,unique=True)
+    name = models.CharField(max_length=64,primary_key=True,unique=True)
 
 # Group members
 class GroupMembers(models.Model):
@@ -66,7 +66,7 @@ class GroupMembers(models.Model):
 
 # Role membership. No actual ACL's here, just membership
 class Role(models.Model):
-    name = models.CharField(max_length=64,unique=True)
+    name = models.CharField(max_length=64,primary_key=True,unique=True)
 
 # Members of a role
 class RoleMembers(models.Model):
