@@ -51,11 +51,8 @@ sub lookup_user() {
 		       'address','updated_time');
 	    foreach  (@attrs) {
 		$newuser->{$_} = $json->{$user_id}->{$_};
-		# Check for JSON::XS::Boolean references as the return
-		# value for a boolean type, and change to simple scalar
-		next  unless 'JSON::XS::Boolean' eq ref $newuser->{$_};
-		$newuser->{$_} = ( $newuser->{$_} ? 1 : 0 );
 	    } 
+	    $self->_SquashJSONBool($newuser)
 	};
 	if ($@) {
 	    print STDERR "Error while fetching user: $@";
@@ -170,4 +167,22 @@ sub delete_consumer() {
     return(1);
 }
 
+sub _SquashJSONBool() {
+    # Walk an object ref returned by from_json() and squash references
+    # to JSON::XS::Boolean
+    my $self = shift;
+    my $json_ref = shift;
+    my $type;
+
+    foreach (keys %$json_ref) {
+	$type = ref $json_ref->{$_};
+	next unless ($type);
+	if ( 'HASH' eq $type) {
+	    _SquashJSONBool( $self, $json_ref->{$_});
+	} elsif ( 'JSON::XS::Boolean' eq $type) {
+	    $json_ref->{$_} = ( $json_ref->{$_} ? 1 : 0 );
+	}
+    }
+    return $json_ref;
+}
 1;
