@@ -9,15 +9,12 @@ use REST::Client;
 
 my $rest = undef;
 
-print "Here!";
-
 sub new() {
     my $class = shift;
     my $self = { 'error_msg' => ''};
 
     eval {
 	unless ( defined($rest)) {
-	    print STDERR "Creating rest object rooted at ".$Bio::KBase::Auth::AuthSvcHost;;
 	    $rest = new REST::Client( host => $Bio::KBase::Auth::AuthSvcHost);
 	}
     };
@@ -54,6 +51,10 @@ sub lookup_user() {
 		       'address','updated_time');
 	    foreach  (@attrs) {
 		$newuser->{$_} = $json->{$user_id}->{$_};
+		# Check for JSON::XS::Boolean references as the return
+		# value for a boolean type, and change to simple scalar
+		next  unless 'JSON::XS::Boolean' eq ref $newuser->{$_};
+		$newuser->{$_} = ( $newuser->{$_} ? 1 : 0 );
 	    } 
 	};
 	if ($@) {
@@ -69,14 +70,67 @@ sub lookup_user() {
 
 sub lookup_consumer() {
     my $self= shift;
+    my $consumer_key = shift;
+    my $json;
+    my $newuser;
+    my $query;
+    my @attrs;
+    my $user_id;
 
-    return( AuthUser::new() );
+    if ($consumer_key) {
+	eval {
+	    $query = '/oauthkeys/'.$consumer_key;
+	    $rest->GET($query);
+	    $json = from_json( $rest->responseContent());
+	};
+	if ($@) {
+	    print STDERR "Error while fetching user: $@";
+	    return( undef);
+	}
+	if ($json->{$consumer_key}->{'user_id'}) {
+	    $user_id = $json->{$consumer_key}->{'user_id'};
+	    return( $self->lookup_user( $user_id));
+	} else {
+	    print STDERR "Did not find consumer_key $consumer_key";
+	    return(undef);
+	}
+    } else {
+	print STDERR "Must specify consumer key";
+	return( undef);
+    }
+
 }
 
 sub lookup_oauth2_token() {
     my $self= shift;
+    my $oauth_token = shift;
+    my $json;
+    my $newuser;
+    my $query;
+    my @attrs;
+    my $oauth_key_id;
 
-    return( AuthUser::new() );
+    if ($oauth_token) {
+	eval {
+	    $query = '/oauthtokens/'.$oauth_token;
+	    $rest->GET($query);
+	    $json = from_json( $rest->responseContent());
+	};
+	if ($@) {
+	    print STDERR "Error while fetching oauth token: $@";
+	    return( undef);
+	}
+	if ($json->{$oauth_token}->{'oauth_key_id'}) {
+	    $oauth_key_id = $json->{$oauth_token}->{'oauth_key_id'};
+	    return( $self->lookup_consumer( $oauth_key_id));
+	} else {
+	    print STDERR "Did not find oauth_token $oauth_token";
+	    return(undef);
+	}
+    } else {
+	print STDERR "Must specify oauth token $oauth_token";
+	return( undef);
+    }
 }
 
 sub create_user() {
