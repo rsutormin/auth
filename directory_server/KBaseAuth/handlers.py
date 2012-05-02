@@ -1,8 +1,12 @@
 from piston.handler import BaseHandler
+from piston.utils import rc
 from KBaseAuth.models import *
+import pprint
 
 # Handlers for piston API
 # sychan 4/19/2012
+
+pp = pprint.PrettyPrinter(indent=4)
 
 # Convert QuerySet into a dictionary keyed on the field named in 2nd parameter
 def dictify(objs,key):
@@ -64,9 +68,70 @@ class OAuthKeysHandler( BaseHandler):
             res = read_oauthkeys()
         return res
 
+    def create(self,request):
+        if request.content_type:
+            data = request.data
+            
+            print "Recieved:\n"
+            pp.pprint( data)
+            # check for duplicate
+            
+            try:
+                parent = Profile.objects.get(pk=data['user_id'])
+            except Profile.DoesNotExist:
+                print "No matching parent record"
+                return rc.NOT_FOUND
+                
+            oauthkey = self.model(oauth_key=data['oauth_key'], oauth_secret=data['oauth_secret'],user_id=parent)
+            pp.pprint( oauthkey)
+            oauthkey.save()
+            print "Saved successfully"
+            return rc.CREATED
+        else:
+            super( model, self).create(request)
+
+
+
 class OAuthTokensHandler( BaseHandler):
     model = OAuthTokens
     exclude = ('oauth_key',)
+
+    def read(self,request, oauth_token=None):
+        base=OAuthTokens.objects
+
+        if (oauth_token):
+            objs = base.get(pk=oauth_token).values()
+        else:
+            objs = base.all().values()
+        res = dictify(objs,'oauth_token')
+        for key in res.keys():
+            # Replace key oauth_key_id with oauth_key
+            res[key]['oauth_key'] = res[key]['oauth_key_id']
+            del res[key]['oauth_key_id']
+        return res
+
+    def create(self,request):
+        if request.content_type:
+            data = request.data
+            
+            print "Recieved:\n"
+            pp.pprint( data)
+            # check for duplicate
+            
+            try:
+                parent = OAuthKeys.objects.get(pk=data['oauth_key'])
+            except OAuthKeys.DoesNotExist:
+                print "No matching parent record"
+                return rc.NOT_FOUND
+                
+            oauthtoken = self.model(oauth_key=parent, oauth_token=data['oauth_token'],access_token=data['access_token'])
+            pp.pprint( oauthtoken)
+            oauthtoken.save()
+            print "Saved successfully"
+            return rc.CREATED
+        else:
+            super( model, self).create(request)
+
 
 class GroupHandler( BaseHandler):
     model = Group
