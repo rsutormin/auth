@@ -11,6 +11,7 @@ profile_rez = Resource( ProfileHandler)
 oauthkeys_rez = Resource( OAuthKeysHandler)
 oauthtokens_rez = Resource( OAuthTokensHandler)
 group_rez = Resource( GroupHandler)
+groupmembers_rez = Resource( GroupMembersHandler)
 role_rez = Resource( RoleHandler)
 rolemembers_rez = Resource( RoleMembersHandler)
 
@@ -22,11 +23,11 @@ urlpatterns = patterns('',
     url(r'^oauthkeys/?$', oauthkeys_rez),
     url(r'^oauthtokens/?$', oauthtokens_rez),
     url(r'^oauthtokens/(?P<oauth_token>\w+)$', oauthtokens_rez),
-    url(r'^group/(?P<name>\w+)$', group_rez),
+    url(r'^group/(?P<name>[-\w]+)$', group_rez),
     url(r'^group$', group_rez),
-    url(r'^groupmembers/(?P<name>\w+)$', group_rez),
-    url(r'^groupmembers$', group_rez),
-    url(r'^role/(?P<name>\w+)$', role_rez),
+    url(r'^groupmembers/(?P<name>[\w-]+)$', groupmembers_rez),
+    url(r'^groupmembers/?$', groupmembers_rez),
+    url(r'^role/(?P<name>[-\w]+)$', role_rez),
     url(r'^role$', role_rez),
     url(r'^rolemembers/(?P<name>\w+)$', rolemembers_rez),
     url(r'^rolemembers$', rolemembers_rez),

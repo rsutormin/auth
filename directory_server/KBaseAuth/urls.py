@@ -11,6 +11,7 @@ profile_rez = Resource( ProfileHandler)
 oauthkeys_rez = Resource( OAuthKeysHandler)
 oauthtokens_rez = Resource( OAuthTokensHandler)
 group_rez = Resource( GroupHandler)
+group_rez = Resource( GroupMembersHandler)
 role_rez = Resource( RoleHandler)
 rolemembers_rez = Resource( RoleMembersHandler)
 
@@ -21,12 +22,6 @@ urlpatterns = patterns('',
     url(r'^world/$', 'world.views.index'),
     url(r'^$', 'world.views.index'),
 
-    url(r'^poll/$', 'poll.views.index'),
-    url(r'^poll/(?P<poll_id>\d+)/$', 'poll.views.detail'),
-    url(r'^poll/(?P<poll_id>\d+)/results/$', 'poll.views.results'),
-    url(r'^poll/(?P<poll_id>\d+)/vote/$', 'poll.views.vote'),
-    url(r'^poll/authstatus/$', 'poll.views.authstatus'),
-
     url(r'^profiles/(?P<user_id>\w+)$', profile_rez),
     url(r'^profiles$', profile_rez),
     url(r'^oauthkeys/(?P<oauth_key>\w+)$', oauthkeys_rez),
@@ -35,8 +30,8 @@ urlpatterns = patterns('',
     url(r'^oauthkeys$', oauthkeys_rez),
     url(r'^group/(?P<name>\w+)$', group_rez),
     url(r'^group$', group_rez),
-    url(r'^groupmembers/(?P<name>\w+)$', group_rez),
-    url(r'^groupmembers$', group_rez),
+    url(r'^groupmembers/(?P<name>\w+)$', groupmembers_rez),
+    url(r'^groupmembers$', groupmembers_rez),
     url(r'^role/(?P<name>\w+)$', role_rez),
     url(r'^role$', role_rez),
     url(r'^rolemembers/(?P<name>\w+)$', rolemembers_rez),

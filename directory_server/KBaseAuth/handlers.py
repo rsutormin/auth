@@ -2,6 +2,7 @@ from piston.handler import BaseHandler
 from piston.utils import rc
 from KBaseAuth.models import *
 import pprint
+import datetime
 
 # Handlers for piston API
 # sychan 4/19/2012
@@ -27,13 +28,23 @@ def read_oauthkeys(user_id=None,oauth_key=None):
     else:
         objs = base.all().values()
     res = dictify(objs,'oauth_key')
+    res = strip_id_suffix('user_id',res)
     for key in res.keys():
         tokens = OAuthTokens.objects.filter(oauth_key=res[key]['oauth_key']).values()
-        res[key]['oauth_tokens'] = dictify(tokens,'oauth_token')
-        # Replace key user_id_id with user_id
-        res[key]['user_id'] = res[key]['user_id_id']
-        del res[key]['user_id_id']
+        tokens = dictify(tokens,'oauth_token')
+        tokens = strip_id_suffix( 'oauth_key',tokens)
+        tokens = strip_id_suffix( 'target_user',tokens)
+        res[key]['oauth_tokens'] = tokens
     return res
+
+# helper function to strip out _id from nested key names
+def strip_id_suffix(dest,dict):
+    src = "{0}_id".format(dest)
+    for key in dict.keys():
+        if (src in dict[key]):
+            dict[key][dest] = dict[key][src]
+            del dict[key][src]
+    return dict
 
 class ProfileHandler(BaseHandler):
     model = Profile
@@ -100,14 +111,18 @@ class OAuthTokensHandler( BaseHandler):
         base=OAuthTokens.objects
 
         if (oauth_token):
-            objs = base.get(pk=oauth_token).values()
+            print "Searching for {0}\n".format( oauth_token)
+            try:
+                objs = base.filter(pk=oauth_token)
+                objs = objs.values()
+            except OAuthTokens.DoesNotExist:
+                print "No matching record found for {0}\n".format(oauth_token)
+                return rc.NOT_FOUND
         else:
             objs = base.all().values()
         res = dictify(objs,'oauth_token')
-        for key in res.keys():
-            # Replace key oauth_key_id with oauth_key
-            res[key]['oauth_key'] = res[key]['oauth_key_id']
-            del res[key]['oauth_key_id']
+        res = strip_id_suffix("oauth_key",res)
+        res = strip_id_suffix("target_user",res)
         return res
 
     def create(self,request):
@@ -123,8 +138,16 @@ class OAuthTokensHandler( BaseHandler):
             except OAuthKeys.DoesNotExist:
                 print "No matching parent record"
                 return rc.NOT_FOUND
+
+            try:
+                target = Profile.objects.get(pk=data['target_user'])
+            except OAuthKeys.DoesNotExist:
+                print "No matching target record"
+                return rc.NOT_FOUND
                 
-            oauthtoken = self.model(oauth_key=parent, oauth_token=data['oauth_token'],access_token=data['access_token'])
+            if ( "creation_time" not in data):
+                data["creation_time"] = datetime.datetime.now()
+            oauthtoken = self.model(oauth_key=parent, oauth_token=data['oauth_token'],access_token=data['access_token'],target_user=target, creation_time=data["creation_time"])
             pp.pprint( oauthtoken)
             oauthtoken.save()
             print "Saved successfully"
@@ -135,6 +158,59 @@ class OAuthTokensHandler( BaseHandler):
 
 class GroupHandler( BaseHandler):
     model = Group
+
+class GroupMembersHandler( BaseHandler):
+    model = GroupMembers
+
+    def read(self,request, name=None):
+        base=GroupMembers.objects
+
+        if (name):
+            print "Searching for {0}\n".format( name)
+            try:
+                groupid = Group.objects.get(pk=name)
+                objs = base.filter(name_id=groupid)
+                objs = objs.values()
+            except Group.DoesNotExist:
+                print "No group names {0}\n".format(name)
+                return rc.NOT_FOUND
+            except GroupMembers.DoesNotExist:
+                return []
+        else:
+            objs = base.all().values()
+        res = {}
+        for x in range( len(objs)):
+            if ( objs[x]['name_id'] not in res ):
+                res[objs[x]['name_id']] = []
+            res[objs[x]['name_id']].append( objs[x]['user_id_id'])
+        return res
+
+    def create(self,request):
+        if request.content_type:
+            data = request.data
+            
+            print "Recieved:\n"
+            pp.pprint( data)
+            # check for duplicate
+            
+            try:
+                group = Group.objects.get(pk=data['name'])
+                user = Profile.objects.get(pk=data['user_id'])
+            except Group.DoesNotExist:
+                print "No matching Group record"
+                return rc.NOT_FOUND
+            except Profile.DoesNotExist:
+                print "No matching user found"
+                return rc.NOT_FOUND
+                
+            groupmember = self.model(name=group,user_id=user)
+            pp.pprint( groupmember)
+            groupmember.save()
+            print "Saved successfully"
+            return rc.CREATED
+        else:
+            super( model, self).create(request)
+
 
 class RoleHandler( BaseHandler):
     model = Role

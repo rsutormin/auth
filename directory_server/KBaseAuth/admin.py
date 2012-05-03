@@ -30,4 +30,5 @@ admin.site.register( Profile, ProfileAdmin)
 admin.site.register( OAuthKeys, OAuthKeysAdmin)
 
 admin.site.register(Group)
+admin.site.register(GroupMembers)
 admin.site.register(Role)

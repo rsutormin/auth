@@ -53,16 +53,26 @@ class OAuthTokens(models.Model):
     oauth_token = models.CharField(max_length=200,primary_key=True,unique=True)
     access_token = models.BooleanField(default=False)
     creation_time = models.DateTimeField(auto_now_add=True)
+    target_user = models.ForeignKey(Profile,related_name="+")
+
+    def __unicode__(self):
+        return '{0}:{1}'.format(self.oauth_token,self.target_user)
 
 # Group membership. No actual ACL's are stored here, just
 # membership
 class Group(models.Model):
     name = models.CharField(max_length=64,primary_key=True,unique=True)
 
+    def __unicode__(self):
+        return '{0}'.format(self.name)
+
 # Group members
 class GroupMembers(models.Model):
     name = models.ForeignKey( Group)
     user_id = models.ForeignKey( Profile)
+
+    def __unicode__(self):
+        return '{0}:{1}'.format(self.name,self.user_id)
 
 # Role membership. No actual ACL's here, just membership
 class Role(models.Model):
