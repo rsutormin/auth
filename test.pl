@@ -53,6 +53,24 @@ if ( $newuser = $ad->disable_user('sychan2')) {
 } else {
     print "Error: " . $ad->error_message;
 }
+print "Added a new consumer key\n";
+
+$key = $ad->new_consumer( "sychan2");
+
+if ($key) {
+    printf "Success!!\noauth_key:%s\noauth_secret:%s\n ", $key->{oauth_key},
+    $key->{oauth_secret};
+} else {
+    print "Error: " + $ad->error_message;
+}
+
+printf "Deleting oauth_key %s\n", $key->{oauth_key};
+
+if ( $ad->delete_consumer( $key->{oauth_key})) {
+    printf "Success!!\n ";
+} else {
+    print "Error: " + $ad->error_message;
+}
 
 print "Deleting user sychan2\n";
 

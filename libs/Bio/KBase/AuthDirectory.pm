@@ -6,6 +6,8 @@ use Bio::KBase::AuthUser;
 use Bio::KBase::Auth;
 use JSON;
 use REST::Client;
+use Digest::SHA;
+use MIME::Base64;
 
 my $rest = undef;
 
@@ -45,7 +47,13 @@ sub lookup_user() {
 	eval {
 	    $query = '/profiles/'.$user_id;
 	    $rest->GET($query);
+	    unless ( ($rest->responseCode() < 300) && ($rest->responseCode() >=200)) {
+		die $rest->responseCode() . ":" . $rest->responseContent();
+	    }
 	    $json = from_json( $rest->responseContent());
+	    unless ( exists($json->{$user_id})) {
+		die "User not found";
+	    }
 	    # Need to wedge the json response into an authuser object
 	    $newuser = new Bio::KBase::AuthUser;
 	    @attrs = ( 'user_id','consumer_key','consumer_secret','token',
@@ -61,6 +69,7 @@ sub lookup_user() {
 	};
 	if ($@) {
 	    print STDERR "Error while fetching user: $@";
+	    $self->{error_message} = $@;
 	    return( undef);
 	}
 	return( $newuser );
@@ -259,14 +268,60 @@ sub disable_user() {
 
 sub new_consumer() {
     my $self= shift;
+    my $user_id = shift;
+    my $key = shift;
+    my $secret = shift;
 
-    return( {'consumer_key' => 'johnqpublic@nationalab.gov',
-	     'consumer_secret' => 'johnqpublics_secret'});
+    unless ( $self->lookup_user( $user_id)) {
+	$self->{error_message} = "User not found";
+	return( undef);
+    }
+
+
+    # check to see if we have been given a key, if not
+    # then generate one based on username and hex numbers
+    srand (time ^ $$ ^ unpack "%L*", `ps axww | gzip -f`);
+    unless ($key) {
+	$key = $user_id . sprintf( "_%x", (time() + rand())*1000);
+    }
+
+    # do the same for the secret, generate a pseudo-random secret
+    #
+    unless ($secret) {
+	$secret = Digest::SHA::sha512_base64(join( '', time(),  map { rand() } (0..10)));
+    }
+
+    # push the new consumer key into the profile service
+    my $json = to_json( { oauth_key => $key,
+			  oauth_secret => $secret,
+			  user_id => $user_id});
+    my $res = $rest->POST("/oauthkeys/", $json, {'Content-Type' => 'application/json'});
+    # If we get something other than a 2XX code, flag an error
+    if (($rest->responseCode() < 200) || ($rest->responseCode() > 299)) {
+	$self->{error_message} = $rest->responseCode() . " : " . $rest->responseContent();
+	return( undef);
+    }
+    
+    return( {'oauth_key' => $key,
+	     'oauth_secret' => $secret});
 }
 
 sub delete_consumer() {
     my $self= shift;
+    my $consumer_key = shift;
 
+    unless ( $self->lookup_consumer( $consumer_key)) {
+	$self->{error_message}= "Consumer key not found";
+	return( undef);
+    }
+
+    my $res = $rest->DELETE("/oauthkeys/".$consumer_key); 
+    # If we get something other than a 2XX code, flag an error
+    if (($rest->responseCode() < 200) || ($rest->responseCode() > 299)) {
+	$self->{error_message} = $rest->responseCode() . " : " . $rest->responseContent();
+	return( undef);
+    }
+    
     return(1);
 }
 
