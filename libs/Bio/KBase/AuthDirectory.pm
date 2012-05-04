@@ -117,8 +117,8 @@ sub lookup_oauth2_token() {
 	    print STDERR "Error while fetching oauth token: $@";
 	    return( undef);
 	}
-	if ($json->{$oauth_token}->{'oauth_key_id'}) {
-	    $oauth_key_id = $json->{$oauth_token}->{'oauth_key_id'};
+	if ($json->{$oauth_token}->{'oauth_key'}) {
+	    $oauth_key_id = $json->{$oauth_token}->{'oauth_key'};
 	    return( $self->lookup_consumer( $oauth_key_id));
 	} else {
 	    print STDERR "Did not find oauth_token $oauth_token";
@@ -132,6 +132,21 @@ sub lookup_oauth2_token() {
 
 sub create_user() {
     my $self= shift;
+    my $newuser = shift;
+
+    unless (ref($newuser) eq "Bio::KBase::AuthUser") {
+	$self->{error_message} = "User object required parameter";
+	return( undef);
+    }
+    # perform basic validation of required fields
+    my %valid = { 'user_id' => '\w{3,}',
+	       'name' => '(-\w\' \.){2,}',
+    };
+    my @bad = grep { !($newuser->{$_} =~ m/$valid{$_}/) } keys(%valid);
+    if ( scalar(@bad) ) {
+	$self->{error_message} = "These fields failed validation: "+join(",",@bad);
+	return( undef);
+    }
 
     return( AuthUser::new() );
 }
