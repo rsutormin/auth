@@ -34,15 +34,24 @@ $newuser = $ad->create_user( $user);
 if ($newuser) {
     print Dumper( $newuser);
 } else {
-    print $ad->error_message;
+    printf "Error: %s\n", $ad->error_message;
 }
+
+print "Updating user's email field to sychan2@whitehouse.gov\n";
+$newuser->email('sychan2@whitehouse.gov');
+if ($ad->update_user( $newuser)) {
+    print "Success!\n";
+    Dumper( $newuser);
+} else {
+    printf "Error: %s\n", $ad->error_message;
+}    
 print "Enabling new user\n";
 if ( $ad->enable_user('sychan2')) {
     print "Success!\n";
     $user= $ad->lookup_user('sychan2');
     printf "Enabled field = %s\n", $user->enabled();
 } else {
-    print "Error: " . $ad->error_message;
+    printf "Error: %s\n", $ad->error_message;
 }
 
 print "Disabling new user\n";
@@ -51,25 +60,25 @@ if ( $newuser = $ad->disable_user('sychan2')) {
     $user= $ad->lookup_user('sychan2');
     printf "Enabled field = %s\n", $user->enabled();
 } else {
-    print "Error: " . $ad->error_message;
+    printf "Error: %s\n", $ad->error_message;
 }
 print "Added a new consumer key\n";
 
 $key = $ad->new_consumer( "sychan2");
 
 if ($key) {
-    printf "Success!!\noauth_key:%s\noauth_secret:%s\n ", $key->{oauth_key},
+    printf "Success!!\noauth_key:%s\noauth_secret:%s\n", $key->{oauth_key},
     $key->{oauth_secret};
 } else {
-    print "Error: " + $ad->error_message;
+    printf "Error: %s\n", $ad->error_message;
 }
 
 printf "Deleting oauth_key %s\n", $key->{oauth_key};
 
 if ( $ad->delete_consumer( $key->{oauth_key})) {
-    printf "Success!!\n ";
+    printf "Success!!\n";
 } else {
-    print "Error: " + $ad->error_message;
+    printf "Error: %s\n", $ad->error_message;
 }
 
 print "Deleting user sychan2\n";
@@ -77,7 +86,7 @@ print "Deleting user sychan2\n";
 if ($ad->delete_user('sychan2')) {
     print "Success!\n";
 } else {
-    print "Error: " + $ad->error_message;
+    printf "Error: %s\n", $ad->error_message;
 }
 
 1;
