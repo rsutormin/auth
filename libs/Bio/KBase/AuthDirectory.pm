@@ -27,6 +27,11 @@ sub new() {
     }
 }
 
+sub error_message() {
+    my $self = shift;
+
+    return( $self->{error_message});
+}
 
 sub lookup_user() {
     my $self= shift;
@@ -139,32 +144,115 @@ sub create_user() {
 	return( undef);
     }
     # perform basic validation of required fields
-    my %valid = { 'user_id' => '\w{3,}',
-	       'name' => '(-\w\' \.){2,}',
-    };
+    my %valid = ( 'user_id', '^\w{3,}$',
+		  'name', '^[-\w\' \.]{2,}$',
+		  'email', '^\w+\@[\w-]+\.[-\w\.]+$',
+	);
     my @bad = grep { !($newuser->{$_} =~ m/$valid{$_}/) } keys(%valid);
     if ( scalar(@bad) ) {
-	$self->{error_message} = "These fields failed validation: "+join(",",@bad);
+	$self->{error_message} = "These fields failed validation: " . join(",",@bad);
 	return( undef);
     }
 
-    return( AuthUser::new() );
+    # convert the hash into a json string and POST it
+    my $unblessed = {%$newuser};
+    # get rid of oauth_creds hashref
+    delete $unblessed->{oauth_creds};
+
+    my $json = to_json( $unblessed );
+    my $res = $rest->POST("/profiles/", $json, {'Content-Type' => 'application/json'});
+    # If we get something other than a 2XX code, flag an error
+    if (($rest->responseCode() < 200) || ($rest->responseCode() > 299)) {
+	$self->{error_message} = $rest->responseCode() . " : " . $rest->responseContent();
+	return( undef);
+    }
+    # Otherwise fetch the entry and return it
+
+    return( $self->lookup_user( $newuser->user_id()) );
+}
+
+sub update_user() {
+    my $self= shift;
+    my $newuser = shift;
+
+    unless (ref($newuser) eq "Bio::KBase::AuthUser") {
+	$self->{error_message} = "User object required parameter";
+	return( undef);
+    }
+
+    # make sure the user exists
+    unless ( $self->lookup_user( $newuser->user_id())) {
+	$self->{error_message} = "User does not exist";
+	return( undef);
+    }
+	
+    # perform basic validation of required fields
+    my %valid = ( 'user_id', '^\w{3,}$',
+		  'name', '^[-\w\' \.]{2,}$',
+		  'email', '^\w+\@[\w-]+\.[-\w\.]+$',
+	);
+    my @bad = grep { exists($newuser->{$_}) && ! ($newuser->{$_} =~ m/$valid{$_}/) } keys(%valid);
+    if ( scalar(@bad) ) {
+	$self->{error_message} = "These fields failed validation: " . join(",",@bad);
+	return( undef);
+    }
+
+    # convert the hash into a json string and POST it
+    my $unblessed = {%$newuser};
+    # get rid of oauth_creds hashref
+    delete $unblessed->{oauth_creds};
+
+    my $json = to_json( $unblessed );
+    my $res = $rest->PUT("/profiles/".$newuser->user_id(), $json, {'Content-Type' => 'application/json'});
+    # If we get something other than a 2XX code, flag an error
+    if (($rest->responseCode() < 200) || ($rest->responseCode() > 299)) {
+	$self->{error_message} = $rest->responseCode() . " : " . $rest->responseContent();
+	return( undef);
+    }
+    # Otherwise fetch the entry and return it
+
+    return( $self->lookup_user( $newuser->user_id()) );
 }
 
 sub delete_user() {
     my $self= shift;
+    my $user_id = shift;
 
-    return(1);
+    my $res = $rest->DELETE("/profiles/".$user_id); 
+    # If we get something other than a 2XX code, flag an error
+    if (($rest->responseCode() < 200) || ($rest->responseCode() > 299)) {
+	$self->{error_message} = $rest->responseCode() . " : " . $rest->responseContent();
+	return( undef);
+    }
+
+    return( 1 );
 }
 
 sub enable_user() {
     my $self= shift;
+    my $user_id = shift;
 
+    my $json = to_json( { enabled => JSON::true });
+    my $res = $rest->PUT("/profiles/" . $user_id, $json, {'Content-Type' => 'application/json'});
+    # If we get something other than a 2XX code, flag an error
+    if (($rest->responseCode() < 200) || ($rest->responseCode() > 299)) {
+	$self->{error_message} = $rest->responseCode() . " : " . $rest->responseContent();
+	return( undef);
+    }
     return(1);
 }
 
 sub disable_user() {
     my $self= shift;
+    my $user_id = shift;
+
+    my $json = to_json( { enabled => JSON::false });
+    my $res = $rest->PUT("/profiles/" . $user_id, $json, {'Content-Type' => 'application/json'});
+    # If we get something other than a 2XX code, flag an error
+    if (($rest->responseCode() < 200) || ($rest->responseCode() > 299)) {
+	$self->{error_message} = $rest->responseCode() . " : " . $rest->responseContent();
+	return( undef);
+    }
 
     return(1);
 }
