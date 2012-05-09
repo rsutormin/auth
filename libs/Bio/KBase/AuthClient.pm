@@ -8,6 +8,8 @@ use MIME::Base64;
 use Bio::KBase::AuthDirectory;
 use JSON;
 use Carp qw( croak);
+use Net::OAuth;
+use Digest::MD5 qw(md5_base64);
 
 # Location of the file where we're storing the authentication
 # credentials
@@ -20,16 +22,28 @@ use Carp qw( croak);
 
 my $auth_rc = "~/.kbase/auth.rc";
 
+
+
 sub new() {
     my $class = shift @_;
-    my $self = { 'user' => Bio::KBase::AuthUser::new(),
-	      'logged_in' => 0,
-	      'error_msg' => ""};
+    my %params = @_;
+    my $self = { 'user' => Bio::KBase::AuthUser->new,
+		 'oauth_cred' => {},
+		 'logged_in' => 0,
+		 'error_msg' => ""};
     bless $self,$class;
 
-    # Try calling login to see if the creds work
-    if (-e $auth_rc && -r $auth_rc) {
-	eval {
+    # seed the random number generator
+    srand(  time ^ $$ );
+    # Try calling login to see if creds defined
+
+    eval {
+	if (exists($params{ consumer_key})) {
+	    $self->login( $params{consumer_key}, $params{consumer_secret});
+	    unless ($self->{logged_in}) {
+		croak( "Authentication failed:" . $self->error_msg);
+	    }
+	} elsif (-e $auth_rc && -r $auth_rc) {
 	    if (-e $auth_rc && -r $auth_rc) {
 		open RC, "<", $auth_rc;
 		my @rc = <RC>;
@@ -45,24 +59,25 @@ sub new() {
 		unless ($self->login( $creds->{'oauth_key'},$creds->{'oauth_secret'})) {
 		    # login failed, pass the error message along. Redundant for now, but
 		    # we don't want later code possibly stomping on this result
-		    croak $self->{error_msg};
+		    croak "auth_rc credentials failed login: " . $self->{error_msg};
 		}
 	    }
-	};
-	if ($@) {
-	    $self->{error_msg} = "Local credentials invalid: $@";
 	}
+    };
+    if ($@) {
+	$self->{error_msg} = $@;
     }
     return($self);
 }
 
 sub login() {
-    my $self = shift @_;
+    my $self = shift;
     my $oauth_key = shift;
     my $oauth_secret = shift;
     my $creds;
     my $creds2;
 
+    $self->{logged_in} = 0;
     eval {
 	if ( $oauth_key && $oauth_secret) {
 	    $creds->{'oauth_key'} = $oauth_key;
@@ -94,6 +109,9 @@ sub login() {
 	unless ( $creds2->{'oauth_secret'} eq $creds->{'oauth_secret'}) {
 	    croak "oauth_secret does not match";
 	}
+	$self->{user} =  $user;
+	$self->{oauth_cred} = $creds2;
+	$self->{logged_in} = 1;
     };
     if ($@) {
 	$self->{error_msg} = "Local credentials invalid: $@";
@@ -104,16 +122,38 @@ sub login() {
 }
 
 sub sign_request() {
-    my $self = shift @_;
+    my $self = shift;
     my $request = shift;
+
+    # Create the appropriate authorization header with the auth_token
+    # call and then push it into the request envelope
+    my $authz_hdr = $self->auth_token( $request);
+
+    $request->header( Authorization => $authz_hdr);
 
     return(1);
 }
 
 sub auth_token() {
-    my $self = shift @_;
+    my $self = shift;
+    my $request = shift;
+    my $auth_params = {};
 
-    return( encode_base64( "This is a token for " . $self->{'user'}->{'user_id'}));
+    unless ( defined( $self->{oauth_cred})) {
+	carp( "No oauth_cred defined in AuthClient object\n");
+	return( undef);
+    }
+    my $oauth = Net::OAuth->request('consumer')->new(
+	consumer_key => $self->{oauth_cred}->{oauth_key},
+	consumer_secret => $self->{oauth_cred}->{oauth_secret},
+	request_url => $request->uri,
+	request_method => $request->method,
+	timestamp => time,
+	signature_method => 'HMAC-SHA1',
+	nonce => md5_base64( map { rand() } (0..4)));
+    $oauth->sign;
+
+    return( $oauth->to_authorization_header());
 }
 
 sub new_consumer() {
