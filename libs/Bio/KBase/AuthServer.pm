@@ -58,7 +58,14 @@ sub normalized_request_url {
     my ($proto) = $req->protocol =~ /([a-zA-Z]+)/;
     $proto = lc( $proto);
     my $host = $req->headers->{host};
-    my $uri = $req;
+    my $path = $req->uri->path;
+    if (( $proto eq "https") && ($host =~ /:443$/)) {
+	$host =~ s/:443$//;
+    } elsif (( $proto eq "http") && ($host =~ /:80$/)) {
+	$host =~ s/:80$//;
+    }
+    return( sprintf( '%s://%s%s', $proto, $host, $path));
+    
 }
 
 sub validate_request() {
@@ -78,7 +85,7 @@ sub validate_request() {
     # Gather params necessary to validate the request
     my %AuthInf = {};
     $AuthInf{'request_method'} = $request->method;
-    $AuthInf{'request_url'} = $request->uri->as_string;
+    $AuthInf{'request_url'} = $self->normalized_request_url($request);
 
     # Pass this header into the validate_auth_header function
     return( $self->validate_auth_header( $AuthzHeader, %AuthInf));
