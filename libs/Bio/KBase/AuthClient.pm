@@ -10,6 +10,7 @@ use JSON;
 use Carp qw( croak);
 use Net::OAuth;
 use Digest::MD5 qw(md5_base64);
+use Data::Dumper;
 
 # Location of the file where we're storing the authentication
 # credentials
@@ -146,24 +147,36 @@ sub auth_token() {
     my $oauth = Net::OAuth->request('consumer')->new(
 	consumer_key => $self->{oauth_cred}->{oauth_key},
 	consumer_secret => $self->{oauth_cred}->{oauth_secret},
-	request_url => $request->uri,
+	request_url => $request->uri->as_string,
 	request_method => $request->method,
 	timestamp => time,
 	signature_method => 'HMAC-SHA1',
 	nonce => md5_base64( map { rand() } (0..4)));
     $oauth->sign;
 
+    print STDERR Dumper( $oauth);
     return( $oauth->to_authorization_header());
 }
 
 sub new_consumer() {
     my $self = shift @_;
+    my $ad = Bio::KBase::AuthDirectory->new();
 
-    return(1);
+    unless ( $self->{logged_in}) {
+	carp("No user currently logged in");
+	return(undef);
+    }
+    my $oauth = $ad->new_consumer( $self->{user}->{user_id});
+    return($oauth);
 }
 
 sub logout(){
     my $self = shift @_;
+    $self->{user} = Bio::KBase::AuthUser->new();
+    $self->{logged_in} = 0;
+    $self->{oauth_cred} = {};
+
+    
     return(1);
 }
 

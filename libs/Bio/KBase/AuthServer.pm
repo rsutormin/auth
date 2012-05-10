@@ -16,6 +16,7 @@ use HTTP::Request;
 use Net::OAuth::Response;
 use URI::Escape;
 use Carp;
+use Data::Dumper;
 
 # set OAuth 1.0a for now
 $Net::OAuth::PROTOCOL_VERSION = Net::OAuth::PROTOCOL_VERSION_1_0A;
@@ -50,6 +51,16 @@ sub new() {
 
 }
 
+sub normalized_request_url {
+    my $self = shift;
+    my $req = shift;
+    
+    my ($proto) = $req->protocol =~ /([a-zA-Z]+)/;
+    $proto = lc( $proto);
+    my $host = $req->headers->{host};
+    my $uri = $req;
+}
+
 sub validate_request() {
     my $self=shift @_;
     my $request = shift;
@@ -67,7 +78,7 @@ sub validate_request() {
     # Gather params necessary to validate the request
     my %AuthInf = {};
     $AuthInf{'request_method'} = $request->method;
-    $AuthInf{'request_url'} = $request->uri;
+    $AuthInf{'request_url'} = $request->uri->as_string;
 
     # Pass this header into the validate_auth_header function
     return( $self->validate_auth_header( $AuthzHeader, %AuthInf));
@@ -121,7 +132,9 @@ sub validate_auth_header() {
 	carp "Internal error, failed to lookup consumer secret";
 	return 0;
     }
+
     my $OAuthRequest = Net::OAuth->request('consumer')->from_authorization_header($AuthzHeader, %AuthInf);
+    print STDERR Dumper( $OAuthRequest);
 
     $self->{'valid'} = $OAuthRequest->verify();
     if ( $self->{'valid'}) {
