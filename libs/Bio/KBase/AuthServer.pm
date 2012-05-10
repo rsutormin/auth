@@ -141,7 +141,6 @@ sub validate_auth_header() {
     }
 
     my $OAuthRequest = Net::OAuth->request('consumer')->from_authorization_header($AuthzHeader, %AuthInf);
-    print STDERR Dumper( $OAuthRequest);
 
     $self->{'valid'} = $OAuthRequest->verify();
     if ( $self->{'valid'}) {

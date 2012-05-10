@@ -125,10 +125,13 @@ sub login() {
 sub sign_request() {
     my $self = shift;
     my $request = shift;
+    
+    # setup the request method and URL
 
     # Create the appropriate authorization header with the auth_token
     # call and then push it into the request envelope
-    my $authz_hdr = $self->auth_token( $request);
+    my $authz_hdr = $self->auth_token( request_url => $request->uri->as_string,
+				       request_method => $request->method);
 
     $request->header( Authorization => $authz_hdr);
 
@@ -137,8 +140,7 @@ sub sign_request() {
 
 sub auth_token() {
     my $self = shift;
-    my $request = shift;
-    my $auth_params = {};
+    my %auth_params = @_;
 
     unless ( defined( $self->{oauth_cred})) {
 	carp( "No oauth_cred defined in AuthClient object\n");
@@ -147,14 +149,13 @@ sub auth_token() {
     my $oauth = Net::OAuth->request('consumer')->new(
 	consumer_key => $self->{oauth_cred}->{oauth_key},
 	consumer_secret => $self->{oauth_cred}->{oauth_secret},
-	request_url => $request->uri->as_string,
-	request_method => $request->method,
+	request_url => $auth_params{request_url},
+	request_method => $auth_params{request_method},
 	timestamp => time,
 	signature_method => 'HMAC-SHA1',
 	nonce => md5_base64( map { rand() } (0..4)));
     $oauth->sign;
 
-    print STDERR Dumper( $oauth);
     return( $oauth->to_authorization_header());
 }
 
