@@ -107,6 +107,17 @@ sub testClient {
     # Use the oauth libraries to create an oauth token using "jsonrpc" as
     # the method, and a digest hash of rpc call parameters as the 'url'
     # this construction isn't recognized anywhere outside of KBase
+    # On the server side, to validate the request, you would extract
+    # all the components and compute the md5_base64 hash of the
+    # contents of $json_call, and then make a call like this
+    # $as = Bio::KBase::AuthServer
+    # $inf{request_method} = "jsonrpc";
+    # $inf{request_url} = $param_hash
+    # if ( $as->validate_auth_header( $token, %inf)) {
+    #         good stuff
+    # } else {
+    #         bad stuff
+    # }
     my $token = $ac->auth_token( request_method => 'jsonrpc',
 				 request_url => $param_hash );
     my $wrapped = { params => [$json_call, $token],
