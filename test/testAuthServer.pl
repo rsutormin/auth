@@ -5,7 +5,7 @@
 # 5/3/12
 #
 
-use lib "libs/";
+use lib "../lib/";
 use Data::Dumper;
 use Bio::KBase::AuthDirectory;
 use Bio::KBase::AuthServer;
