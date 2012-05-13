@@ -7,32 +7,38 @@
 
 use lib "../lib/";
 use Data::Dumper;
-use Bio::KBase::AuthDirectory;
-use Bio::KBase::AuthServer;
-use Bio::KBase::AuthClient;
 use HTTP::Daemon;
 use HTTP::Request;
 use LWP::UserAgent;
 use Net::OAuth;
 use JSON;
 use Digest::MD5 qw( md5_base64);
+use Test::More tests => 9;
+
+BEGIN {
+    use_ok( Bio::KBase::AuthDirectory);
+    use_ok( Bio::KBase::AuthServer);
+    use_ok( Bio::KBase::AuthClient);
+}
 
 sub testServer {
-    $d = shift;
+    my $d = shift;
     my $res = new HTTP::Response;
     my $msg = new HTTP::Message;
     my $as = new Bio::KBase::AuthServer;
 
     while (my $c = $d->accept()) {
 	while (my $r = $c->get_request) {
-	    printf "Server: Recieved a connection: %s %s\n\t%s\n", $r->method, $r->url->path, $r->content;
+	    note( sprintf "Server: Recieved a connection: %s %s\n\t%s\n", $r->method, $r->url->path, $r->content);
 	    
 	    my $body = sprintf("You sent a %s for %s.\n\n",$r->method(), $r->url->path);
 	    $as->validate_request( $r);
 	    if ($as->valid) {
+		$res->code(200);
 		$body .= sprintf( "Successfully logged in as user %s\n",
 				  $as->user->user_id);
 	    } else {
+		$res->code(401);
 		$body .= sprintf("You failed to login: %s.\n", $as->error_msg);
 	    }
 	    $res->content( $body);
@@ -51,27 +57,29 @@ sub testClient {
 
     # Create a KBase client and attach the authorization headers to the
     # request object. Use a canned key and secret that are in the test db
-    my $ac = Bio::KBase::AuthClient->new(consumer_key => 'key3', consumer_secret => 'secret3');
+    ok( $ac = Bio::KBase::AuthClient->new(consumer_key => 'key3', consumer_secret => 'secret3'), "Logging in either consumer key and secret");
     unless ($ac->{logged_in}) {
 	die "Client: Failed to login with credentials!";
     }
-    unless ($ac->sign_request( $req)) {
+    unless (ok($ac->sign_request( $req), "Signing HTTP request")) {
 	die "Client: Failed to sign request";
     }
-    printf "Client: Sending legit request: %s %s (expecting success)\n",$req->method,$req->url->as_string;
-    my $res = $ua->request( $req);
-    printf "Client: Recieved a response: %s\n", $res->content;
+    note( sprintf "Client: Sending legit request: %s %s (expecting success)\n",$req->method,$req->url->as_string);
+    $res = $ua->request( $req);
+    ok( ($res->code >= 200) && ($res->code < 300), "Querying server with oauth creds");
+    note( sprintf "Client: Recieved a response: %d %s\n", $res->code, $res->content);
 
     # As a sanity check, trash the oauth_secret and make sure that
     # we get a negative result
-    $secret = $ac->{oauth_cred}->{oauth_secret};
+    my $secret = $ac->{oauth_cred}->{oauth_secret};
     $ac->{oauth_cred}->{oauth_secret} = 'blahbldhblsdhj';
     unless ($ac->sign_request( $req)) {
 	die "Client: Failed to sign request";
     }
-    printf "Client: Sending bad request: %s %s (expecting failure)\n",$req->method,$req->url->as_string;
-    my $res = $ua->request( $req);
-    printf "Client: Recieved a response: %s\n", $res->content;
+    note( sprintf "Client: Sending bad request: %s %s (expecting failure)\n",$req->method,$req->url->as_string);
+    $res = $ua->request( $req);
+    ok( ($res->code < 200) || ($res->code >= 300), "Querying server with bad oauth creds, expected 401 error");
+    note( sprintf "Client: Recieved a response: %d %s\n", $res->code, $res->content);
 
     # restore the secret and send an example of a good request with an embedded JSON
     # string that includes an extra signature
@@ -130,24 +138,28 @@ sub testClient {
     unless ($ac->sign_request( $req)) {
 	die "Client: Failed to sign request";
     }
-    printf "Sending json-rpc request with embedded oauth token: %s %s\n\t%s\n",$req->method,$req->url->as_string,$req->content;
+    note( sprintf "Sending json-rpc request with embedded oauth token: %s %s\n\t%s\n",$req->method,$req->url->as_string,$req->content);
     my $res = $ua->request( $req);
-    printf "Client: Recieved a response: %s\n", $res->content;
+    ok( ($res->code >= 200) && ($res->code < 300), "POST request with oauth cred in HTTP envelope and sample JSON-RPC message body");
+    note( sprintf "Client: Recieved a response: %d %s\n", $res->code, $res->content);
     
 }
 
 
-my $d = HTTP::Daemon->new( LocalAddr => '127.0.0.1') || die "Could not create HTTP::Daemon";
+ok( $d = HTTP::Daemon->new( LocalAddr => '127.0.0.1'), "Creating a HTTP::Daemon object for handling AuthServer") || die "Could not create HTTP::Daemon";
 
-print "Server listening at ".$d->url."\n";
+note("Server listening at ".$d->url);
 
 my $child = fork();
 if ($child) {
-    print "Running server in pid $child\n";
-    testServer( $d);
-} else {
-    print "Running client in parent process\n";
+    note( "Running client in parent process $$");
     testClient( $d->url);
+} else {
+    note( "Running server in pid $$");
+    testServer( $d);
 }
 
 kill 9, $child;
+
+done_testing();
+

@@ -7,86 +7,76 @@
 
 use lib "../lib/";
 use Data::Dumper;
-use Bio::KBase::AuthDirectory;
+use Test::More tests => 15;
 
-my $ad = new Bio::KBase::AuthDirectory;
+BEGIN {  use_ok( Bio::KBase::AuthDirectory); }
 
-my $user = $ad->lookup_user('sychan');
-print "Results from AuthDirectory::lookup_user('sychan'):\n";
-print Dumper( $user);
+ok( $ad = new Bio::KBase::AuthDirectory, "Instantiate Bio::KBase::AuthDirectory object");
 
-print "Results from AuthDirectory::lookup_consumer('key1'):\n";
-print Dumper( $ad->lookup_consumer('key1'));
+ok( $user = $ad->lookup_user('sychan'), "Looking up user sychan in test database");
 
-print "Results from AuthDirectory::lookup_oauth2_token('token1'):\n";
-print Dumper( $ad->lookup_oauth2_token('token1'));
+note( Dumper( $user));
 
-print "Results from AuthDirectory::lookup_oauth2_token('token61'):\n";
-print Dumper( $ad->lookup_oauth2_token('token6'));
+ok( $x = $ad->lookup_consumer('key1'), "Looking up consumer key 'key1'");
 
-print "Creating a new user sychan2\n";
+note( Dumper( $x ));
+
+ok( $x = $ad->lookup_oauth2_token('token1'), "Looking up token 'token1'" );
+note( Dumper( $x));
+
+ok( $x = $ad->lookup_oauth2_token('token6'), "Looking up token 'token6'");
+note( Dumper( $x));
+
 $user = new Bio::KBase::AuthUser;
 $user->user_id('sychan2');
 $user->name('s chan again');
 $user->email('sychan2@lbl.gov');
 
-$newuser = $ad->create_user( $user);
+ok( $newuser = $ad->create_user( $user), "Creating a new user sychan2");
+
 if ($newuser) {
-    print Dumper( $newuser);
+    note(Dumper( $newuser));
 } else {
-    printf "Error: %s\n", $ad->error_message;
+    note( sprintf "Error: %s", $ad->error_message);
 }
 
-print "Updating user's email field to sychan2@whitehouse.gov\n";
 $newuser->email('sychan2@whitehouse.gov');
-if ($ad->update_user( $newuser)) {
-    print "Success!\n";
-    Dumper( $newuser);
+if (ok($ad->update_user( $newuser), "Updating email field in database")) {
+    note(Dumper( $newuser));
 } else {
-    printf "Error: %s\n", $ad->error_message;
+    note(sprintf "Error: %s\n", $ad->error_message);
 }    
-print "Enabling new user\n";
-if ( $ad->enable_user('sychan2')) {
-    print "Success!\n";
+if ( ok($ad->enable_user('sychan2'), "Enabling the new user")) {
     $user= $ad->lookup_user('sychan2');
-    printf "Enabled field = %s\n", $user->enabled();
+    ok($user->enabled() == 1, "Verifying user enabled in database");
 } else {
-    printf "Error: %s\n", $ad->error_message;
+    note( sprintf "Error: %s\n", $ad->error_message);
 }
 
-print "Disabling new user\n";
-if ( $newuser = $ad->disable_user('sychan2')) {
-    print "Success!\n";
+if ( ok( $ad->disable_user('sychan2'), "Disabling new user")) {
     $user= $ad->lookup_user('sychan2');
-    printf "Enabled field = %s\n", $user->enabled();
+    ok( $user->enabled() == 0, "user lookup returns disabled user");
 } else {
-    printf "Error: %s\n", $ad->error_message;
+    note(sprintf "Error: %s\n", $ad->error_message);
 }
-print "Added a new consumer key\n";
 
-$key = $ad->new_consumer( "sychan2");
+ok( $key = $ad->new_consumer( "sychan2"), "Adding new consumer key");
 
 if ($key) {
-    printf "Success!!\noauth_key:%s\noauth_secret:%s\n", $key->{oauth_key},
-    $key->{oauth_secret};
+    note( sprintf "oauth_key:%s\noauth_secret:%s\n", $key->{oauth_key}, $key->{oauth_secret});
 } else {
-    printf "Error: %s\n", $ad->error_message;
+    note( sprintf "Error: %s\n", $ad->error_message);
 }
 
-printf "Deleting oauth_key %s\n", $key->{oauth_key};
-
-if ( $ad->delete_consumer( $key->{oauth_key})) {
-    printf "Success!!\n";
+if (ok( $ad->delete_consumer( $key->{oauth_key}), "Deleting consumer key ".$key->{oauth_key})) {
 } else {
-    printf "Error: %s\n", $ad->error_message;
+    note( sprintf "Error: %s\n", $ad->error_message);
 }
 
-print "Deleting user sychan2\n";
-
-if ($ad->delete_user('sychan2')) {
-    print "Success!\n";
+if (ok($ad->delete_user('sychan2'), "Deleting user sychan2")) {
 } else {
-    printf "Error: %s\n", $ad->error_message;
+    note( sprintf "Error: %s\n", $ad->error_message);
 }
 
-1;
+done_testing();
+
