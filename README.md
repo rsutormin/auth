@@ -46,5 +46,19 @@
 3. Start the service (as root)
    /kb/deployment/services/cluster_service/start_service
 
-5. Run tests
+4. Run tests
+   Load the testdata for the python instance
+      cd (deployment directory)/directory_server
+      ./manage.py loaddata utils/test_data.json
+   Enter the perl module directory, configure the location of the
+   directory server and install the libraries and run the tests
+      cd (git working directory for auth module)
+      cd Bio-KBase-Auth
+      # edit lib/Bio/KBase/Auth.pm and edit the value of
+      # $Bio::KBase::Auth::AuthSvcHost to be the URL for the
+      # nginx server
+      perl Build.PL
+      ./Build install
+      ./Build test
 
+      
