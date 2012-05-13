@@ -4,4 +4,18 @@ use Module::Build;
 Module::Build->new(
     module_name => 'Bio::KBase::Auth',
     license     => 'perl',
+    requires => { 'Object::Tiny::RW' => 1.07,
+		  'JSON' => 2.53,
+		  'REST::Client' => 245,
+		  'Digest::SHA' => 2.13,
+		  'Digest::MD5' => 2.39,
+		  'MIME::Base64' => 3.13,
+		  'HTTP::Request' => 6.00,
+		  'HTTP::Daemon' => 6.01,
+		  'LWP::UserAgent' => 6.02,
+		  'Net::OAuth' => 0.28,
+		  'URI::Escape' => 1.60,
+		  'Carp' => 1.25,
+		  'Data::Dumper' => 2.1 },
+    dist_abstract => 'Classes to support OAuth based authentication for the Bio::KBase::* libraries',
     )->create_build_script;
