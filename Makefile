@@ -1,6 +1,6 @@
 SERVICE = auth_server
 SERVICE_DIR = $(TARGET)/services/$(SERVICE)
-NGINX_CONF = /tmp/nginx/conf.d/
+NGINX_CONF = /etc/nginx/conf.d/
 TARGET ?= /kb/deployment
 
 all:
