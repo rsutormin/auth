@@ -154,3 +154,93 @@ sub validate_auth_header() {
 }
 
 1;
+
+__END__
+
+=pod
+
+=head1 Bio::KBase::AuthServer
+
+Server side API for protecting a KBase resource.
+
+=head2 Examples
+
+    my $d = new HTTP::Daemon;
+    my $res = new HTTP::Response;
+    my $msg = new HTTP::Message;
+    my $as = new Bio::KBase::AuthServer;
+
+    while (my $c = $d->accept()) {
+        while (my $r = $c->get_request) {
+            printf "Server: Recieved a connection: %s %s\n\t%s\n", $r->method, $r->url->path, $r->content;
+            
+            my $body = sprintf("You sent a %s for %s.\n\n",$r->method(), $r->url->path);
+            $as->validate_request( $r);
+            if ($as->valid) {
+                $body .= sprintf( "Successfully logged in as user %s\n",
+                                  $as->user->user_id);
+            } else {
+                $body .= sprintf("You failed to login: %s.\n", $as->error_msg);
+            }
+            $res->content( $body);
+            $c->send_response($res);
+        }
+        $c->close;
+        undef($c);
+    }
+
+
+=head2 Instance Variables
+
+=over
+
+=item B<user> (Bio::KBase::AuthUser)
+
+Contains current user provided by client
+
+=item B<valid> (boolean)
+
+Did the user’s credentials validate?
+
+=item B<auth_protocol> (string)
+
+Protocol used for authentication (oauth1,oauth2,user/password, etc...)
+
+=item B<error_msg> (string)
+
+Any errors generated during validation
+
+=back
+
+=head2 Methods
+
+=over
+
+=item B<new([request_object])>
+
+returns Bio::KBase::AuthServer 
+
+   Object constructor. Optionally takes an HTTP request object that will be handed to validate_request() for authentication information. If the request object has legitimate auth information the User and user_id attributes  will be populated, if not then the userid attribute will be null/undef.
+
+=item B<validate_request( request_object)>
+
+returns boolean
+
+    Performs the real work of validating a request.
+Examines the HTTP request headers for credentials
+and then validate the credentials using OAuth crypto protocols.
+Query the user database/registry for user profile information.
+Populate the user attribute with user profile information
+   Returns true if the request is properly authenticated and fills in the authenticated user
+
+=item B<validate_auth_token( string URL, string auth_header)>
+
+returns boolean
+
+    Performs validation of the authentication token (string containing OAuth attributes)
+Validate the credentials, making sure that the URL embedded in the authentication tokeno matches the URL passed into the function
+Query the user database/registry for user profile information.
+Populate the user attributes with user profile information
+   Returns true if the header string properly authenticates and fills in the authenticated user
+
+=back

@@ -182,3 +182,178 @@ sub logout(){
 }
 
 1;
+
+__END__
+
+=pod
+
+=head1 Bio::KBase::AuthClient
+
+   Client libraries that handle KBase authentication.
+
+=head2 Examples:
+
+=over
+
+=item Conventional OAuth usage with Authorization header in http header:
+
+    my $ua = LWP::UserAgent->new();
+    my $req = HTTP::Request->new( GET => $server. "someurl" );
+
+    # Create a KBase client and attach the authorization headers to the
+    # request object. Use a "key" and "secret" as the secret
+    my $ac = Bio::KBase::AuthClient->new(consumer_key => 'key', consumer_secret => 'secret');
+    unless ($ac->{logged_in}) {
+        die "Client: Failed to login with credentials!";
+    }
+    unless ($ac->sign_request( $req)) {
+        die "Client: Failed to sign request";
+    }
+    my $res = $ua->request( $req);
+    print $res->content
+
+=item Embedding a non-standard OAuth token within JSON-RPC message body:
+
+    # The arguments to the method call
+    #
+    my @args = ("arg1", "arg2");
+
+    my $wrapped_params = {
+        args => \@args,
+    };
+
+    #
+    # The JSONRPC protocol data.
+    #
+    my $jsonrpc_params = {
+        method => "module.server_call",
+        params => [$wrapped_params],
+    };
+
+    # Use the oauth libraries to create an oauth token using "jsonrpc" as
+    # the method, and a digest hash of rpc call parameters as the 'url'
+    # this construction isn't recognized anywhere outside of KBase
+    # On the server side, to validate the request, you would extract
+    # all the components and compute the md5_base64 hash of the
+    # contents of $json_call, and then make a call like this
+    # $as = Bio::KBase::AuthServer
+    # $inf{request_method} = "jsonrpc";
+    # $inf{request_url} = $param_hash
+    # if ( $as->validate_auth_header( $token, %inf)) {
+    #         good stuff
+    # } else {
+    #         bad stuff
+    # }
+    my $json_call = to_json( $jsonrpc_params);
+    my $param_hash = md5_base64( $json_call);
+
+    my $token = $ac->auth_token( request_method => 'jsonrpc',
+                                 request_url => $param_hash );
+    my $wrapped = { params => [$json_call, $token],
+                    version => 1.1,
+                    method => "module.method_name" };
+
+    $req->content( to_json( $wrapped));
+
+    # Sign the http request for oauth
+    unless ($ac->sign_request( $req)) {
+        die "Client: Failed to sign request";
+    }
+     my $res = $ua->request( $req);
+    printf "Client: Recieved a response: %s\n", $res->content;
+
+=back
+
+=head2 Environment
+
+   User home directories can contain ~/.kbase-auth, which is a JSON formatted file with declarations for authentication information (similar to a ~/.netrc file)
+   It should be in the following format:
+
+{ "oauth_key":"consumer_key_blahblah",
+  "oauth_token":"token_blah_blah",
+  "oauth_secret":"consumer_secret_blahblah"
+ }                             
+
+=head2 Instance Variables
+
+=over
+
+=item B<user> (Bio::KBase::AuthUser)
+
+Contains information about the user using the client. Also the full set of oauth credentials available for this user
+
+=item B<oauth_cred> (hash)
+
+Contains the specific oauth credential used for authentication. It is a hash of the same structure as the oauth_creds entries in the Bio::KBase::AuthUser
+
+=item B<logged_in> (boolean)
+
+Did login() successfully return? If this is true then the entry in the user attribute is good.
+
+=item B<error_msg> (string)
+
+Most recent error msg from call to instance method.
+
+=back
+
+=head2 Methods
+
+=over
+
+=item B<new>([consumer_key=>key, consumer_secret=>secret])
+
+returns Bio::KBase::AuthClient
+
+   Class constructor. Create and return a new client authentication object. Optionally takes arguments that are used for a call to the login() method. By default will check ~/.kbase-auth file for declarations for the consumer_key and consumer_secret, and if found, will pull those in and perform a login(). Environment variables are also an option and should be discussed.
+
+=item B<login>( [consumer_key=>key, consumer_secret=>secret] |
+[user_id=>”someuserid”,[password=>’somepassword’] | 
+[conversation_callback => ptr_conversation_function] |
+[return_url = async_return_url])>
+
+returns boolean for login success/fail.
+
+If no parameters are given then consumer (key,secret) will be populated automatically from ~/.kbase-auth. Environment variables are also an option.
+
+When this is called, the client will attempt to connect to the back end server to validate the credentials provided.
+The most common use case will be to pull the consumer_key and consumer_secret from the environment. You can also specify the user_id and password for authentication - this is only recommended for bootstrapping the use of consumer (key,secret). 
+
+If the authentication is a little more complicated there are 2 options 
+  - define a function that handles the login interaction (same idea as the PAM conversation function).
+  - if we’re in a web app that needs oauth authentication, then the client browser will need to be redirected back and forth. A return url where control will pass once authentication has completed needs to be provided ( see this diagram for an example). If the return_url is provided, this function will not return.
+
+
+=item B<sign_request>( HTTPRequest request_object,[Bio::KBase::AuthUser user])
+
+returns boolean
+
+Called to sign a http request object before submitting it. Will push authentication/authorization messages into the HTTP request headers for authentication on the server side. With OAuth 1.0(a) this will be one set of headers, and with OAuth 2.0 it should be a smaller, simpler set of headers
+   This method must be called on a request object to “sign” the request header so that the server side can authenticate the request.
+   Note that different authentication methods have different requirements for a request:
+   1) username/password requires SSL/TLS for obvious reasons
+   2) oauth1 uses shared secrets and cryptographic hashes, so the request can be passed in the clear
+   3) oauth2 using MAC tokens use a shared secret, so the request can be in cleartext
+   4) oauth2 using Bearer tokens uses a text string as a combination username/password, so it must be over SSL/TLS
+   If the transport protocol violates the requirements of the authentication method, sign_request() will return false and not encode any information in the request header.
+   We can simplify things if we simply settle on options 2 and 3, and rule out options 1 and 4. It is also possible to finesse #1 into a cleartext protocol as well. But #4 (oauth2 bearer tokens) *must* be SSL/TLS. My recommendation is to disallow #4 so that we do not have to require SSL/TLS.
+
+=item B<auth_token>( string URL,[Bio::KBase::AuthUser user]) **not yet implemented** (user consumer key/secret for now)
+
+returns string
+
+Returns a base64 encoded authentication token (tentatively based on the XOauth SASL token) that can be used for a single session within a non-HTTP protocol. The URL passed in is used to identify the resource being accessed, and is used in the computation of the hash signature. The url passed to Bio::KBase::AuthServer::validate_auth_token() on the other end of the exchange must be identical. Authentication tokens are also timestamped and intended for a single use. The token is generated from the consumer key and secret, and should not be stored across sessions for re-use (at the very least, it should timeout even if token replay safeguards fail).
+
+=item B<new_consumer()> returns hash { consumer_key => key, consumer_secret => secret}
+
+This function requests a consumer (key,secret) pair from the user directory that can be used for subsequent authentication. The (key,secret) should be stored in the environment. Note that the key/secret are associated with the account when you generate it - please do not overuse and cause a proliferation of key/secret pairs.
+
+=item B<logout>([return_url = async_return_url])
+
+returns boolean
+
+Wipe out the auth info, and perform related logout functions. If we are being called in a web app, provide an asynchronous call back URL that the client browser will be redirected to after logout is called - execution will not return if return_url is defined.
+
+
+=back
+
+=cut
