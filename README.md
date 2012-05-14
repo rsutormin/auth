@@ -4,7 +4,7 @@
     * mysql
 
 * Required Python libs (install using `easy_install`)
-    * django
+    * django 1.4
     * django-piston
     * httplib2
     * south
