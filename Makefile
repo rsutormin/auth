@@ -17,5 +17,5 @@ deploy-services:
 	cd $(SERVICE_DIR)/directory_server;echo no|python ./manage.py syncdb
 
 install-libs:
-	cd Bio-KBase-Auth; perl ./Build.PL;./Build install
+	cd Bio-KBase-Auth; /kb/runtime/bin/perl ./Build.PL; /kb/runtime/bin/perl ./Build install
 
