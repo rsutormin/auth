@@ -25,6 +25,7 @@
     * Carp
     * Data::Dumper
     * Test::More
+    * Crypt::SSLeay
 
 * Ports that need to be open
     * django server (default port 8000)
