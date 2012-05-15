@@ -1,6 +1,7 @@
 package Bio::KBase::AuthClient;
 
 use strict;
+use warnings;
 use Object::Tiny::RW qw { user logged_in error_msg };
 use Bio::KBase::Auth;
 use Bio::KBase::AuthUser;
@@ -25,14 +26,17 @@ my $auth_rc = "~/.kbase/auth.rc";
 
 
 
-sub new() {
+sub new {
     my $class = shift @_;
     my %params = @_;
-    my $self = { 'user' => Bio::KBase::AuthUser->new,
-		 'oauth_cred' => {},
-		 'logged_in' => 0,
-		 'error_msg' => ""};
-    bless $self,$class;
+
+    my $self = $class->SUPER::new(
+        'user'       => Bio::KBase::AuthUser->new,
+        'oauth_cred' => {},
+        'logged_in'  => 0,
+        'error_msg'  => "",
+        @_
+    );
 
     # seed the random number generator
     srand(  time ^ $$ );
@@ -68,10 +72,10 @@ sub new() {
     if ($@) {
 	$self->{error_msg} = $@;
     }
-    return($self);
+    return $self;
 }
 
-sub login() {
+sub login {
     my $self = shift;
     my $oauth_key = shift;
     my $oauth_secret = shift;
@@ -115,17 +119,17 @@ sub login() {
 	$self->{logged_in} = 1;
     };
     if ($@) {
-	$self->{error_msg} = "Local credentials invalid: $@";
-	return(0);
+	    $self->{error_msg} = "Local credentials invalid: $@";
+    	return 0;
     } else {
-	return(1);
+    	return 1;
     }
 }
 
-sub sign_request() {
+sub sign_request {
     my $self = shift;
     my $request = shift;
-    
+
     # setup the request method and URL
 
     # Create the appropriate authorization header with the auth_token
@@ -135,16 +139,16 @@ sub sign_request() {
 
     $request->header( Authorization => $authz_hdr);
 
-    return(1);
+    return 1;
 }
 
-sub auth_token() {
+sub auth_token {
     my $self = shift;
     my %auth_params = @_;
 
     unless ( defined( $self->{oauth_cred})) {
-	carp( "No oauth_cred defined in AuthClient object\n");
-	return( undef);
+    	carp( "No oauth_cred defined in AuthClient object\n");
+	    return;
     }
     my $oauth = Net::OAuth->request('consumer')->new(
 	consumer_key => $self->{oauth_cred}->{oauth_key},
@@ -156,29 +160,29 @@ sub auth_token() {
 	nonce => md5_base64( map { rand() } (0..4)));
     $oauth->sign;
 
-    return( $oauth->to_authorization_header());
+    return $oauth->to_authorization_header();
 }
 
-sub new_consumer() {
+sub new_consumer {
     my $self = shift @_;
     my $ad = Bio::KBase::AuthDirectory->new();
 
     unless ( $self->{logged_in}) {
-	carp("No user currently logged in");
-	return(undef);
+	    carp("No user currently logged in");
+    	return;
     }
     my $oauth = $ad->new_consumer( $self->{user}->{user_id});
-    return($oauth);
+    return $oauth;
 }
 
-sub logout(){
+sub logout {
     my $self = shift @_;
     $self->{user} = Bio::KBase::AuthUser->new();
     $self->{logged_in} = 0;
     $self->{oauth_cred} = {};
 
-    
-    return(1);
+
+    return 1;
 }
 
 1;
@@ -272,7 +276,7 @@ __END__
 { "oauth_key":"consumer_key_blahblah",
   "oauth_token":"token_blah_blah",
   "oauth_secret":"consumer_secret_blahblah"
- }                             
+ }
 
 =head2 Instance Variables
 
@@ -307,7 +311,7 @@ returns Bio::KBase::AuthClient
    Class constructor. Create and return a new client authentication object. Optionally takes arguments that are used for a call to the login() method. By default will check ~/.kbase-auth file for declarations for the consumer_key and consumer_secret, and if found, will pull those in and perform a login(). Environment variables are also an option and should be discussed.
 
 =item B<login>( [consumer_key=>key, consumer_secret=>secret] |
-[user_id=>”someuserid”,[password=>’somepassword’] | 
+[user_id=>”someuserid”,[password=>’somepassword’] |
 [conversation_callback => ptr_conversation_function] |
 [return_url = async_return_url])>
 
@@ -316,9 +320,9 @@ returns boolean for login success/fail.
 If no parameters are given then consumer (key,secret) will be populated automatically from ~/.kbase-auth. Environment variables are also an option.
 
 When this is called, the client will attempt to connect to the back end server to validate the credentials provided.
-The most common use case will be to pull the consumer_key and consumer_secret from the environment. You can also specify the user_id and password for authentication - this is only recommended for bootstrapping the use of consumer (key,secret). 
+The most common use case will be to pull the consumer_key and consumer_secret from the environment. You can also specify the user_id and password for authentication - this is only recommended for bootstrapping the use of consumer (key,secret).
 
-If the authentication is a little more complicated there are 2 options 
+If the authentication is a little more complicated there are 2 options
   - define a function that handles the login interaction (same idea as the PAM conversation function).
   - if we’re in a web app that needs oauth authentication, then the client browser will need to be redirected back and forth. A return url where control will pass once authentication has completed needs to be provided ( see this diagram for an example). If the return_url is provided, this function will not return.
 
