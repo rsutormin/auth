@@ -1,4 +1,4 @@
-#!/bin/env perl
+#!/usr/bin/env perl
 #
 # Test some basic auth calls
 # sychan@lbl.gov
@@ -13,7 +13,10 @@ use LWP::UserAgent;
 use Net::OAuth;
 use JSON;
 use Digest::MD5 qw( md5_base64);
-use Test::More tests => 9;
+use Test::More 'no_plan';
+use Storable qw(dclone);
+use Test::Deep::NoTest qw(eq_deeply);
+
 
 BEGIN {
     use_ok( Bio::KBase::AuthDirectory);
@@ -114,7 +117,7 @@ sub testClient {
 
     # Use the oauth libraries to create an oauth token using "jsonrpc" as
     # the method, and a digest hash of rpc call parameters as the 'url'
-    # this construction isn't recognized anywhere outside of KBase
+    # this construction isn't recognized anywhere outside of KBaperse
     # On the server side, to validate the request, you would extract
     # all the components and compute the md5_base64 hash of the
     # contents of $json_call, and then make a call like this
@@ -142,8 +145,102 @@ sub testClient {
     my $res = $ua->request( $req);
     ok( ($res->code >= 200) && ($res->code < 300), "POST request with oauth cred in HTTP envelope and sample JSON-RPC message body");
     note( sprintf "Client: Recieved a response: %d %s\n", $res->code, $res->content);
+
+#_______ login/logout tests from a black box perspective 5/15/12________
     
+    
+    #hangs
+    #$authdir = Bio::KBase::AuthDirectory->new();
+    
+    #$user1 = createUser($authdir);
+    
+    #logout of original sesssion
+    ok($ac->logout(), "Logout consumer_key = key3");
+    
+    #log back in w/ key
+    ok($ac->login(consumer_key => 'key3', consumer_secret => 'secret3'), "Log back in w/ consumer_key = key3 and secret = secret3");
+    
+    cond_logout($ac); #conditional logout
+    
+    #login w/ fresh client connection
+    ok($ac = Bio::KBase::AuthClient->new(consumer_key => 'key4', consumer_secret => 'secret4'), "Make new client connection w/ c_k = key4 and secret = secret4");
+    
+    #double logout - second should fail
+    $ac->logout();
+    ok(!$ac->logout(), "Double logout should return false");
+    # should also add a check for the correct error message, but that's undocumented
+    
+    #check login as same user has same profile
+    $ac = Bio::KBase::AuthClient->new(consumer_key => 'key4', consumer_secret => 'secret4');
+    $user4 = dclone($ac->user);
+    $ac->logout();
+    $ac->login(consumer_key => 'key4', consumer_secret => 'secret4');
+    is_deeply($user4, $ac->user, "Test that multiple logins as the same user provides the same profile");
+    
+    cond_logout($ac);
+    
+    #check login as different user has different profile
+    $ac = Bio::KBase::AuthClient->new(consumer_key => 'key5', consumer_secret => 'secret5');
+    $user5 = dclone($ac->user);
+    $ac->logout();
+    $ac->login(consumer_key => 'key4', consumer_secret => 'secret4');
+    #no is_not_deeply, unfortunately
+    ok(!eq_deeply($user5, $ac->user), "Test that multiple logins as the different users provide different profiles");
+    
+    cond_logout($ac);
+    
+    $ac = Bio::KBase::AuthClient->new(consumer_key => 'key5', consumer_secret => 'secret5');
+    
+    
+    
+    
+    #More stuff to test
+    #/.kbase-auth - shinjae already wrote these
+    #test async_return_url behavior for login and logout
+    #test conversation_callback 
+    
+    
+    #Other notes:
+    # What happens if the current test @ 140.221.92.45 isn't available or the data has been changed? All tests will fail in the former and the the original tests will fail in the latter.
+    
+
+       
 }
+
+# if logged in, logout
+sub cond_logout(){
+    $ac = shift;
+     
+    if ($ac->{logged_in}){
+         $ac->logout();
+    }
+}
+
+sub createUser() {
+     my $authdirectory = shift;
+     my $random_user_id = 'hackz0rz_oh_no_' . time . int(rand(100000000000));
+
+     my $user = Bio::KBase::AuthUser->new(
+          'email' => "something\@somewhere.com",
+          'user_id' => $random_user_id,
+          'name' => 'My pants are exquisite in their own way thank you',
+     );
+     #print Dumper($user); use Data::Dumper;
+     my $user = $authdirectory->create_user($user);
+     
+     #print $authdirectory->error_message, "\n";
+     return $user;
+}
+
+sub redrum(){
+     $ad = shift;
+     $user = shift;
+     $ad->delete_user($user->user_id);
+}
+     
+
+
+#________ end login/logout tests _________
 
 
 ok( $d = HTTP::Daemon->new( LocalAddr => '127.0.0.1'), "Creating a HTTP::Daemon object for handling AuthServer") || die "Could not create HTTP::Daemon";
