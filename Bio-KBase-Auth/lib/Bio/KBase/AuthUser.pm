@@ -9,7 +9,7 @@ use Object::Tiny::RW qw {
     consumer_key
     consumer_secret
     token
-    error_msg
+    error_message
     enabled
     last_login_time
     last_login_ip
@@ -86,7 +86,7 @@ REQUIRED current (oauth1) shared secret used for signing requests
 
 base64 encoded authentication token (OAuth 2)
 
-=item B<error_msg> (string)
+=item B<error_message> (string)
 
 contains error messages, if any, from most recent method call
 

@@ -2,7 +2,7 @@ package Bio::KBase::AuthClient;
 
 use strict;
 use warnings;
-use Object::Tiny::RW qw { user logged_in error_msg };
+use Object::Tiny::RW qw { user logged_in error_message };
 use Bio::KBase::Auth;
 use Bio::KBase::AuthUser;
 use MIME::Base64;
@@ -34,7 +34,7 @@ sub new {
         'user'       => Bio::KBase::AuthUser->new,
         'oauth_cred' => {},
         'logged_in'  => 0,
-        'error_msg'  => "",
+        'error_message'  => "",
         @_
     );
 
@@ -46,7 +46,7 @@ sub new {
 	if (exists($params{ consumer_key})) {
 	    $self->login( $params{consumer_key}, $params{consumer_secret});
 	    unless ($self->{logged_in}) {
-		croak( "Authentication failed:" . $self->error_msg);
+		croak( "Authentication failed:" . $self->error_message);
 	    }
 	} elsif (-e $auth_rc && -r $auth_rc) {
 	    if (-e $auth_rc && -r $auth_rc) {
@@ -64,13 +64,13 @@ sub new {
 		unless ($self->login( $creds->{'oauth_key'},$creds->{'oauth_secret'})) {
 		    # login failed, pass the error message along. Redundant for now, but
 		    # we don't want later code possibly stomping on this result
-		    croak "auth_rc credentials failed login: " . $self->{error_msg};
+		    croak "auth_rc credentials failed login: " . $self->error_message;
 		}
 	    }
 	}
     };
     if ($@) {
-	$self->{error_msg} = $@;
+	$self->error_message($@);
     }
     return $self;
 }
@@ -119,7 +119,7 @@ sub login {
 	$self->{logged_in} = 1;
     };
     if ($@) {
-	    $self->{error_msg} = "Local credentials invalid: $@";
+	    $self->error_message("Local credentials invalid: $@");
     	return 0;
     } else {
     	return 1;
@@ -294,7 +294,7 @@ Contains the specific oauth credential used for authentication. It is a hash of 
 
 Did login() successfully return? If this is true then the entry in the user attribute is good.
 
-=item B<error_msg> (string)
+=item B<error_message> (string)
 
 Most recent error msg from call to instance method.
 
