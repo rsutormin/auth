@@ -1,6 +1,7 @@
 package Bio::KBase::AuthUser;
 
 use strict;
+use warnings;
 # We use Object::Tiny::RW to generate getters/setters for the attributes
 # and save ourselves some tedium
 use Object::Tiny::RW qw {
@@ -39,12 +40,11 @@ sub new() {
 
     # Don't bother with calling the Object::Tiny::RW constructor,
     # since it doesn't do anything except return a blessed empty hash
-    my $self  = {};
-    bless $self, $class;
-  
-    # Initialize a few basic things
-    $self->{'oauth_creds'} = {};
-    $self->{'user_id'} = 'jqpublic';
+    my $self = $class->SUPER::new(
+        'oauth_creds' => {},
+        @_
+    );
+
     return($self);
 }
 
@@ -70,7 +70,7 @@ This is a container for user attributes - creating, destroying them in the user 
 =over
 
 
-=item B<user_id> (string) 
+=item B<user_id> (string)
 
 REQUIRED Identifier for the End-User at the Issuer.
 
