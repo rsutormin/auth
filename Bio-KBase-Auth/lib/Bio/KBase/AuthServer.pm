@@ -1,6 +1,7 @@
 package Bio::KBase::AuthServer;
 
 use strict;
+use warnings;
 # We use Object::Tiny::RW to generate getters/setters for the attributes
 # and save ourselves some tedium
 use Object::Tiny::RW qw {
@@ -29,13 +30,15 @@ sub decode {
     return uri_unescape($str);
 }
 
-sub new() {
+sub new {
     my $class = shift;
-    my $self = { 'user' => {},
-		 'valid' => 1,
-		 'auth_protocol' => 'oauth',
-		 'error_msg' => '',
-    };
+
+    my $self = $class->SUPER::new(
+        'user' => {},
+        'auth_protocol' => 'autho',
+        'error_msg' => '',
+        @_);
+
     eval {
 	unless ( defined($rest)) {
 	    $rest = new REST::Client( host => $Bio::KBase::Auth::AuthSvcHost);
@@ -43,10 +46,9 @@ sub new() {
     };
     if ($@) {
 	# handle exception
-	return( undef);
+	    return;
     } else {
-	bless $self, $class;
-	return($self);
+    	return $self;
     }
 
 }
@@ -54,7 +56,7 @@ sub new() {
 sub normalized_request_url {
     my $self = shift;
     my $req = shift;
-    
+
     my ($proto) = $req->protocol =~ /([a-zA-Z]+)/;
     $proto = lc( $proto);
     my $host = $req->headers->{host};
@@ -64,47 +66,47 @@ sub normalized_request_url {
     } elsif (( $proto eq "http") && ($host =~ /:80$/)) {
 	$host =~ s/:80$//;
     }
-    return( sprintf( '%s://%s%s', $proto, $host, $path));
-    
+    return sprintf( '%s://%s%s', $proto, $host, $path);
+
 }
 
-sub validate_request() {
+sub validate_request {
     my $self=shift @_;
     my $request = shift;
 
     unless ('HTTP::Request' eq ref $request) {
 	carp "Require a request object";
-	return 0;
+	return;
     }
     my $AuthzHeader = $request->header('Authorization');
     unless ($AuthzHeader) {
 	carp "HTTP Request lacks Authorization header";
-	return 0;
+	return;
     }
 
     # Gather params necessary to validate the request
-    my %AuthInf = {};
+    my %AuthInf = ();
     $AuthInf{'request_method'} = $request->method;
     $AuthInf{'request_url'} = $self->normalized_request_url($request);
 
     # Pass this header into the validate_auth_header function
-    return( $self->validate_auth_header( $AuthzHeader, %AuthInf));
+    return $self->validate_auth_header( $AuthzHeader, %AuthInf);
 }
 
 
-sub validate_auth_header() {
+sub validate_auth_header {
     my $self=shift @_;
     my $AuthzHeader = shift @_;
     my %AuthInf = @_;
 
     unless ( $AuthzHeader) {
 	carp "Authorization Header not passed in";
-	return 0;
+	return;
     }
 
     unless ( %AuthInf) {
 	carp "Authorization information not passed in";
-	return 0;
+	return;
     }
 
     # Parse out the header so that we can lookup the consumer secret, etc...
@@ -126,18 +128,18 @@ sub validate_auth_header() {
     # Lookup user record based on the consumer key
     unless ($params{'oauth_consumer_key'}) {
 	carp "Consumer key not found among authorization parameters";
-	return 0;
+	return;
     }
-    
+
     my $AuthDir = new Bio::KBase::AuthDirectory;
     unless ( $user = $AuthDir->lookup_consumer( $params{'oauth_consumer_key'})) {
 	carp "Consumer key was not found in database";
-	return 0;
+	return;
     }
     $AuthInf{'consumer_secret'} = $user->{'oauth_creds'}->{$params{'oauth_consumer_key'}}->{'oauth_secret'};
     unless ( $AuthInf{'consumer_secret'}) {
 	carp "Internal error, failed to lookup consumer secret";
-	return 0;
+	return;
     }
 
     my $OAuthRequest = Net::OAuth->request('consumer')->from_authorization_header($AuthzHeader, %AuthInf);
@@ -150,7 +152,7 @@ sub validate_auth_header() {
     } else {
 	$self->{'error_msg'} = "Failed signature validation";
     }
-    return( $self->{'valid'});
+    return $self->{'valid'};
 }
 
 1;
@@ -173,7 +175,7 @@ Server side API for protecting a KBase resource.
     while (my $c = $d->accept()) {
         while (my $r = $c->get_request) {
             printf "Server: Recieved a connection: %s %s\n\t%s\n", $r->method, $r->url->path, $r->content;
-            
+
             my $body = sprintf("You sent a %s for %s.\n\n",$r->method(), $r->url->path);
             $as->validate_request( $r);
             if ($as->valid) {
@@ -218,7 +220,7 @@ Any errors generated during validation
 
 =item B<new([request_object])>
 
-returns Bio::KBase::AuthServer 
+returns Bio::KBase::AuthServer
 
    Object constructor. Optionally takes an HTTP request object that will be handed to validate_request() for authentication information. If the request object has legitimate auth information the User and user_id attributes  will be populated, if not then the userid attribute will be null/undef.
 
