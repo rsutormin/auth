@@ -1,6 +1,7 @@
 package Bio::KBase::AuthDirectory;
 
 use strict;
+use warnings;
 use Object::Tiny::RW qw{ error_msg };
 use Bio::KBase::AuthUser;
 use Bio::KBase::Auth;
@@ -11,9 +12,11 @@ use MIME::Base64;
 
 my $rest = undef;
 
-sub new() {
+sub new {
     my $class = shift;
-    my $self = { 'error_msg' => ''};
+    my $self = $class->SUPER::new(
+        'error_msg' => '',
+    @_);
 
     eval {
 	unless ( defined($rest)) {
@@ -21,21 +24,20 @@ sub new() {
 	}
     };
     if ($@) {
-	# handle exception
-	return( undef);
+	    # handle exception
+    	return;
     } else {
-	bless $self, $class;
-	return($self);
+    	return $self;
     }
 }
 
-sub error_message() {
+sub error_message {
     my $self = shift;
 
-    return( $self->{error_message});
+    return $self->{error_message};
 }
 
-sub lookup_user() {
+sub lookup_user {
     my $self= shift;
     my $user_id = shift;
     my $json;
@@ -70,16 +72,16 @@ sub lookup_user() {
 	if ($@) {
 	    print STDERR "Error while fetching user: $@";
 	    $self->{error_message} = $@;
-	    return( undef);
+	    return;
 	}
-	return( $newuser );
+	    return $newuser;
     } else {
-	print STDERR "Did not find user_id";
-	return( undef);
+    	print STDERR "Did not find user_id";
+	    return;
     }
 }
 
-sub lookup_consumer() {
+sub lookup_consumer {
     my $self= shift;
     my $consumer_key = shift;
     my $json;
@@ -96,23 +98,23 @@ sub lookup_consumer() {
 	};
 	if ($@) {
 	    print STDERR "Error while fetching user: $@";
-	    return( undef);
+	    return;
 	}
 	if ($json->{$consumer_key}->{'user_id'}) {
 	    $user_id = $json->{$consumer_key}->{'user_id'};
-	    return( $self->lookup_user( $user_id));
+	    return $self->lookup_user( $user_id);
 	} else {
 	    print STDERR "Did not find consumer_key $consumer_key";
-	    return(undef);
+	    return;
 	}
     } else {
 	print STDERR "Must specify consumer key";
-	return( undef);
+	return;
     }
 
 }
 
-sub lookup_oauth2_token() {
+sub lookup_oauth2_token {
     my $self= shift;
     my $oauth_token = shift;
     my $json;
@@ -129,38 +131,38 @@ sub lookup_oauth2_token() {
 	};
 	if ($@) {
 	    print STDERR "Error while fetching oauth token: $@";
-	    return( undef);
+	    return;
 	}
 	if ($json->{$oauth_token}->{'oauth_key'}) {
 	    $oauth_key_id = $json->{$oauth_token}->{'oauth_key'};
-	    return( $self->lookup_consumer( $oauth_key_id));
+	    return $self->lookup_consumer( $oauth_key_id);
 	} else {
 	    print STDERR "Did not find oauth_token $oauth_token";
-	    return(undef);
+	    return;
 	}
     } else {
 	print STDERR "Must specify oauth token $oauth_token";
-	return( undef);
+	return;
     }
 }
 
-sub create_user() {
+sub create_user {
     my $self= shift;
     my $newuser = shift;
 
     unless (ref($newuser) eq "Bio::KBase::AuthUser") {
 	$self->{error_message} = "User object required parameter";
-	return( undef);
+	return;
     }
     # perform basic validation of required fields
     my %valid = ( 'user_id', '^\w{3,}$',
 		  'name', '^[-\w\' \.]{2,}$',
 		  'email', '^\w+\@[\w-]+\.[-\w\.]+$',
 	);
-    my @bad = grep { !($newuser->{$_} =~ m/$valid{$_}/) } sort keys(%valid);
+    my @bad = grep { ! defined $newuser->{$_} || $newuser->{$_} !~ m/$valid{$_}/ } sort keys(%valid);
     if ( scalar(@bad) ) {
 	$self->{error_message} = "These fields failed validation: " . join(",",@bad);
-	return( undef);
+	return;
     }
 
     # convert the hash into a json string and POST it
@@ -173,26 +175,26 @@ sub create_user() {
     # If we get something other than a 2XX code, flag an error
     if (($rest->responseCode() < 200) || ($rest->responseCode() > 299)) {
 	$self->{error_message} = $rest->responseCode() . " : " . $rest->responseContent();
-	return( undef);
+	return;
     }
     # Otherwise fetch the entry and return it
 
-    return( $self->lookup_user( $newuser->user_id()) );
+    return $self->lookup_user( $newuser->user_id());
 }
 
-sub update_user() {
+sub update_user {
     my $self= shift;
     my $newuser = shift;
 
     unless (ref($newuser) eq "Bio::KBase::AuthUser") {
 	$self->{error_message} = "User object required parameter";
-	return( undef);
+	return;
     }
 
     # make sure the user exists
     unless ( $self->lookup_user( $newuser->user_id())) {
 	$self->{error_message} = "User does not exist";
-	return( undef);
+	return;
     }
 
     # perform basic validation of required fields
@@ -203,7 +205,7 @@ sub update_user() {
     my @bad = grep { exists($newuser->{$_}) && ! ($newuser->{$_} =~ m/$valid{$_}/) } keys(%valid);
     if ( scalar(@bad) ) {
 	$self->{error_message} = "These fields failed validation: " . join(",",@bad);
-	return( undef);
+	return;
     }
 
     # convert the hash into a json string and POST it
@@ -216,28 +218,28 @@ sub update_user() {
     # If we get something other than a 2XX code, flag an error
     if (($rest->responseCode() < 200) || ($rest->responseCode() > 299)) {
 	$self->{error_message} = $rest->responseCode() . " : " . $rest->responseContent();
-	return( undef);
+	return;
     }
     # Otherwise fetch the entry and return it
 
-    return( $self->lookup_user( $newuser->user_id()) );
+    return $self->lookup_user( $newuser->user_id()) ;
 }
 
-sub delete_user() {
+sub delete_user {
     my $self= shift;
     my $user_id = shift;
 
     my $res = $rest->DELETE("/profiles/".$user_id);
     # If we get something other than a 2XX code, flag an error
     if (($rest->responseCode() < 200) || ($rest->responseCode() > 299)) {
-	$self->{error_message} = $rest->responseCode() . " : " . $rest->responseContent();
-	return( undef);
+    	$self->{error_message} = $rest->responseCode() . " : " . $rest->responseContent();
+	    return;
     }
 
-    return( 1 );
+    return 1;
 }
 
-sub enable_user() {
+sub enable_user {
     my $self= shift;
     my $user_id = shift;
 
@@ -246,12 +248,12 @@ sub enable_user() {
     # If we get something other than a 2XX code, flag an error
     if (($rest->responseCode() < 200) || ($rest->responseCode() > 299)) {
 	$self->{error_message} = $rest->responseCode() . " : " . $rest->responseContent();
-	return( undef);
+	return;
     }
-    return(1);
+    return 1;
 }
 
-sub disable_user() {
+sub disable_user {
     my $self= shift;
     my $user_id = shift;
 
@@ -260,21 +262,21 @@ sub disable_user() {
     # If we get something other than a 2XX code, flag an error
     if (($rest->responseCode() < 200) || ($rest->responseCode() > 299)) {
 	$self->{error_message} = $rest->responseCode() . " : " . $rest->responseContent();
-	return( undef);
+    	return;
     }
 
-    return(1);
+    return 1;
 }
 
-sub new_consumer() {
+sub new_consumer {
     my $self= shift;
     my $user_id = shift;
     my $key = shift;
     my $secret = shift;
 
     unless ( $self->lookup_user( $user_id)) {
-	$self->{error_message} = "User not found";
-	return( undef);
+	    $self->{error_message} = "User not found";
+    	return;
     }
 
 
@@ -298,34 +300,37 @@ sub new_consumer() {
     my $res = $rest->POST("/oauthkeys/", $json, {'Content-Type' => 'application/json'});
     # If we get something other than a 2XX code, flag an error
     if (($rest->responseCode() < 200) || ($rest->responseCode() > 299)) {
-	$self->{error_message} = $rest->responseCode() . " : " . $rest->responseContent();
-	return( undef);
+	    $self->{error_message} = $rest->responseCode() . " : " . $rest->responseContent();
+    	return;
     }
 
-    return( {'oauth_key' => $key,
-	     'oauth_secret' => $secret});
+    return
+        {
+            'oauth_key'    => $key,
+	        'oauth_secret' => $secret
+	    };
 }
 
-sub delete_consumer() {
+sub delete_consumer {
     my $self= shift;
     my $consumer_key = shift;
 
     unless ( $self->lookup_consumer( $consumer_key)) {
 	$self->{error_message}= "Consumer key not found";
-	return( undef);
+	return;
     }
 
     my $res = $rest->DELETE("/oauthkeys/".$consumer_key);
     # If we get something other than a 2XX code, flag an error
     if (($rest->responseCode() < 200) || ($rest->responseCode() > 299)) {
 	$self->{error_message} = $rest->responseCode() . " : " . $rest->responseContent();
-	return( undef);
+	return;
     }
 
-    return(1);
+    return 1;
 }
 
-sub _SquashJSONBool() {
+sub _SquashJSONBool {
     # Walk an object ref returned by from_json() and squash references
     # to JSON::XS::Boolean
     my $self = shift;
