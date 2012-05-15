@@ -64,7 +64,7 @@ sub lookup_user() {
 		       'address','updated_time');
 	    foreach  (@attrs) {
 		$newuser->{$_} = $json->{$user_id}->{$_};
-	    } 
+	    }
 	    $self->_SquashJSONBool($newuser)
 	};
 	if ($@) {
@@ -157,7 +157,7 @@ sub create_user() {
 		  'name', '^[-\w\' \.]{2,}$',
 		  'email', '^\w+\@[\w-]+\.[-\w\.]+$',
 	);
-    my @bad = grep { !($newuser->{$_} =~ m/$valid{$_}/) } keys(%valid);
+    my @bad = grep { !($newuser->{$_} =~ m/$valid{$_}/) } sort keys(%valid);
     if ( scalar(@bad) ) {
 	$self->{error_message} = "These fields failed validation: " . join(",",@bad);
 	return( undef);
@@ -194,7 +194,7 @@ sub update_user() {
 	$self->{error_message} = "User does not exist";
 	return( undef);
     }
-	
+
     # perform basic validation of required fields
     my %valid = ( 'user_id', '^\w{3,}$',
 		  'name', '^[-\w\' \.]{2,}$',
@@ -227,7 +227,7 @@ sub delete_user() {
     my $self= shift;
     my $user_id = shift;
 
-    my $res = $rest->DELETE("/profiles/".$user_id); 
+    my $res = $rest->DELETE("/profiles/".$user_id);
     # If we get something other than a 2XX code, flag an error
     if (($rest->responseCode() < 200) || ($rest->responseCode() > 299)) {
 	$self->{error_message} = $rest->responseCode() . " : " . $rest->responseContent();
@@ -301,7 +301,7 @@ sub new_consumer() {
 	$self->{error_message} = $rest->responseCode() . " : " . $rest->responseContent();
 	return( undef);
     }
-    
+
     return( {'oauth_key' => $key,
 	     'oauth_secret' => $secret});
 }
@@ -315,13 +315,13 @@ sub delete_consumer() {
 	return( undef);
     }
 
-    my $res = $rest->DELETE("/oauthkeys/".$consumer_key); 
+    my $res = $rest->DELETE("/oauthkeys/".$consumer_key);
     # If we get something other than a 2XX code, flag an error
     if (($rest->responseCode() < 200) || ($rest->responseCode() > 299)) {
 	$self->{error_message} = $rest->responseCode() . " : " . $rest->responseContent();
 	return( undef);
     }
-    
+
     return(1);
 }
 
