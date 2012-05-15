@@ -26,6 +26,7 @@ sub new {
     };
     if ($@) {
 	    # handle exception
+	    print STDERR $@ if $verbose_warnings;
     	return;
     } else {
     	return $self;
