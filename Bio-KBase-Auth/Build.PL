@@ -16,6 +16,8 @@ Module::Build->new(
 		  'Net::OAuth' => 0.28,
 		  'URI::Escape' => 1.60,
 		  'Carp' => 1.17,
-		  'Data::Dumper' => 2.1 },
+		  'Data::Dumper' => 2.1,
+		  'Test::More' => 0.98,
+    },
     dist_abstract => 'Classes to support OAuth based authentication for the Bio::KBase::* libraries',
     )->create_build_script;
