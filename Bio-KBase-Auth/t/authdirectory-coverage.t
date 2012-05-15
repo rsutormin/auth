@@ -1,0 +1,71 @@
+use Test::More 'no_plan';
+
+use lib '/Users/jim/DMZ/auth/Bio-KBase-Auth/lib/';
+#use lib '../lib';
+use Bio::KBase::AuthUser;
+use Bio::KBase::AuthDirectory;
+
+my $user_id = 'testington' . time;
+
+my $user = Bio::KBase::AuthUser->new('user_id' => $user_id);
+ok($user, "Can create user");
+
+my $ad = Bio::KBase::AuthDirectory->new();
+ok($ad, "Got AuthDirectory object");
+my $ad2 = Bio::KBase::AuthDirectory->new();
+ok($ad2, "Got second AuthDirectory object");
+
+is($user->user_id, $user_id, "user_id is set to $user_id via constructor");
+is($ad->create_user($user), undef, "Could not create user");
+is($ad->error_message, 'These fields failed validation: email,name', "Expected error message");
+is($user->user_id($user_id), $user_id, "explicitly set $user_id via method");
+is($ad->create_user($user), undef, "Could not create user");
+is($ad->error_message, 'These fields failed validation: email,name', "Expected error message");
+is($user->email('testington'), 'testington', 'set email to something invalid');
+is($ad->create_user($user), undef, "Could not create user");
+is($ad->error_message, 'These fields failed validation: email,name', "Expected error message");
+is($user->email('testington@-testington.com'), 'testington@-testington.com', 'set email to something invalid (testington@-testington.com)');
+is($ad->create_user($user), undef, "Could not create user");
+is($ad->error_message, 'These fields failed validation: name', "Expected error message");
+is($user->email('testington@testington.com'), 'testington@testington.com', 'set email to something valid (testington@testington.com)');
+is($ad->create_user($user), undef, "Could not create user");
+is($ad->error_message, 'These fields failed validation: name', "Expected error message");
+is($user->name('Bob Testington'), 'Bob Testington', 'Properly set name to Bob Testington');
+ok($user = $ad->create_user($user), "Successfully created user");
+ok(! $ad->create_user($user), "Could not create user 2x");
+ok($ad->delete_user($user->user_id), "Successfully deleted user");
+ok(! $ad->delete_user($user->user_id), "Could not delete non-existent user");
+is ($user->user_id, $user_id, "user_id is still $user_id");
+is ($user->consumer_key, undef, "consumer_key is still undefined");
+is ($user->consumer_secret, undef, "consumer_secret is still undefined");
+is ($user->token, undef, "token is still undefined");
+is ($user->error_msg, undef, "error_msg is still undefined");
+is ($user->enabled, 0, "enabled is 0");
+is ($user->last_login_time, undef, "last_login_time is still undefined");
+is ($user->last_login_ip, undef, "last_login_ip is still undefined");
+is ($user->roles, undef, "roles is still undefined");
+is ($user->groups, undef, "groups is still undefined");
+is (ref $user->oauth_creds, 'HASH', "oauth_creds is a hashref");
+is (scalar keys %{$user->oauth_creds}, 0, "oauth_creds is empty");
+is ($user->name, 'Bob Testington', "name is still Bob Testington");
+is ($user->given_name, undef, "given_name is still undefined");
+is ($user->family_name, undef, "family_name is still undefined");
+is ($user->middle_name, undef, "middle_name is still undefined");
+is ($user->nickname, undef, "nickname is still undefined");
+is ($user->profile, undef, "profile is still undefined");
+is ($user->picture, undef, "picture is still undefined");
+is ($user->website, undef, "website is still undefined");
+is ($user->email, 'testington@testington.com', 'email is still testington@testington.com');
+is ($user->verified, 0, "verified is 0");
+is ($user->gender, undef, "gender is still undefined");
+is ($user->birthday, undef, "birthday is still undefined");
+is ($user->zoneinfo, undef, "zoneinfo is still undefined");
+is ($user->locale, undef, "locale is still undefined");
+is ($user->phone_number, undef, "phone_number is still undefined");
+is ($user->address, undef, "address is still undefined");
+is ($user->updated_time, undef, "updated_time is still undefined");
+is ($user->phone_number('800-555-1212'), '800-555-1212', 'set phone_number to 800-555-1212');
+ok ($user = $ad->update_user($user), "Successfully updated user");
+is ($user->phone_number, '800-555-1212', 'phone number still 800-555-1212');
+my $user2;
+is ($user2 = $ad->lookup_user, undef
