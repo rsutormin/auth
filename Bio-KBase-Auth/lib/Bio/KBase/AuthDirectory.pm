@@ -2,7 +2,7 @@ package Bio::KBase::AuthDirectory;
 
 use strict;
 use warnings;
-use Object::Tiny::RW qw{ error_msg };
+use Object::Tiny::RW qw{ error_message };
 use Bio::KBase::AuthUser;
 use Bio::KBase::Auth;
 use JSON;
@@ -11,11 +11,12 @@ use Digest::SHA;
 use MIME::Base64;
 
 our $rest = undef;
+our $verbose_warnings = 0;
 
 sub new {
     my $class = shift;
     my $self = $class->SUPER::new(
-        'error_msg' => '',
+        'error_message' => '',
     @_);
 
     eval {
@@ -29,12 +30,6 @@ sub new {
     } else {
     	return $self;
     }
-}
-
-sub error_message {
-    my $self = shift;
-
-    return $self->{error_message};
 }
 
 sub lookup_user {
@@ -59,7 +54,7 @@ sub lookup_user {
 	    # Need to wedge the json response into an authuser object
 	    $newuser = new Bio::KBase::AuthUser;
 	    @attrs = ( 'user_id','consumer_key','consumer_secret','token',
-		       'error_msg','enabled','last_login_time','last_login_ip',
+		       'error_message','enabled','last_login_time','last_login_ip',
 		       'roles','groups','oauth_creds','name','given_name','family_name',
 		       'middle_name','nickname','profile','picture','website','email',
 		       'verified','gender','birthday','zoneinfo','locale','phone_number',
@@ -70,13 +65,13 @@ sub lookup_user {
 	    $self->_SquashJSONBool($newuser)
 	};
 	if ($@) {
-	    print STDERR "Error while fetching user: $@";
+	    print STDERR "Error while fetching user: $@" if $verbose_warnings;
 	    $self->{error_message} = $@;
 	    return;
 	}
 	    return $newuser;
     } else {
-    	print STDERR "Did not find user_id";
+    	print STDERR "Did not find user_id" if $verbose_warnings;
 	    return;
     }
 }
@@ -97,18 +92,18 @@ sub lookup_consumer {
 	    $json = from_json( $rest->responseContent());
 	};
 	if ($@) {
-	    print STDERR "Error while fetching user: $@";
+	    print STDERR "Error while fetching user: $@" if $verbose_warnings;
 	    return;
 	}
 	if ($json->{$consumer_key}->{'user_id'}) {
 	    $user_id = $json->{$consumer_key}->{'user_id'};
 	    return $self->lookup_user( $user_id);
 	} else {
-	    print STDERR "Did not find consumer_key $consumer_key";
+	    print STDERR "Did not find consumer_key $consumer_key" if $verbose_warnings;
 	    return;
 	}
     } else {
-	print STDERR "Must specify consumer key";
+	print STDERR "Must specify consumer key" if $verbose_warnings;
 	return;
     }
 
@@ -130,18 +125,18 @@ sub lookup_oauth2_token {
 	    $json = from_json( $rest->responseContent());
 	};
 	if ($@) {
-	    print STDERR "Error while fetching oauth token: $@";
+	    print STDERR "Error while fetching oauth token: $@" if $verbose_warnings;
 	    return;
 	}
 	if ($json->{$oauth_token}->{'oauth_key'}) {
 	    $oauth_key_id = $json->{$oauth_token}->{'oauth_key'};
 	    return $self->lookup_consumer( $oauth_key_id);
 	} else {
-	    print STDERR "Did not find oauth_token $oauth_token";
+	    print STDERR "Did not find oauth_token $oauth_token" if $verbose_warnings;
 	    return;
 	}
     } else {
-	print STDERR "Must specify oauth token $oauth_token";
+	print STDERR "Must specify oauth token $oauth_token" if $verbose_warnings;
 	return;
     }
 }

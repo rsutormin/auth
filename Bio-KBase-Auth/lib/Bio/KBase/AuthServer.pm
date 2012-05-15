@@ -8,7 +8,7 @@ use Object::Tiny::RW qw {
     user
     valid
     auth_protocol
-    error_msg
+    error_message
 };
 use Bio::KBase::AuthDirectory;
 use Bio::KBase::AuthUser;
@@ -36,7 +36,7 @@ sub new {
     my $self = $class->SUPER::new(
         'user' => {},
         'auth_protocol' => 'autho',
-        'error_msg' => '',
+        'error_message' => '',
         @_);
 
     eval {
@@ -148,9 +148,9 @@ sub validate_auth_header {
     if ( $self->{'valid'}) {
 	$self->{'user'} = $user;
 	$self->{'auth_protocol'} = 'oauth1';
-	$self->{'error_msg'} = ''
+	$self->error_message('');
     } else {
-	$self->{'error_msg'} = "Failed signature validation";
+	$self->error_message("Failed signature validation");
     }
     return $self->{'valid'};
 }
@@ -182,7 +182,7 @@ Server side API for protecting a KBase resource.
                 $body .= sprintf( "Successfully logged in as user %s\n",
                                   $as->user->user_id);
             } else {
-                $body .= sprintf("You failed to login: %s.\n", $as->error_msg);
+                $body .= sprintf("You failed to login: %s.\n", $as->error_message);
             }
             $res->content( $body);
             $c->send_response($res);
@@ -208,7 +208,7 @@ Did the user’s credentials validate?
 
 Protocol used for authentication (oauth1,oauth2,user/password, etc...)
 
-=item B<error_msg> (string)
+=item B<error_message> (string)
 
 Any errors generated during validation
 
