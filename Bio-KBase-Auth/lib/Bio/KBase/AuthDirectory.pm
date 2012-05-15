@@ -67,7 +67,7 @@ sub lookup_user {
 	};
 	if ($@) {
 	    print STDERR "Error while fetching user: $@" if $verbose_warnings;
-	    $self->{error_message} = $@;
+	    $self->error_message($@);
 	    return;
 	}
 	    return $newuser;
@@ -94,6 +94,7 @@ sub lookup_consumer {
 	};
 	if ($@) {
 	    print STDERR "Error while fetching user: $@" if $verbose_warnings;
+	    $self->error_message("Error while fetching user: $@");
 	    return;
 	}
 	if ($json->{$consumer_key}->{'user_id'}) {
@@ -101,10 +102,12 @@ sub lookup_consumer {
 	    return $self->lookup_user( $user_id);
 	} else {
 	    print STDERR "Did not find consumer_key $consumer_key" if $verbose_warnings;
+	    $self->error_message("Did not find consumer_key $consumer_key");
 	    return;
 	}
     } else {
-	print STDERR "Must specify consumer key" if $verbose_warnings;
+    	print STDERR "Must specify consumer key" if $verbose_warnings;
+	    $self->error_message("Must specify consumer key");
 	return;
     }
 
@@ -147,7 +150,7 @@ sub create_user {
     my $newuser = shift;
 
     unless (ref($newuser) eq "Bio::KBase::AuthUser") {
-	$self->{error_message} = "User object required parameter";
+	$self->error_message("User object required parameter");
 	return;
     }
     # perform basic validation of required fields
@@ -157,7 +160,7 @@ sub create_user {
 	);
     my @bad = grep { ! defined $newuser->{$_} || $newuser->{$_} !~ m/$valid{$_}/ } sort keys(%valid);
     if ( scalar(@bad) ) {
-	$self->{error_message} = "These fields failed validation: " . join(",",@bad);
+	$self->error_message("These fields failed validation: " . join(",",@bad));
 	return;
     }
 
@@ -170,7 +173,7 @@ sub create_user {
     my $res = $rest->POST("/profiles/", $json, {'Content-Type' => 'application/json'});
     # If we get something other than a 2XX code, flag an error
     if (($rest->responseCode() < 200) || ($rest->responseCode() > 299)) {
-	$self->{error_message} = $rest->responseCode() . " : " . $rest->responseContent();
+	$self->error_message($rest->responseCode() . " : " . $rest->responseContent());
 	return;
     }
     # Otherwise fetch the entry and return it
@@ -183,13 +186,13 @@ sub update_user {
     my $newuser = shift;
 
     unless (ref($newuser) eq "Bio::KBase::AuthUser") {
-	$self->{error_message} = "User object required parameter";
+	$self->error_message("User object required parameter");
 	return;
     }
 
     # make sure the user exists
     unless ( $self->lookup_user( $newuser->user_id())) {
-	$self->{error_message} = "User does not exist";
+	$self->error_message("User does not exist");
 	return;
     }
 
@@ -198,9 +201,9 @@ sub update_user {
 		  'name', '^[-\w\' \.]{2,}$',
 		  'email', '^\w+\@[\w-]+\.[-\w\.]+$',
 	);
-    my @bad = grep { exists($newuser->{$_}) && ! ($newuser->{$_} =~ m/$valid{$_}/) } keys(%valid);
+    my @bad = grep { ! defined $newuser->{$_} || $newuser->{$_} !~ m/$valid{$_}/ } keys(%valid);
     if ( scalar(@bad) ) {
-	$self->{error_message} = "These fields failed validation: " . join(",",@bad);
+	$self->error_message("These fields failed validation: " . join(",",@bad));
 	return;
     }
 
@@ -213,7 +216,7 @@ sub update_user {
     my $res = $rest->PUT("/profiles/".$newuser->user_id(), $json, {'Content-Type' => 'application/json'});
     # If we get something other than a 2XX code, flag an error
     if (($rest->responseCode() < 200) || ($rest->responseCode() > 299)) {
-	$self->{error_message} = $rest->responseCode() . " : " . $rest->responseContent();
+	$self->error_message($rest->responseCode() . " : " . $rest->responseContent());
 	return;
     }
     # Otherwise fetch the entry and return it
@@ -228,7 +231,7 @@ sub delete_user {
     my $res = $rest->DELETE("/profiles/".$user_id);
     # If we get something other than a 2XX code, flag an error
     if (($rest->responseCode() < 200) || ($rest->responseCode() > 299)) {
-    	$self->{error_message} = $rest->responseCode() . " : " . $rest->responseContent();
+    	$self->error_message($rest->responseCode() . " : " . $rest->responseContent());
 	    return;
     }
 
@@ -243,10 +246,11 @@ sub enable_user {
     my $res = $rest->PUT("/profiles/" . $user_id, $json, {'Content-Type' => 'application/json'});
     # If we get something other than a 2XX code, flag an error
     if (($rest->responseCode() < 200) || ($rest->responseCode() > 299)) {
-	$self->{error_message} = $rest->responseCode() . " : " . $rest->responseContent();
+	$self->error_message($rest->responseCode() . " : " . $rest->responseContent());
 	return;
     }
-    return 1;
+
+    return $self->lookup_user( $user_id) ;
 }
 
 sub disable_user {
@@ -257,11 +261,11 @@ sub disable_user {
     my $res = $rest->PUT("/profiles/" . $user_id, $json, {'Content-Type' => 'application/json'});
     # If we get something other than a 2XX code, flag an error
     if (($rest->responseCode() < 200) || ($rest->responseCode() > 299)) {
-	$self->{error_message} = $rest->responseCode() . " : " . $rest->responseContent();
+	$self->error_message($rest->responseCode() . " : " . $rest->responseContent());
     	return;
     }
 
-    return 1;
+    return $self->lookup_user( $user_id) ;
 }
 
 sub new_consumer {
@@ -271,7 +275,7 @@ sub new_consumer {
     my $secret = shift;
 
     unless ( $self->lookup_user( $user_id)) {
-	    $self->{error_message} = "User not found";
+	    $self->error_message("User not found");
     	return;
     }
 
@@ -296,7 +300,7 @@ sub new_consumer {
     my $res = $rest->POST("/oauthkeys/", $json, {'Content-Type' => 'application/json'});
     # If we get something other than a 2XX code, flag an error
     if (($rest->responseCode() < 200) || ($rest->responseCode() > 299)) {
-	    $self->{error_message} = $rest->responseCode() . " : " . $rest->responseContent();
+	    $self->error_message($rest->responseCode() . " : " . $rest->responseContent());
     	return;
     }
 
@@ -312,14 +316,14 @@ sub delete_consumer {
     my $consumer_key = shift;
 
     unless ( $self->lookup_consumer( $consumer_key)) {
-	$self->{error_message}= "Consumer key not found";
+	$self->error_message("Consumer key not found");
 	return;
     }
 
     my $res = $rest->DELETE("/oauthkeys/".$consumer_key);
     # If we get something other than a 2XX code, flag an error
     if (($rest->responseCode() < 200) || ($rest->responseCode() > 299)) {
-	$self->{error_message} = $rest->responseCode() . " : " . $rest->responseContent();
+	$self->error_message($rest->responseCode() . " : " . $rest->responseContent());
 	return;
     }
 
