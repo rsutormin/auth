@@ -22,7 +22,7 @@ use Data::Dumper;
 # }
 #
 
-my $auth_rc = "~/.kbase/auth.rc";
+our $auth_rc = "~/.kbase/auth.rc";
 
 
 

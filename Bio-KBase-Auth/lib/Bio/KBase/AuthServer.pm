@@ -23,7 +23,7 @@ use Data::Dumper;
 $Net::OAuth::PROTOCOL_VERSION = Net::OAuth::PROTOCOL_VERSION_1_0A;
 
 
-my $rest = undef;
+our $rest = undef;
 
 sub decode {
     my $str = shift;

@@ -10,7 +10,7 @@ use REST::Client;
 use Digest::SHA;
 use MIME::Base64;
 
-my $rest = undef;
+our $rest = undef;
 
 sub new {
     my $class = shift;
@@ -19,9 +19,9 @@ sub new {
     @_);
 
     eval {
-	unless ( defined($rest)) {
-	    $rest = new REST::Client( host => $Bio::KBase::Auth::AuthSvcHost);
-	}
+    	unless ( defined $rest) {
+	        $rest = new REST::Client( host => $Bio::KBase::Auth::AuthSvcHost);
+    	}
     };
     if ($@) {
 	    # handle exception
