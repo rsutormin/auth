@@ -1,6 +1,7 @@
 package Bio::KBase::AuthUser;
 
 use strict;
+use warnings;
 # We use Object::Tiny::RW to generate getters/setters for the attributes
 # and save ourselves some tedium
 use Object::Tiny::RW qw {
@@ -8,7 +9,7 @@ use Object::Tiny::RW qw {
     consumer_key
     consumer_secret
     token
-    error_msg
+    error_message
     enabled
     last_login_time
     last_login_ip
@@ -39,12 +40,11 @@ sub new() {
 
     # Don't bother with calling the Object::Tiny::RW constructor,
     # since it doesn't do anything except return a blessed empty hash
-    my $self  = {};
-    bless $self, $class;
-  
-    # Initialize a few basic things
-    $self->{'oauth_creds'} = {};
-    $self->{'user_id'} = 'jqpublic';
+    my $self = $class->SUPER::new(
+        'oauth_creds' => {},
+        @_
+    );
+
     return($self);
 }
 
@@ -70,7 +70,7 @@ This is a container for user attributes - creating, destroying them in the user 
 =over
 
 
-=item B<user_id> (string) 
+=item B<user_id> (string)
 
 REQUIRED Identifier for the End-User at the Issuer.
 
@@ -86,7 +86,7 @@ REQUIRED current (oauth1) shared secret used for signing requests
 
 base64 encoded authentication token (OAuth 2)
 
-=item B<error_msg> (string)
+=item B<error_message> (string)
 
 contains error messages, if any, from most recent method call
 

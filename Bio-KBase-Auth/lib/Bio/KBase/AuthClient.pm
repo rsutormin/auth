@@ -1,13 +1,13 @@
 package Bio::KBase::AuthClient;
 
 use strict;
-use Object::Tiny::RW qw { user logged_in error_msg };
+use warnings;
+use Object::Tiny::RW qw { user logged_in error_message };
 use Bio::KBase::Auth;
 use Bio::KBase::AuthUser;
 use MIME::Base64;
 use Bio::KBase::AuthDirectory;
 use JSON;
-use Carp qw( croak);
 use Net::OAuth;
 use Digest::MD5 qw(md5_base64);
 use Data::Dumper;
@@ -21,18 +21,21 @@ use Data::Dumper;
 # }
 #
 
-my $auth_rc = "~/.kbase/auth.rc";
+our $auth_rc = "~/.kbase/auth.rc";
 
 
 
-sub new() {
+sub new {
     my $class = shift @_;
     my %params = @_;
-    my $self = { 'user' => Bio::KBase::AuthUser->new,
-		 'oauth_cred' => {},
-		 'logged_in' => 0,
-		 'error_msg' => ""};
-    bless $self,$class;
+
+    my $self = $class->SUPER::new(
+        'user'       => Bio::KBase::AuthUser->new,
+        'oauth_cred' => {},
+        'logged_in'  => 0,
+        'error_message'  => "",
+        @_
+    );
 
     # seed the random number generator
     srand(  time ^ $$ );
@@ -42,7 +45,7 @@ sub new() {
 	if (exists($params{ consumer_key})) {
 	    $self->login( $params{consumer_key}, $params{consumer_secret});
 	    unless ($self->{logged_in}) {
-		croak( "Authentication failed:" . $self->error_msg);
+		die( "Authentication failed:" . $self->error_message);
 	    }
 	} elsif (-e $auth_rc && -r $auth_rc) {
 	    if (-e $auth_rc && -r $auth_rc) {
@@ -52,26 +55,26 @@ sub new() {
 		chomp( @rc);
 		my $creds = from_json( join( '',@rc));
 		unless ( defined( $creds->{'oauth_key'})) {
-		    croak "No oauth_key found in $auth_rc";
+		    die "No oauth_key found in $auth_rc";
 		}
 		unless ( defined( $creds->{'oauth_secret'})) {
-		    croak "No oauth_secret found in $auth_rc";
+		    die "No oauth_secret found in $auth_rc";
 		}
 		unless ($self->login( $creds->{'oauth_key'},$creds->{'oauth_secret'})) {
 		    # login failed, pass the error message along. Redundant for now, but
 		    # we don't want later code possibly stomping on this result
-		    croak "auth_rc credentials failed login: " . $self->{error_msg};
+		    die "auth_rc credentials failed login: " . $self->error_message;
 		}
 	    }
 	}
     };
     if ($@) {
-	$self->{error_msg} = $@;
+	$self->error_message($@);
     }
-    return($self);
+    return $self;
 }
 
-sub login() {
+sub login {
     my $self = shift;
     my $oauth_key = shift;
     my $oauth_secret = shift;
@@ -80,52 +83,52 @@ sub login() {
 
     $self->{logged_in} = 0;
     eval {
-	if ( $oauth_key && $oauth_secret) {
-	    $creds->{'oauth_key'} = $oauth_key;
-	    $creds->{'oauth_secret'} = $oauth_secret;
-	} elsif (-e $auth_rc && -r $auth_rc) {
-	    open RC, "<", $auth_rc;
-	    my @rc = <RC>;
-	    close RC;
-	    chomp( @rc);
-	    $creds = from_json( join( '',@rc));
-	}
+        if ( $oauth_key && $oauth_secret) {
+            $creds->{'oauth_key'} = $oauth_key;
+            $creds->{'oauth_secret'} = $oauth_secret;
+        } elsif (-e $auth_rc && -r $auth_rc) {
+            open RC, "<", $auth_rc;
+            my @rc = <RC>;
+            close RC;
+            chomp( @rc);
+            $creds = from_json( join( '',@rc));
+        }
 
-	unless ( defined( $creds->{'oauth_key'})) {
-	    croak "No oauth_key found";
-	}
-	unless ( defined( $creds->{'oauth_secret'})) {
-	    croak "No oauth_secret found";
-	}
-	# This is a not a production-ready way to perform logins, but
-	# we're using it here for alpha testing,
-	# and must be replaced with oauth protected login before
-	# fetching user creds
-	my $ad=new Bio::KBase::AuthDirectory;
-	my $user = $ad->lookup_consumer( $creds->{'oauth_key'});
-	unless ( defined($user->oauth_creds()->{$creds->{'oauth_key'}})) {
-	    croak "Could not find matching oauth_key in user database";
-	}
-	$creds2 = $user->oauth_creds()->{$creds->{'oauth_key'}};
-	unless ( $creds2->{'oauth_secret'} eq $creds->{'oauth_secret'}) {
-	    croak "oauth_secret does not match";
-	}
-	$self->{user} =  $user;
-	$self->{oauth_cred} = $creds2;
-	$self->{logged_in} = 1;
+        unless ( defined( $creds->{'oauth_key'})) {
+            die "No oauth_key found";
+        }
+        unless ( defined( $creds->{'oauth_secret'})) {
+            die "No oauth_secret found";
+        }
+        # This is a not a production-ready way to perform logins, but
+        # we're using it here for alpha testing,
+        # and must be replaced with oauth protected login before
+        # fetching user creds
+        my $ad=new Bio::KBase::AuthDirectory;
+        my $user = $ad->lookup_consumer( $creds->{'oauth_key'});
+        unless ( defined($user->oauth_creds()->{$creds->{'oauth_key'}})) {
+            die "Could not find matching oauth_key in user database";
+        }
+        $creds2 = $user->oauth_creds()->{$creds->{'oauth_key'}};
+        unless ( $creds2->{'oauth_secret'} eq $creds->{'oauth_secret'}) {
+            die "oauth_secret does not match";
+        }
+        $self->{user} =  $user;
+        $self->{oauth_cred} = $creds2;
+        $self->{logged_in} = 1;
     };
     if ($@) {
-	$self->{error_msg} = "Local credentials invalid: $@";
-	return(0);
+	    $self->error_message("Local credentials invalid: $@");
+    	return 0;
     } else {
-	return(1);
+    	return 1;
     }
 }
 
-sub sign_request() {
+sub sign_request {
     my $self = shift;
     my $request = shift;
-    
+
     # setup the request method and URL
 
     # Create the appropriate authorization header with the auth_token
@@ -135,16 +138,16 @@ sub sign_request() {
 
     $request->header( Authorization => $authz_hdr);
 
-    return(1);
+    return 1;
 }
 
-sub auth_token() {
+sub auth_token {
     my $self = shift;
     my %auth_params = @_;
 
     unless ( defined( $self->{oauth_cred})) {
-	carp( "No oauth_cred defined in AuthClient object\n");
-	return( undef);
+    	carp( "No oauth_cred defined in AuthClient object\n");
+	    return;
     }
     my $oauth = Net::OAuth->request('consumer')->new(
 	consumer_key => $self->{oauth_cred}->{oauth_key},
@@ -156,9 +159,10 @@ sub auth_token() {
 	nonce => md5_base64( map { rand() } (0..4)));
     $oauth->sign;
 
-    return( $oauth->to_authorization_header());
+    return $oauth->to_authorization_header();
 }
 
+<<<<<<< HEAD
 sub normalized_request_url {
     my $self = shift;
     my $req = shift;
@@ -177,26 +181,26 @@ sub normalized_request_url {
 }
 
 
-sub new_consumer() {
+sub new_consumer {
     my $self = shift @_;
     my $ad = Bio::KBase::AuthDirectory->new();
 
     unless ( $self->{logged_in}) {
-	carp("No user currently logged in");
-	return(undef);
+	    carp("No user currently logged in");
+    	return;
     }
     my $oauth = $ad->new_consumer( $self->{user}->{user_id});
-    return($oauth);
+    return $oauth;
 }
 
-sub logout(){
+sub logout {
     my $self = shift @_;
     $self->{user} = Bio::KBase::AuthUser->new();
     $self->{logged_in} = 0;
     $self->{oauth_cred} = {};
 
-    
-    return(1);
+
+    return 1;
 }
 
 1;
@@ -290,7 +294,7 @@ __END__
 { "oauth_key":"consumer_key_blahblah",
   "oauth_token":"token_blah_blah",
   "oauth_secret":"consumer_secret_blahblah"
- }                             
+ }
 
 =head2 Instance Variables
 
@@ -308,7 +312,7 @@ Contains the specific oauth credential used for authentication. It is a hash of 
 
 Did login() successfully return? If this is true then the entry in the user attribute is good.
 
-=item B<error_msg> (string)
+=item B<error_message> (string)
 
 Most recent error msg from call to instance method.
 
@@ -325,7 +329,7 @@ returns Bio::KBase::AuthClient
    Class constructor. Create and return a new client authentication object. Optionally takes arguments that are used for a call to the login() method. By default will check ~/.kbase-auth file for declarations for the consumer_key and consumer_secret, and if found, will pull those in and perform a login(). Environment variables are also an option and should be discussed.
 
 =item B<login>( [consumer_key=>key, consumer_secret=>secret] |
-[user_id=>”someuserid”,[password=>’somepassword’] | 
+[user_id=>”someuserid”,[password=>’somepassword’] |
 [conversation_callback => ptr_conversation_function] |
 [return_url = async_return_url])>
 
@@ -334,9 +338,9 @@ returns boolean for login success/fail.
 If no parameters are given then consumer (key,secret) will be populated automatically from ~/.kbase-auth. Environment variables are also an option.
 
 When this is called, the client will attempt to connect to the back end server to validate the credentials provided.
-The most common use case will be to pull the consumer_key and consumer_secret from the environment. You can also specify the user_id and password for authentication - this is only recommended for bootstrapping the use of consumer (key,secret). 
+The most common use case will be to pull the consumer_key and consumer_secret from the environment. You can also specify the user_id and password for authentication - this is only recommended for bootstrapping the use of consumer (key,secret).
 
-If the authentication is a little more complicated there are 2 options 
+If the authentication is a little more complicated there are 2 options
   - define a function that handles the login interaction (same idea as the PAM conversation function).
   - if we’re in a web app that needs oauth authentication, then the client browser will need to be redirected back and forth. A return url where control will pass once authentication has completed needs to be provided ( see this diagram for an example). If the return_url is provided, this function will not return.
 
