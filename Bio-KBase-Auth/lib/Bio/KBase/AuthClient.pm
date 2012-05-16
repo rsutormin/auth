@@ -162,7 +162,9 @@ sub auth_token {
     return $oauth->to_authorization_header();
 }
 
-<<<<<<< HEAD
+
+# Normalize the request header on the client side - not finished yet!
+
 sub normalized_request_url {
     my $self = shift;
     my $req = shift;
