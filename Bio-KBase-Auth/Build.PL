@@ -18,6 +18,8 @@ Module::Build->new(
 		  'Carp' => 1.17,
 		  'Data::Dumper' => 2.1,
 		  'Test::More' => 0.98,
+		  'Storable' => 2.27,
+		  'Test::Deep' => 0.109
     },
     dist_abstract => 'Classes to support OAuth based authentication for the Bio::KBase::* libraries',
     )->create_build_script;
