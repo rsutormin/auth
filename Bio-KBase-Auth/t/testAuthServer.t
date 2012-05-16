@@ -5,6 +5,9 @@
 # 5/3/12
 #
 
+
+#NOTE: test 9 prior line commented out, will always fail - was hanging script
+
 use lib "../lib/";
 use Data::Dumper;
 use HTTP::Daemon;
@@ -23,6 +26,8 @@ BEGIN {
     use_ok( Bio::KBase::AuthServer);
     use_ok( Bio::KBase::AuthClient);
 }
+
+my @users = ();
 
 sub testServer {
     my $d = shift;
@@ -142,19 +147,16 @@ sub testClient {
 	die "Client: Failed to sign request";
     }
     note( sprintf "Sending json-rpc request with embedded oauth token: %s %s\n\t%s\n",$req->method,$req->url->as_string,$req->content);
-    my $res = $ua->request( $req);
+    #my $res = $ua->request( $req);
     ok( ($res->code >= 200) && ($res->code < 300), "POST request with oauth cred in HTTP envelope and sample JSON-RPC message body");
     note( sprintf "Client: Recieved a response: %d %s\n", $res->code, $res->content);
 
 #_______ login/logout tests from a black box perspective 5/15/12________
     
     
-    #hangs
-    #$authdir = Bio::KBase::AuthDirectory->new();
+    $user1 = createUser();
     
-    #$user1 = createUser($authdir);
-    
-    #logout of original sesssion
+    #logout of original session
     ok($ac->logout(), "Logout consumer_key = key3");
     
     #log back in w/ key
@@ -203,7 +205,7 @@ sub testClient {
     #Other notes:
     # What happens if the current test @ 140.221.92.45 isn't available or the data has been changed? All tests will fail in the former and the the original tests will fail in the latter.
     
-
+     redrumAll();
        
 }
 
@@ -217,7 +219,7 @@ sub cond_logout(){
 }
 
 sub createUser() {
-     my $authdirectory = shift;
+     
      my $random_user_id = 'hackz0rz_oh_no_' . time . int(rand(100000000000));
 
      my $user = Bio::KBase::AuthUser->new(
@@ -226,16 +228,31 @@ sub createUser() {
           'name' => 'My pants are exquisite in their own way thank you',
      );
      #print Dumper($user); use Data::Dumper;
+     $authdirectory = Bio::KBase::AuthDirectory->new();
      my $user = $authdirectory->create_user($user);
+     
+     push(@users, $user); #record users for deletion later
+     
+     note("Created test user " . $random_user_id);
      
      #print $authdirectory->error_message, "\n";
      return $user;
 }
 
 sub redrum(){
-     $ad = shift;
+     $authdirectory = Bio::KBase::AuthDirectory->new();
      $user = shift;
      $ad->delete_user($user->user_id);
+}
+
+# delete all users
+sub redrumAll(){
+     
+     my $ad = Bio::KBase::AuthDirectory->new();
+     foreach my $u (@users) {
+     note("Deleted test user " . $u->user_id);
+        $ad->delete_user($u);
+     }
 }
      
 
