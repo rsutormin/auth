@@ -9,6 +9,7 @@ use JSON;
 use REST::Client;
 use Digest::SHA;
 use MIME::Base64;
+use Email::Valid;
 
 our $rest = undef;
 our $verbose_warnings = 0;
@@ -19,18 +20,11 @@ sub new {
         'error_message' => '',
     @_);
 
-    eval {
-    	unless ( defined $rest) {
-	        $rest = new REST::Client( host => $Bio::KBase::Auth::AuthSvcHost);
-    	}
-    };
-    if ($@) {
-	    # handle exception
-	    print STDERR $@ if $verbose_warnings;
-    	return;
-    } else {
-    	return $self;
+    unless ( defined $rest) {
+        $rest = new REST::Client( host => $Bio::KBase::Auth::AuthSvcHost);
     }
+
+    return $self;
 }
 
 sub lookup_user {
@@ -42,34 +36,34 @@ sub lookup_user {
     my @attrs;
 
     if ($user_id) {
-	eval {
-	    $query = '/profiles/'.$user_id;
-	    $rest->GET($query);
-	    unless ( ($rest->responseCode() < 300) && ($rest->responseCode() >=200)) {
-		die $rest->responseCode() . ":" . $rest->responseContent();
-	    }
-	    $json = from_json( $rest->responseContent());
-	    unless ( exists($json->{$user_id})) {
-		die "User not found";
-	    }
-	    # Need to wedge the json response into an authuser object
-	    $newuser = new Bio::KBase::AuthUser;
-	    @attrs = ( 'user_id','consumer_key','consumer_secret','token',
-		       'error_message','enabled','last_login_time','last_login_ip',
-		       'roles','groups','oauth_creds','name','given_name','family_name',
-		       'middle_name','nickname','profile','picture','website','email',
-		       'verified','gender','birthday','zoneinfo','locale','phone_number',
-		       'address','updated_time');
-	    foreach  (@attrs) {
-		$newuser->{$_} = $json->{$user_id}->{$_};
-	    }
-	    $self->_SquashJSONBool($newuser)
-	};
-	if ($@) {
-	    print STDERR "Error while fetching user: $@" if $verbose_warnings;
-	    $self->error_message($@);
-	    return;
-	}
+        eval {
+            $query = '/profiles/'.$user_id;
+            $rest->GET($query);
+            unless ( ($rest->responseCode() < 300) && ($rest->responseCode() >=200)) {
+            die $rest->responseCode() . ":" . $rest->responseContent();
+            }
+            $json = from_json( $rest->responseContent());
+            unless ( exists($json->{$user_id})) {
+                die "User not found";
+            }
+            # Need to wedge the json response into an authuser object
+            $newuser = new Bio::KBase::AuthUser;
+            @attrs = ( 'user_id','consumer_key','consumer_secret','token',
+                   'error_message','enabled','last_login_time','last_login_ip',
+                   'roles','groups','oauth_creds','name','given_name','family_name',
+                   'middle_name','nickname','profile','picture','website','email',
+                   'verified','gender','birthday','zoneinfo','locale','phone_number',
+                   'address','updated_time');
+            foreach  (@attrs) {
+            $newuser->{$_} = $json->{$user_id}->{$_};
+            }
+            $self->_SquashJSONBool($newuser)
+        };
+        if ($@) {
+            print STDERR "Error while fetching user: $@" if $verbose_warnings;
+            $self->error_message($@);
+            return;
+        }
 	    return $newuser;
     } else {
     	print STDERR "Did not find user_id" if $verbose_warnings;
@@ -145,24 +139,41 @@ sub lookup_oauth2_token {
     }
 }
 
+sub _validate_user {
+    my $self = shift;
+    my $user = shift;
+
+    if (ref $user ne "Bio::KBase::AuthUser") {
+    	$self->error_message("User object required parameter");
+    	return;
+    }
+
+    # perform basic validation of required fields
+    my %valid = (
+        'user_id'=> '^\w{3,}$',
+        'name'   => '^[-\w\' \.]{2,}$',
+	);
+    my @bad = grep { ! defined $user->$_() || $user->$_() !~ m/$valid{$_}/ } sort keys %valid;
+
+    if (! Email::Valid->address($user->email)) {
+        push @bad, 'email';
+        @bad = sort @bad;
+    }
+
+    if ( @bad ) {
+    	$self->error_message("These fields failed validation: " . join( ",", @bad ) );
+	    return;
+    }
+    else {
+        return 1;
+    }
+}
+
 sub create_user {
     my $self= shift;
     my $newuser = shift;
 
-    unless (ref($newuser) eq "Bio::KBase::AuthUser") {
-	$self->error_message("User object required parameter");
-	return;
-    }
-    # perform basic validation of required fields
-    my %valid = ( 'user_id', '^\w{3,}$',
-		  'name', '^[-\w\' \.]{2,}$',
-		  'email', '^\w+\@[\w-]+\.[-\w\.]+$',
-	);
-    my @bad = grep { ! defined $newuser->{$_} || $newuser->{$_} !~ m/$valid{$_}/ } sort keys(%valid);
-    if ( scalar(@bad) ) {
-	$self->error_message("These fields failed validation: " . join(",",@bad));
-	return;
-    }
+    $self->_validate_user($newuser) or return;
 
     # convert the hash into a json string and POST it
     my $unblessed = {%$newuser};
@@ -178,32 +189,21 @@ sub create_user {
     }
     # Otherwise fetch the entry and return it
 
-    return $self->lookup_user( $newuser->user_id());
+
+    my $loaded_user = $self->lookup_user( $newuser->user_id());
+    @{$newuser}{keys %$loaded_user} = values %$loaded_user;
+    return $newuser;
 }
 
 sub update_user {
     my $self= shift;
     my $newuser = shift;
 
-    unless (ref($newuser) eq "Bio::KBase::AuthUser") {
-	$self->error_message("User object required parameter");
-	return;
-    }
+    $self->_validate_user($newuser) or return;
 
     # make sure the user exists
     unless ( $self->lookup_user( $newuser->user_id())) {
 	$self->error_message("User does not exist");
-	return;
-    }
-
-    # perform basic validation of required fields
-    my %valid = ( 'user_id', '^\w{3,}$',
-		  'name', '^[-\w\' \.]{2,}$',
-		  'email', '^\w+\@[\w-]+\.[-\w\.]+$',
-	);
-    my @bad = grep { ! defined $newuser->{$_} || $newuser->{$_} !~ m/$valid{$_}/ } keys(%valid);
-    if ( scalar(@bad) ) {
-	$self->error_message("These fields failed validation: " . join(",",@bad));
 	return;
     }
 
@@ -221,12 +221,19 @@ sub update_user {
     }
     # Otherwise fetch the entry and return it
 
-    return $self->lookup_user( $newuser->user_id()) ;
+    my $loaded_user = $self->lookup_user( $newuser->user_id());
+    @{$newuser}{keys %$loaded_user} = values %$loaded_user;
+    return $newuser;
 }
 
 sub delete_user {
     my $self= shift;
     my $user_id = shift;
+
+    unless ($user_id) {
+        $self->error_message("Cannot delete_user w/o user_id");
+        return;
+    }
 
     my $res = $rest->DELETE("/profiles/".$user_id);
     # If we get something other than a 2XX code, flag an error
@@ -242,6 +249,11 @@ sub enable_user {
     my $self= shift;
     my $user_id = shift;
 
+    unless ($user_id) {
+        $self->error_message("Cannot enable_user w/o user_id");
+        return;
+    }
+
     my $json = to_json( { enabled => JSON::true });
     my $res = $rest->PUT("/profiles/" . $user_id, $json, {'Content-Type' => 'application/json'});
     # If we get something other than a 2XX code, flag an error
@@ -256,6 +268,11 @@ sub enable_user {
 sub disable_user {
     my $self= shift;
     my $user_id = shift;
+
+    unless ($user_id) {
+        $self->error_message("Cannot disable_user w/o user_id");
+        return;
+    }
 
     my $json = to_json( { enabled => JSON::false });
     my $res = $rest->PUT("/profiles/" . $user_id, $json, {'Content-Type' => 'application/json'});
