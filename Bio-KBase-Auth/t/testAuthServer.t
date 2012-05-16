@@ -7,6 +7,7 @@
 
 
 #NOTE: json-rpc test prior line commented out, will always fail - was hanging script
+#NOTE: remove fixUser call when related bug is fixed
 
 use lib "../lib/";
 use lib "lib";
@@ -20,6 +21,7 @@ use Digest::MD5 qw( md5_base64);
 use Test::More 'no_plan';
 use Storable qw(dclone);
 use Test::Deep::NoTest qw(eq_deeply);
+use Data::Dumper;
 
 
 BEGIN {
@@ -126,36 +128,44 @@ sub testClient {
     ###
     # logout/login tests from a black box perspective 5/15/12________
     ###
-
-    #$user1 = createUser();
-
-    #logout of original sesssion
-    ok($ac->logout(), "Logout consumer_key = key3");
-
-    #log back in w/ key
-    $res = $ac->login(consumer_key => 'key3', consumer_secret => 'secret3');
-    ok($res, "Log back in w/ consumer_key = key3 and secret = secret3");
-
+    
+    $user1 = createUser();
+    
+    #print Dumper($user1);
+       
+    # Testing the newly created user
+    my %user1creds = %{$user1->oauth_creds};
+    my @keys = keys %user1creds;
+    my $key = shift ( @keys);
+    ok($ac = Bio::KBase::AuthClient->new(consumer_key => $user1->oauth_creds->{$key}->{oauth_key},
+					 consumer_secret => $user1->oauth_creds->{$key}->{oauth_secret}), "New client with AuthUser->consumer_key / secret, fixed if necc");
+    note( $ac->error_message());
+    #logout session
+    ok($ac->logout(), "Logout");
+    
+    ok($ac->login(consumer_key => $user1->oauth_creds->{$key}->{oauth_key},
+		  consumer_secret => $user1->oauth_creds->{$key}->{oauth_secret}), "Log back in w/ same key/secret");
     cond_logout($ac); #conditional logout
 
     #login w/ fresh client connection
-    ok($ac = Bio::KBase::AuthClient->new(consumer_key => 'key4', consumer_secret => 'secret4'), "Make new client connection w/ c_k = key4 and secret = secret4");
 
+    $ac = Bio::KBase::AuthClient->new(consumer_key => $user1->oauth_creds->{$key}->{oauth_key},
+				      consumer_secret => $user1->oauth_creds->{$key}->{oauth_secret});
+    
     #double logout - second should fail
     $ac->logout();
     ok(!$ac->logout(), "Double logout should return false");
-    # should also add a check for the correct error message, but that's undocumented
-
+    is($ac->error_message, "Not logged in", "Double logout error message check"); #error message is undocumented, so this is a guess
+    
     #check login as same user has same profile
-    $ac = Bio::KBase::AuthClient->new(consumer_key => 'key4', consumer_secret => 'secret4');
-    $user4 = dclone($ac->user);
+    $ac = Bio::KBase::AuthClient->new(consumer_key => $user1->oauth_creds->{$key}->{oauth_key},
+				      consumer_secret => $user1->oauth_creds->{$key}->{oauth_secret});
+    $userrec = dclone($ac->user);
     $ac->logout();
-    $ac->login(consumer_key => 'key4', consumer_secret => 'secret4');
-    #
-    # Deep equality is not guaranteed for multiple retrievals of the same user, and enforcing
-    # it would be quite a painful. Perl uses hash references
-    is_deeply($user4, $ac->user, "Test that multiple logins as the same user provides the same profile");
-
+    $ac->login(consumer_key => $user1->oauth_creds->{$key}->{oauth_key},
+	       consumer_secret => $user1->oauth_creds->{$key}->{oauth_secret},);
+    is_deeply($userrec, $ac->user, "Test that multiple logins as the same user provides the same profile");
+    
     cond_logout($ac);
 
     #check login as different user has different profile
@@ -170,14 +180,25 @@ sub testClient {
 
     $ac = Bio::KBase::AuthClient->new(consumer_key => 'key5', consumer_secret => 'secret5');
 
+    $user2 = createUser();
+    fixUser($user2);
+    
+    $ac = Bio::KBase::AuthClient->new(consumer_key => $user2->consumer_key, consumer_secret => $user2->consumer_secret);
+    $userref2 = dclone($ac->user);
+    $ac->logout();
+    $ac->login(consumer_key => $user1->consumer_key, consumer_secret => $user1->consumer_secret);
+    ok(!eq_deeply($useref52, $ac->user), "Test that multiple logins as different users provide different profiles");
+    ok(!($userref2->user_id eq $ac->user->user_id), "Test that multiple logins as different users have different ids");     
+    
+    #cond_logout($ac);
+    
     #More stuff to test
     #test async_return_url behavior for login and logout
     #test conversation_callback
 
     #Other notes:
-    # What happens if the current test @ 140.221.92.45 isn't available or the data has been changed? All tests will fail in the former and the the original tests will fail in the latter.
-
-
+    # What happens if the current test @ 140.221.92.45 isn't available or the data has been changed? All tests will fail in the former and many of the tests will fail in the latter.
+    
     redrumAll(); # remove all created users
 
     ##
@@ -298,10 +319,14 @@ sub createUser() {
           'user_id' => $random_user_id,
           'name' => 'My pants are exquisite in their own way thank you',
      );
-     #print Dumper($user); use Data::Dumper;
-     $authdirectory = Bio::KBase::AuthDirectory->new();
-     $user = $authdirectory->create_user($user);
-
+     
+     #print Dumper($user); 
+     $ad = Bio::KBase::AuthDirectory->new();
+     
+     my $user = $ad->create_user($user);
+     $ad->new_consumer($user->user_id);
+     $user = $ad->lookup_user($user->user_id); #get the version with key & secret
+     
      push(@users, $user); #record users for deletion later
 
      note("Created test user " . $random_user_id);
@@ -312,8 +337,9 @@ sub createUser() {
 
 # delete one user
 sub redrum(){
-     $authdirectory = Bio::KBase::AuthDirectory->new();
      $user = shift;
+     $authdirectory = Bio::KBase::AuthDirectory->new();
+
      $ad->delete_user($user->user_id);
 }
 
@@ -323,9 +349,27 @@ sub redrumAll(){
      my $ad = Bio::KBase::AuthDirectory->new();
      foreach my $u (@users) {
      note("Deleted test user " . $u->user_id);
-        $ad->delete_user($u);
+        $ad->delete_user($u->user_id);
      }
 }
+
+sub fixUser() {
+     my $user = shift;
+     if ($user->consumer_key && $user->consumer_secret) {
+          return 1; # key/secret is set, no fix needed
+     }
+     my $tmp = $user->oauth_creds();
+     @ckeys = keys(%$tmp);
+     $ckey = $ckeys[0];
+     #print $ckey . "\n";
+     #print $user->oauth_creds . "\n";
+     #print Dumper($user->oauth_creds);
+     #print Dumper($user->oauth_creds->{$ckey}->{'oauth_key'}); 
+     $user->consumer_key($user->oauth_creds->{$ckey}->{'oauth_key'});
+     $user->consumer_secret($user->oauth_creds->{$ckey}->{'oauth_secret'});
+     return 0; #no key or secret, grab from hash
+}
+     
 
 
 ok( $d = HTTP::Daemon->new( LocalAddr => '127.0.0.1'), "Creating a HTTP::Daemon object for handling AuthServer") || die "Could not create HTTP::Daemon";

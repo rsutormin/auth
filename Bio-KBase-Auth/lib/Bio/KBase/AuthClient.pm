@@ -37,8 +37,6 @@ sub new {
         @_
     );
 
-    # seed the random number generator
-    srand(  time ^ $$ );
     # Try calling login to see if creds defined
 
     eval {
@@ -49,23 +47,24 @@ sub new {
 	    unless ($self->{logged_in}) {
 		die( "Authentication failed:" . $self->error_message);
 	    }
-	} elsif ($auth_rc && -r $auth_rc) {
-	    open RC, "<", $auth_rc;
-	    my @rc = <RC>;
-	    close RC;
-	    chomp( @rc);
-	    my $creds = from_json( join( '',@rc));
-	    
-	    unless ( defined( $creds->{'oauth_key'})) {
-		die "No oauth_key found in $auth_rc";
-	    }
-	    unless ( defined( $creds->{'oauth_secret'})) {
-		die "No oauth_secret found in $auth_rc";
-	    }
-	    unless ($self->login( consumer_key => $creds->{'oauth_key'}, consumer_secret => $creds->{'oauth_secret'})) {
-		# login failed, pass the error message along. Redundant for now, but
-		# we don't want later code possibly stomping on this result
-		die "auth_rc credentials failed login: " . $self->error_message;
+	} elsif (-e $auth_rc && -r $auth_rc) {
+	    if (-e $auth_rc && -r $auth_rc) {
+		open RC, "<", $auth_rc or die "Could not open $auth_rc : $!";
+		my @rc = <RC>;
+		close RC;
+		chomp( @rc);
+		my $creds = from_json( join( '',@rc));
+		unless ( defined( $creds->{'oauth_key'})) {
+		    die "No oauth_key found in $auth_rc";
+		}
+		unless ( defined( $creds->{'oauth_secret'})) {
+		    die "No oauth_secret found in $auth_rc";
+		}
+		unless ($self->login( $creds->{'oauth_key'},$creds->{'oauth_secret'})) {
+		    # login failed, pass the error message along. Redundant for now, but
+		    # we don't want later code possibly stomping on this result
+		    die "auth_rc credentials failed login: " . $self->error_message;
+		}
 	    }
 	}
     };
@@ -94,7 +93,6 @@ sub login {
             close RC;
             chomp( @rc);
             $creds = from_json( join( '',@rc));
-	    print "Contents from $auth_rc:\n",DataDumper( $creds);
         }
 
         unless ( defined( $creds->{'oauth_key'})) {

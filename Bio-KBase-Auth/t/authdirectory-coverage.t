@@ -1,4 +1,4 @@
-use Test::More tests => 163;
+use Test::More tests => 162;
 
 # Hammers on Bio::KBase::AuthDirectory, mainly
 # Jim Thomason (thomason@cshl.edu)
@@ -129,8 +129,6 @@ is ($user3->email('scott@testington.com'), 'scott@testington.com', "Set user3 em
 
 is ($user->enabled, 0, "User1 is not enabled");
 ok ($ad->enable_user($user->user_id), "enabled User1");
-
-is ($user->enabled, 1, "User1 is enabled");
 
 ok ($newUser1 = $ad->lookup_user($user->user_id), "Re-loaded user1 to a copy");
 is ($newUser1->enabled, 1, "Okay, it's really enabled on the server side");
