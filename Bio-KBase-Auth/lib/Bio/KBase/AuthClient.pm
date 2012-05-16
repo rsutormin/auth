@@ -8,7 +8,6 @@ use Bio::KBase::AuthUser;
 use MIME::Base64;
 use Bio::KBase::AuthDirectory;
 use JSON;
-use Carp qw( croak);
 use Net::OAuth;
 use Digest::MD5 qw(md5_base64);
 use Data::Dumper;
@@ -46,7 +45,7 @@ sub new {
 	if (exists($params{ consumer_key})) {
 	    $self->login( $params{consumer_key}, $params{consumer_secret});
 	    unless ($self->{logged_in}) {
-		croak( "Authentication failed:" . $self->error_message);
+		die( "Authentication failed:" . $self->error_message);
 	    }
 	} elsif (-e $auth_rc && -r $auth_rc) {
 	    if (-e $auth_rc && -r $auth_rc) {
@@ -56,15 +55,15 @@ sub new {
 		chomp( @rc);
 		my $creds = from_json( join( '',@rc));
 		unless ( defined( $creds->{'oauth_key'})) {
-		    croak "No oauth_key found in $auth_rc";
+		    die "No oauth_key found in $auth_rc";
 		}
 		unless ( defined( $creds->{'oauth_secret'})) {
-		    croak "No oauth_secret found in $auth_rc";
+		    die "No oauth_secret found in $auth_rc";
 		}
 		unless ($self->login( $creds->{'oauth_key'},$creds->{'oauth_secret'})) {
 		    # login failed, pass the error message along. Redundant for now, but
 		    # we don't want later code possibly stomping on this result
-		    croak "auth_rc credentials failed login: " . $self->error_message;
+		    die "auth_rc credentials failed login: " . $self->error_message;
 		}
 	    }
 	}
@@ -84,39 +83,39 @@ sub login {
 
     $self->{logged_in} = 0;
     eval {
-	if ( $oauth_key && $oauth_secret) {
-	    $creds->{'oauth_key'} = $oauth_key;
-	    $creds->{'oauth_secret'} = $oauth_secret;
-	} elsif (-e $auth_rc && -r $auth_rc) {
-	    open RC, "<", $auth_rc;
-	    my @rc = <RC>;
-	    close RC;
-	    chomp( @rc);
-	    $creds = from_json( join( '',@rc));
-	}
+        if ( $oauth_key && $oauth_secret) {
+            $creds->{'oauth_key'} = $oauth_key;
+            $creds->{'oauth_secret'} = $oauth_secret;
+        } elsif (-e $auth_rc && -r $auth_rc) {
+            open RC, "<", $auth_rc;
+            my @rc = <RC>;
+            close RC;
+            chomp( @rc);
+            $creds = from_json( join( '',@rc));
+        }
 
-	unless ( defined( $creds->{'oauth_key'})) {
-	    croak "No oauth_key found";
-	}
-	unless ( defined( $creds->{'oauth_secret'})) {
-	    croak "No oauth_secret found";
-	}
-	# This is a not a production-ready way to perform logins, but
-	# we're using it here for alpha testing,
-	# and must be replaced with oauth protected login before
-	# fetching user creds
-	my $ad=new Bio::KBase::AuthDirectory;
-	my $user = $ad->lookup_consumer( $creds->{'oauth_key'});
-	unless ( defined($user->oauth_creds()->{$creds->{'oauth_key'}})) {
-	    croak "Could not find matching oauth_key in user database";
-	}
-	$creds2 = $user->oauth_creds()->{$creds->{'oauth_key'}};
-	unless ( $creds2->{'oauth_secret'} eq $creds->{'oauth_secret'}) {
-	    croak "oauth_secret does not match";
-	}
-	$self->{user} =  $user;
-	$self->{oauth_cred} = $creds2;
-	$self->{logged_in} = 1;
+        unless ( defined( $creds->{'oauth_key'})) {
+            die "No oauth_key found";
+        }
+        unless ( defined( $creds->{'oauth_secret'})) {
+            die "No oauth_secret found";
+        }
+        # This is a not a production-ready way to perform logins, but
+        # we're using it here for alpha testing,
+        # and must be replaced with oauth protected login before
+        # fetching user creds
+        my $ad=new Bio::KBase::AuthDirectory;
+        my $user = $ad->lookup_consumer( $creds->{'oauth_key'});
+        unless ( defined($user->oauth_creds()->{$creds->{'oauth_key'}})) {
+            die "Could not find matching oauth_key in user database";
+        }
+        $creds2 = $user->oauth_creds()->{$creds->{'oauth_key'}};
+        unless ( $creds2->{'oauth_secret'} eq $creds->{'oauth_secret'}) {
+            die "oauth_secret does not match";
+        }
+        $self->{user} =  $user;
+        $self->{oauth_cred} = $creds2;
+        $self->{logged_in} = 1;
     };
     if ($@) {
 	    $self->error_message("Local credentials invalid: $@");
