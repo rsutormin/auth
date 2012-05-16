@@ -37,8 +37,6 @@ sub new {
         @_
     );
 
-    # seed the random number generator
-    srand(  time ^ $$ );
     # Try calling login to see if creds defined
 
     eval {
@@ -49,7 +47,7 @@ sub new {
 	    }
 	} elsif (-e $auth_rc && -r $auth_rc) {
 	    if (-e $auth_rc && -r $auth_rc) {
-		open RC, "<", $auth_rc;
+		open RC, "<", $auth_rc or die "Could not open $auth_rc : $!";
 		my @rc = <RC>;
 		close RC;
 		chomp( @rc);
@@ -87,7 +85,7 @@ sub login {
             $creds->{'oauth_key'} = $oauth_key;
             $creds->{'oauth_secret'} = $oauth_secret;
         } elsif (-e $auth_rc && -r $auth_rc) {
-            open RC, "<", $auth_rc;
+            open RC, "<", $auth_rc or die "Could not open $auth_rc : $!";
             my @rc = <RC>;
             close RC;
             chomp( @rc);
