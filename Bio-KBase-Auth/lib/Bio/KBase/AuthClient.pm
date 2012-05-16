@@ -159,6 +159,24 @@ sub auth_token() {
     return( $oauth->to_authorization_header());
 }
 
+sub normalized_request_url {
+    my $self = shift;
+    my $req = shift;
+    
+    my ($proto) = $req->protocol =~ /([a-zA-Z]+)/;
+    $proto = lc( $proto);
+    my $host = $req->headers->{host};
+    my $path = $req->uri->path;
+    if (( $proto eq "https") && ($host =~ /:443$/)) {
+	$host =~ s/:443$//;
+    } elsif (( $proto eq "http") && ($host =~ /:80$/)) {
+	$host =~ s/:80$//;
+    }
+    return( sprintf( '%s://%s%s', $proto, $host, $path));
+    
+}
+
+
 sub new_consumer() {
     my $self = shift @_;
     my $ad = Bio::KBase::AuthDirectory->new();

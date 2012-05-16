@@ -32,6 +32,9 @@ $user->user_id('sychan2');
 $user->name('s chan again');
 $user->email('sychan2@lbl.gov');
 
+$ad->delete_user('sychan2');
+
+
 ok( $newuser = $ad->create_user( $user), "Creating a new user sychan2");
 
 if ($newuser) {
