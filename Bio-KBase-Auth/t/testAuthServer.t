@@ -133,7 +133,8 @@ sub testClient {
     ok($ac->logout(), "Logout consumer_key = key3");
 
     #log back in w/ key
-    ok($ac->login(consumer_key => 'key3', consumer_secret => 'secret3'), "Log back in w/ consumer_key = key3 and secret = secret3");
+    $res = $ac->login(consumer_key => 'key3', consumer_secret => 'secret3');
+    ok($res, "Log back in w/ consumer_key = key3 and secret = secret3");
 
     cond_logout($ac); #conditional logout
 
@@ -150,12 +151,15 @@ sub testClient {
     $user4 = dclone($ac->user);
     $ac->logout();
     $ac->login(consumer_key => 'key4', consumer_secret => 'secret4');
+    #
+    # Deep equality is not guaranteed for multiple retrievals of the same user, and enforcing
+    # it would be quite a painful. Perl uses hash references
     is_deeply($user4, $ac->user, "Test that multiple logins as the same user provides the same profile");
 
     cond_logout($ac);
 
     #check login as different user has different profile
-    $ac = Bio::KBase::AuthClient->new(consumer_key => 'key5', consumer_secret => 'secret5');
+    $ac = Bio::KBase::AuthClient->new(consumer_key => 'key6', consumer_secret => 'secret6');
     $user5 = dclone($ac->user);
     $ac->logout();
     $ac->login(consumer_key => 'key4', consumer_secret => 'secret4');
@@ -265,7 +269,7 @@ sub testClient {
 	die "Client: Failed to sign request";
     }
     note( sprintf "Sending json-rpc request with embedded oauth token: %s %s\n\t%s\n",$req->method,$req->url->as_string,$req->content);
-    #my $res = $ua->request( $req);
+    my $res = $ua->request( $req);
     ok( ($res->code >= 200) && ($res->code < 300), "POST request with oauth cred in HTTP envelope and sample JSON-RPC message body");
     note( sprintf "Client: Recieved a response: %d %s\n", $res->code, $res->content);
 

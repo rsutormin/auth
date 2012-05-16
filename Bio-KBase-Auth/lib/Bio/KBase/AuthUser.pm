@@ -6,8 +6,6 @@ use warnings;
 # and save ourselves some tedium
 use Object::Tiny::RW qw {
     user_id
-    consumer_key
-    consumer_secret
     token
     error_message
     enabled

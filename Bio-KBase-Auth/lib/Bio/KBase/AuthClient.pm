@@ -21,7 +21,7 @@ use Data::Dumper;
 # }
 #
 
-our $auth_rc = "~/.kbase/auth.rc";
+our $auth_rc = "~/.kbase-auth";
 
 
 
@@ -42,29 +42,30 @@ sub new {
     # Try calling login to see if creds defined
 
     eval {
+	my @x = glob( $auth_rc);
+	my $auth_rc = shift @x;
 	if (exists($params{ consumer_key})) {
-	    $self->login( $params{consumer_key}, $params{consumer_secret});
+	    $self->login( %params);
 	    unless ($self->{logged_in}) {
 		die( "Authentication failed:" . $self->error_message);
 	    }
-	} elsif (-e $auth_rc && -r $auth_rc) {
-	    if (-e $auth_rc && -r $auth_rc) {
-		open RC, "<", $auth_rc;
-		my @rc = <RC>;
-		close RC;
-		chomp( @rc);
-		my $creds = from_json( join( '',@rc));
-		unless ( defined( $creds->{'oauth_key'})) {
-		    die "No oauth_key found in $auth_rc";
-		}
-		unless ( defined( $creds->{'oauth_secret'})) {
-		    die "No oauth_secret found in $auth_rc";
-		}
-		unless ($self->login( $creds->{'oauth_key'},$creds->{'oauth_secret'})) {
-		    # login failed, pass the error message along. Redundant for now, but
-		    # we don't want later code possibly stomping on this result
-		    die "auth_rc credentials failed login: " . $self->error_message;
-		}
+	} elsif ($auth_rc && -r $auth_rc) {
+	    open RC, "<", $auth_rc;
+	    my @rc = <RC>;
+	    close RC;
+	    chomp( @rc);
+	    my $creds = from_json( join( '',@rc));
+	    
+	    unless ( defined( $creds->{'oauth_key'})) {
+		die "No oauth_key found in $auth_rc";
+	    }
+	    unless ( defined( $creds->{'oauth_secret'})) {
+		die "No oauth_secret found in $auth_rc";
+	    }
+	    unless ($self->login( consumer_key => $creds->{'oauth_key'}, consumer_secret => $creds->{'oauth_secret'})) {
+		# login failed, pass the error message along. Redundant for now, but
+		# we don't want later code possibly stomping on this result
+		die "auth_rc credentials failed login: " . $self->error_message;
 	    }
 	}
     };
@@ -76,22 +77,24 @@ sub new {
 
 sub login {
     my $self = shift;
-    my $oauth_key = shift;
-    my $oauth_secret = shift;
+    my %p = @_;
     my $creds;
     my $creds2;
 
     $self->{logged_in} = 0;
     eval {
-        if ( $oauth_key && $oauth_secret) {
-            $creds->{'oauth_key'} = $oauth_key;
-            $creds->{'oauth_secret'} = $oauth_secret;
-        } elsif (-e $auth_rc && -r $auth_rc) {
+	my @x = glob( $auth_rc);
+	my $auth_rc = shift @x;
+        if ( $p{consumer_key} && $p{consumer_secret}) {
+            $creds->{'oauth_key'} = $p{consumer_key};
+            $creds->{'oauth_secret'} = $p{consumer_secret};
+        } elsif ($auth_rc && -r $auth_rc) {
             open RC, "<", $auth_rc;
             my @rc = <RC>;
             close RC;
             chomp( @rc);
             $creds = from_json( join( '',@rc));
+	    print "Contents from $auth_rc:\n",DataDumper( $creds);
         }
 
         unless ( defined( $creds->{'oauth_key'})) {
@@ -100,6 +103,7 @@ sub login {
         unless ( defined( $creds->{'oauth_secret'})) {
             die "No oauth_secret found";
         }
+
         # This is a not a production-ready way to perform logins, but
         # we're using it here for alpha testing,
         # and must be replaced with oauth protected login before
@@ -197,12 +201,17 @@ sub new_consumer {
 
 sub logout {
     my $self = shift @_;
-    $self->{user} = Bio::KBase::AuthUser->new();
-    $self->{logged_in} = 0;
-    $self->{oauth_cred} = {};
+    
+    if ( $self->{logged_in} ) {
+	$self->{user} = Bio::KBase::AuthUser->new();
+	$self->{logged_in} = 0;
+	$self->{oauth_cred} = {};
+	return(1);
+    } else {
+	$self->{error_message} = "Not logged in";
+	return(0);
+    }
 
-
-    return 1;
 }
 
 1;
@@ -290,7 +299,7 @@ __END__
 
 =head2 Environment
 
-   User home directories can contain ~/.kbase-auth, which is a JSON formatted file with declarations for authentication information (similar to a ~/.netrc file)
+   User home directories can contain $auth_rc, which is a JSON formatted file with declarations for authentication information (similar to a ~/.netrc file)
    It should be in the following format:
 
 { "oauth_key":"consumer_key_blahblah",
