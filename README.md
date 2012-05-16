@@ -28,6 +28,7 @@
     * Crypt::SSLeay
     * Test::Deep::NoTest
     * Storable
+    * Email::Valid
 
 * Ports that need to be open
     * django server (default port 8000)
