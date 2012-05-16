@@ -181,13 +181,17 @@ sub testClient {
     $ac = Bio::KBase::AuthClient->new(consumer_key => 'key5', consumer_secret => 'secret5');
 
     $user2 = createUser();
-    fixUser($user2);
-    
-    $ac = Bio::KBase::AuthClient->new(consumer_key => $user2->consumer_key, consumer_secret => $user2->consumer_secret);
+    my %user2creds = %{$user2->oauth_creds};
+    @keys = keys %user2creds;
+    my $key2 = shift ( @keys);
+
+    $ac = Bio::KBase::AuthClient->new(consumer_key => $user2->oauth_creds->{$key2}->{oauth_key},
+				      consumer_secret => $user2->oauth_creds->{$key2}->{oauth_secret});
     $userref2 = dclone($ac->user);
     $ac->logout();
-    $ac->login(consumer_key => $user1->consumer_key, consumer_secret => $user1->consumer_secret);
-    ok(!eq_deeply($useref52, $ac->user), "Test that multiple logins as different users provide different profiles");
+    $ac->login(consumer_key => $user1->oauth_creds->{$key}->{oauth_key},
+	       consumer_secret => $user1->oauth_creds->{$key}->{oauth_secret});
+    ok(!eq_deeply($useref2, $ac->user), "Test that multiple logins as different users provide different profiles");
     ok(!($userref2->user_id eq $ac->user->user_id), "Test that multiple logins as different users have different ids");     
     
     #cond_logout($ac);
@@ -352,25 +356,6 @@ sub redrumAll(){
         $ad->delete_user($u->user_id);
      }
 }
-
-sub fixUser() {
-     my $user = shift;
-     if ($user->consumer_key && $user->consumer_secret) {
-          return 1; # key/secret is set, no fix needed
-     }
-     my $tmp = $user->oauth_creds();
-     @ckeys = keys(%$tmp);
-     $ckey = $ckeys[0];
-     #print $ckey . "\n";
-     #print $user->oauth_creds . "\n";
-     #print Dumper($user->oauth_creds);
-     #print Dumper($user->oauth_creds->{$ckey}->{'oauth_key'}); 
-     $user->consumer_key($user->oauth_creds->{$ckey}->{'oauth_key'});
-     $user->consumer_secret($user->oauth_creds->{$ckey}->{'oauth_secret'});
-     return 0; #no key or secret, grab from hash
-}
-     
-
 
 ok( $d = HTTP::Daemon->new( LocalAddr => '127.0.0.1'), "Creating a HTTP::Daemon object for handling AuthServer") || die "Could not create HTTP::Daemon";
 
