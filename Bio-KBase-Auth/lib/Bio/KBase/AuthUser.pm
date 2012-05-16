@@ -6,8 +6,6 @@ use warnings;
 # and save ourselves some tedium
 use Object::Tiny::RW qw {
     user_id
-    consumer_key
-    consumer_secret
     token
     error_message
     enabled
@@ -73,18 +71,6 @@ This is a container for user attributes - creating, destroying them in the user 
 =item B<user_id> (string)
 
 REQUIRED Identifier for the End-User at the Issuer.
-
-=item B<consumer_key> (string)
-
-REQUIRED Rcurrent identifier for used consumer identification
-
-=item B<consumer_secret> (string)
-
-REQUIRED current (oauth1) shared secret used for signing requests
-
-=item B<token> (string)
-
-base64 encoded authentication token (OAuth 2)
 
 =item B<error_message> (string)
 
