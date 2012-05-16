@@ -9,6 +9,7 @@
 #NOTE: json-rpc test prior line commented out, will always fail - was hanging script
 
 use lib "../lib/";
+use lib "lib";
 use Data::Dumper;
 use HTTP::Daemon;
 use HTTP::Request;
@@ -38,7 +39,7 @@ sub testServer {
     while (my $c = $d->accept()) {
 	while (my $r = $c->get_request) {
 	    note( sprintf "Server: Recieved a connection: %s %s\n\t%s\n", $r->method, $r->url->path, $r->content);
-	    
+
 	    my $body = sprintf("You sent a %s for %s.\n\n",$r->method(), $r->url->path);
 	    $as->validate_request( $r);
 	    if ($as->valid) {
@@ -47,7 +48,7 @@ sub testServer {
 				  $as->user->user_id);
 	    } else {
 		$res->code(401);
-		$body .= sprintf("You failed to login: %s.\n", $as->error_msg);
+		$body .= sprintf("You failed to login: %s.\n", $as->error_message);
 	    }
 	    $res->content( $body);
 	    $c->send_response($res);
@@ -75,84 +76,84 @@ sub testClient {
     my $ac = '';
     # wrong key log-in test using new
     $ac = Bio::KBase::AuthClient->new(consumer_key => 'kkkkkkkkkkkkkkkkkkkkkkkkkk', consumer_secret => 'secret3');
-    ok($ac->{error_msg}, 'Wrong key should generate error message');
+    ok($ac->error_message, 'Wrong key should generate error message');
     is($ac->{logged_in}, 0, 'Wrong key should be failed to login');
-    
+
     # wrong secret log-in test using new
     $ac = Bio::KBase::AuthClient->new(consumer_key => 'key3', consumer_secret => 'ssssssssssssssssssssssssssssssssssssssssss');
-    ok($ac->{error_msg}, 'Wrong secret should generate error message');
+    ok($ac->error_message, 'Wrong secret should generate error message');
     is($ac->{logged_in}, 0, "Wrong secret should be failed to login");
 
     # empty user test
-    $ac = Bio::KBase::AuthClient->new(); 
-    is($ac->{error_msg}, '', "Create empty user instance without error");
+    $ac = Bio::KBase::AuthClient->new();
+    is($ac->error_message, '', "Create empty user instance without error");
     is($ac->{logged_in}, 0, "empty user shouldn't be logged in");
 
 
     # test using ~/.kbase-auth
     # wrong key log-in test using kbase-auth
     `echo " { \\"oauth_key\\":\\"kkkkkkkkkkkkkkkkkkkkkkkkkkkkk\\", \\"oauth_secret\\":\\"secret3\\" }" > ~/.kbase-auth;`;
-    $ac = Bio::KBase::AuthClient->new(); 
-    ok($ac->{error_msg}, 'Wrong key should generate error message using kbase-auth');
+    $ac = Bio::KBase::AuthClient->new();
+    ok($ac->error_message, 'Wrong key should generate error message using kbase-auth');
     is($ac->{logged_in}, 0, 'Wrong key should be failed to login using kbase-auth');
 
     # wrong secret log-in test using kbase-auth
     `echo " { \\"oauth_key\\":\\"key3\\", \\"oauth_secret\\":\\"ssssssssssssssssssssssssssssssssssssssssss\\" }" > ~/.kbase-auth;`;
-    $ac = Bio::KBase::AuthClient->new(); 
-    ok($ac->{error_msg}, 'Wrong secret should generate error message');
+    $ac = Bio::KBase::AuthClient->new();
+    ok($ac->error_message, 'Wrong secret should generate error message');
     is($ac->{logged_in}, 0, "Wrong secret should be failed to login");
 
-    
+
     # correct key and secret log-in test using kbase-auth
     `echo " { \\"oauth_key\\":\\"key3\\", \\"oauth_secret\\":\\"secret3\\" }" > ~/.kbase-auth;`;
-    $ac = Bio::KBase::AuthClient->new(); 
-    is($ac->{error_msg}, '', "Correct key and secret should generate no error message");
+    $ac = Bio::KBase::AuthClient->new();
+    is($ac->error_message, '', "Correct key and secret should generate no error message");
     is($ac->{logged_in}, 1, "Correct key and secret should be able to login");
 
-    # remove test .kbase-auth file 
+    # remove test .kbase-auth file
     `rm ~/.kbase-auth`;
 
     # correct key and secret as parameter test
-    $ac = Bio::KBase::AuthClient->new(consumer_key => 'key3', consumer_secret => 'secret3'); 
-    is($ac->{error_msg}, '', "Create user instance without error with correct key and secret");
+    $ac = Bio::KBase::AuthClient->new(consumer_key => 'key3', consumer_secret => 'secret3');
+    is($ac->error_message, '', "Create user instance without error with correct key and secret");
     is($ac->{logged_in}, 1, "Correct key and secret should be logged in");
-    
-    $ac = Bio::KBase::AuthClient->new(consumer_key => 'key3', consumer_secret => 'secret3', dummy_field => 'dummy_tokenkkkkkkkkkkkkkkkkkk'); 
-    is($ac->{error_msg}, '', "Additional AuthClient->new parameter shouldn't cause error in terms of login");
+
+    $ac = Bio::KBase::AuthClient->new(consumer_key => 'key3', consumer_secret => 'secret3', dummy_field => 'dummy_tokenkkkkkkkkkkkkkkkkkk');
+    is($ac->error_message, '', "Additional AuthClient->new parameter shouldn't cause error in terms of login");
     is($ac->{logged_in}, 1, "Additional AuthClient->new parameter shouldn't bother login");
 
 
     ###
     # logout/login tests from a black box perspective 5/15/12________
     ###
-    
+
     #$user1 = createUser();
-    
+
     #logout of original sesssion
     ok($ac->logout(), "Logout consumer_key = key3");
-    
+
     #log back in w/ key
     ok($ac->login(consumer_key => 'key3', consumer_secret => 'secret3'), "Log back in w/ consumer_key = key3 and secret = secret3");
-    
+
     cond_logout($ac); #conditional logout
-    
+
     #login w/ fresh client connection
     ok($ac = Bio::KBase::AuthClient->new(consumer_key => 'key4', consumer_secret => 'secret4'), "Make new client connection w/ c_k = key4 and secret = secret4");
-    
+
     #double logout - second should fail
     $ac->logout();
     ok(!$ac->logout(), "Double logout should return false");
     # should also add a check for the correct error message, but that's undocumented
-    
+
     #check login as same user has same profile
     $ac = Bio::KBase::AuthClient->new(consumer_key => 'key4', consumer_secret => 'secret4');
     $user4 = dclone($ac->user);
     $ac->logout();
     $ac->login(consumer_key => 'key4', consumer_secret => 'secret4');
     is_deeply($user4, $ac->user, "Test that multiple logins as the same user provides the same profile");
-    
+
     cond_logout($ac);
-    
+
     #check login as different user has different profile
     $ac = Bio::KBase::AuthClient->new(consumer_key => 'key5', consumer_secret => 'secret5');
     $user5 = dclone($ac->user);
@@ -160,25 +161,25 @@ sub testClient {
     $ac->login(consumer_key => 'key4', consumer_secret => 'secret4');
     #no is_not_deeply, unfortunately
     ok(!eq_deeply($user5, $ac->user), "Test that multiple logins as the different users provide different profiles");
-    
+
     cond_logout($ac);
-    
+
     $ac = Bio::KBase::AuthClient->new(consumer_key => 'key5', consumer_secret => 'secret5');
-    
+
     #More stuff to test
     #test async_return_url behavior for login and logout
-    #test conversation_callback 
-    
+    #test conversation_callback
+
     #Other notes:
     # What happens if the current test @ 140.221.92.45 isn't available or the data has been changed? All tests will fail in the former and the the original tests will fail in the latter.
-    
-    
+
+
     redrumAll(); # remove all created users
-    
+
     ##
     #__________original tests_____________
     ##
-    
+
     # Create a KBase client and attach the authorization headers to the
     # request object. Use a canned key and secret that are in the test db
     ok( $ac = Bio::KBase::AuthClient->new(consumer_key => 'key3', consumer_secret => 'secret3'), "Logging in either consumer key and secret");
@@ -208,7 +209,7 @@ sub testClient {
     # restore the secret and send an example of a good request with an embedded JSON
     # string that includes an extra signature
     $ac->{oauth_cred}->{oauth_secret} = $secret;
-    
+
     $req = HTTP::Request->new( POST => $server. "some_rpc_handler" );
 
     # The arguments to the method call
@@ -272,20 +273,20 @@ sub testClient {
     # move back original .kbase-auth file
     if ( -e "~/.kbase-auth.testing") {
       `mv ~/.kbase-auth.testing ~/.kbase-auth`;
-    }  
+    }
 }
 
 # if logged in, logout
 sub cond_logout(){
     $ac = shift;
-     
+
     if ($ac->{logged_in}){
          $ac->logout();
     }
 }
 
 sub createUser() {
-     
+
      my $random_user_id = 'hackz0rz_oh_no_' . time . int(rand(100000000000));
 
      my $user = Bio::KBase::AuthUser->new(
@@ -295,12 +296,12 @@ sub createUser() {
      );
      #print Dumper($user); use Data::Dumper;
      $authdirectory = Bio::KBase::AuthDirectory->new();
-     my $user = $authdirectory->create_user($user);
-     
+     $user = $authdirectory->create_user($user);
+
      push(@users, $user); #record users for deletion later
-     
+
      note("Created test user " . $random_user_id);
-     
+
      #print $authdirectory->error_message, "\n";
      return $user;
 }
@@ -314,7 +315,7 @@ sub redrum(){
 
 # delete all users
 sub redrumAll(){
-     
+
      my $ad = Bio::KBase::AuthDirectory->new();
      foreach my $u (@users) {
      note("Deleted test user " . $u->user_id);

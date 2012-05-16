@@ -6,6 +6,7 @@
 #
 
 use lib "../lib/";
+use lib "lib";
 use Data::Dumper;
 use Test::More tests => 15;
 
@@ -28,6 +29,7 @@ ok( $x = $ad->lookup_oauth2_token('token6'), "Looking up token 'token6'");
 note( Dumper( $x));
 
 $user = new Bio::KBase::AuthUser;
+note("USER is $user\n");
 $user->user_id('sychan2');
 $user->name('s chan again');
 $user->email('sychan2@lbl.gov');
