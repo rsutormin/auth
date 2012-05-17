@@ -327,7 +327,7 @@ sub createUser() {
      #print Dumper($user); 
      $ad = Bio::KBase::AuthDirectory->new();
      
-     my $user = $ad->create_user($user);
+     $user = $ad->create_user($user);
      $ad->new_consumer($user->user_id);
      $user = $ad->lookup_user($user->user_id); #get the version with key & secret
      
