@@ -335,7 +335,7 @@ Most recent error msg from call to instance method.
 
 returns Bio::KBase::AuthClient
 
-   Class constructor. Create and return a new client authentication object. Optionally takes arguments that are used for a call to the login() method. By default will check ~/.kbase-auth file for declarations for the consumer_key and consumer_secret, and if found, will pull those in and perform a login(). Environment variables are also an option and should be discussed.
+Class constructor. Create and return a new client authentication object. Optionally takes arguments that are used for a call to the login() method. By default will check ~/.kbase-auth file for declarations for the consumer_key and consumer_secret, and if found, will pull those in and perform a login(). Environment variables are also an option and should be discussed.
 
 =item B<login>( [consumer_key=>key, consumer_secret=>secret] |
 [user_id=>”someuserid”,[password=>’somepassword’] |

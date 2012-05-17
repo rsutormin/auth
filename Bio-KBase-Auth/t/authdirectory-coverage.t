@@ -13,6 +13,9 @@ use Bio::KBase::AuthUser;
 use Bio::KBase::AuthDirectory;
 use Bio::KBase::AuthClient;
 use Bio::KBase::Auth;
+use Data::Dumper;
+
+$Bio::KBase::Auth::AuthSvcHost = 'http://127.0.0.1:8000';
 
 my $user_id  = 'testington_1_' . time;
 my $user_id2 = 'testington_2_' . time;
@@ -77,8 +80,9 @@ is ($user->phone_number('800-555-1212'), '800-555-1212', 'set phone_number to 80
 #close F;
 ok ($ad->update_user($user), "Successfully updated user");
 is ($user->phone_number, '800-555-1212', 'phone number still 800-555-1212');
-is ($user->user_id($user_id . '22'), $user_id . '22', "Successfully updated user_id to ${user_id}22");
-ok (! $ad->update_user($user), "Changing user_id changes user");
+unless (isnt($user->user_id($user_id . '22'), $user_id . '22', "Forced update of user_id to ${user_id}22")) {
+    ok (! $ad->update_user($user), "Changing user_id changes user");
+}
 is ($user->user_id($user_id), $user_id, "reset user_id back to $user_id");
 
 my $user2 = Bio::KBase::AuthUser->new(
@@ -159,7 +163,6 @@ is ($consumer3->{'oauth_secret'}, $user->user_id.'S', "oauth_secret as specified
 
 my $consumer4;
 ok (!($consumer4 = $ad->new_consumer($user->user_id, $user->user_id.'K')), "Could not create consumer with duplicate key");
-
 ok($newUser1 = $ad->lookup_user($user_id), "Re-loaded user1");
 ok(defined $newUser1->oauth_creds->{$user->user_id.'K'}, 'user1 has consumer2');
 
@@ -198,13 +201,13 @@ $validationUser->name('50 cent');
 ok($ad->_validate_user($validationUser), "Users can have numbers in their names (" . $validationUser->name .")");
 $validationUser->name('Harry S Truman');
 ok($ad->_validate_user($validationUser), "User can have one letter name name w/o initial (" . $validationUser->name .")");
-$validationUser->user_id('a');
+$validationUser->{'user_id'} = "a";
 ok(! $ad->_validate_user($validationUser), "User ids cannot be 1 character (" . $validationUser->user_id .")");
-$validationUser->user_id('ab');
+$validationUser->{'user_id'} = 'ab';
 ok(! $ad->_validate_user($validationUser), "User ids cannot be 2 characters (" . $validationUser->user_id .")");
-$validationUser->user_id('abc$');
+$validationUser->{'user_id'} = 'abc$';
 ok(! $ad->_validate_user($validationUser), "User must be [a-zA-Z0-9_] only (" . $validationUser->user_id .")");
-$validationUser->user_id('abc');
+$validationUser->{'user_id'} = 'abc';
 ok($ad->_validate_user($validationUser), "User ids can be 3 characters (" . $validationUser->user_id .")");
 $validationUser->email('foo@');
 ok(! $ad->_validate_user($validationUser), "Invalid - Must have valid email address (" . $validationUser->email .")");
@@ -229,11 +232,14 @@ ok($ad->_validate_user($validationUser), "Valid - Must have valid email address 
 my $cred;
 my $ac = Bio::KBase::AuthClient->new('user' => $newUser1);
 ok($ac, "Got AuthClient object");
-ok(! $ac->login($consumer2->{'oauth_key'}, $consumer2->{'oauth_secret'}), "Could not login with invalid credentials");
-ok(!$ac->login($consumer1->{'oauth_key'}), "Could not login without secret");
+ok(! $ac->login(consumer_key => $consumer2->{'oauth_key'},
+                consumer_secret => $consumer1->{'oauth_secret'}),
+   "Could not login with invalid credentials");
+ok(!$ac->login( consumer_key => $consumer1->{'oauth_key'}), "Could not login without secret");
 ok(! $ac->login, "Could not login without key");
-ok($cred = $ac->login($consumer1->{'oauth_key'}, $consumer1->{'oauth_secret'}), "Got login credential");
-
+ok($cred = $ac->login( consumer_key => $consumer1->{'oauth_key'},
+	               consumer_secret => $consumer1->{'oauth_secret'}), 
+   "Got login credential");
 ok (! $ad->delete_user(), "Cannot delete_user w/o user");
 is ($ad->error_message, "Cannot delete_user w/o user_id", "Expected error message");
 ok (! $ad->enable_user(), "Cannot enable_user w/o user");

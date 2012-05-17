@@ -5,7 +5,6 @@ use warnings;
 # We use Object::Tiny::RW to generate getters/setters for the attributes
 # and save ourselves some tedium
 use Object::Tiny::RW qw {
-    user_id
     token
     error_message
     enabled
@@ -44,6 +43,19 @@ sub new() {
     );
 
     return($self);
+}
+
+sub user_id {
+    my $self = shift;
+    my $user_id = shift;
+
+    # If there is a user_id value set already, do not accept a new
+    # value, just return the old value
+
+    if ($user_id && !(exists $self->{user_id})) {
+	$self->{'user_id'} = $user_id;
+    }
+    return( $self->{'user_id'});
 }
 
 1;
