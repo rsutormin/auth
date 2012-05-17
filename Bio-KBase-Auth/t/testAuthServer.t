@@ -9,6 +9,10 @@
 #   if the DB doesn't exist or doesn't have that specific data pre-populated, tests will fail.
 #   Users & creds should be created and deleted rather than depending on their existence.
 
+#Untested stuff - not implemented: 
+    #async_return_url behavior for login and logout
+    #conversation_callback for login
+
 use lib "../lib/";
 use lib "lib";
 use Data::Dumper;
@@ -148,6 +152,7 @@ sub testClient {
     ok($ac->logout(), "Logout");
     ok(!$ac->logged_in, "Confirm logged_in set correctly");
     ok(!(scalar keys(%{$ac->oauth_cred()})), "No creds left in client");
+    ok(!$ac->user->user_id, 'No user_id stored');
     
     #login session with same key
     ok($ac->login(consumer_key => $creds1->{'oauth_key'},
@@ -198,10 +203,6 @@ sub testClient {
     ok(!($userrec2->user_id eq $ac->user->user_id), "Test that multiple logins as different users have different ids");     
     
     cond_logout($ac);
-    
-    #More stuff to test
-    #test async_return_url behavior for login and logout
-    #test conversation_callback
     
     redrumAll(); # remove all created users
 
