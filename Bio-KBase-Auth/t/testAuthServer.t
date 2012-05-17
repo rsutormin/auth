@@ -138,6 +138,7 @@ sub testClient {
     ok($ac = Bio::KBase::AuthClient->new(consumer_key => $creds1->{'key'},
 					 consumer_secret => $creds1->{'sec'}), "New client with created user & creds");
     note("AuthClient->new() error message: " . $ac->error_message());
+    is($ac->user->user_id, $user1->user_id, "Expected user id matches returned UID");
     
     #logout session
     ok($ac->logout(), "Logout");
@@ -145,6 +146,14 @@ sub testClient {
     #login session with same key
     ok($ac->login(consumer_key => $creds1->{'key'},
 		  consumer_secret => $creds1->{'sec'}), "Log back in w/ same key/secret");
+    is($ac->user->user_id, $user1->user_id, "Expected user id matches returned UID");
+    
+    cond_logout($ac); #conditional logout
+    
+    #login session with different key
+    ok($ac->login(consumer_key => $creds2->{'key'},
+          consumer_secret => $creds2->{'sec'}), "Log back in w/ different key/secret");
+    is($ac->user->user_id, $user2->user_id, "Expected user id matches returned UID");
     
     cond_logout($ac); #conditional logout
 
