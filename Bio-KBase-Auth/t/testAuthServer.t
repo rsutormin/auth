@@ -130,15 +130,19 @@ sub testClient {
     
     $user1 = createUser();
     $creds1 = getFirstAuthCreds($user1);
+    
+    $user2 = createUser();
+    $creds2 = getFirstAuthCreds($user2);
        
     # Testing the newly created user
     ok($ac = Bio::KBase::AuthClient->new(consumer_key => $creds1->{'key'},
 					 consumer_secret => $creds1->{'sec'}), "New client with created user & creds");
-    note("AuthClient->new error message: " . $ac->error_message());
+    note("AuthClient->new() error message: " . $ac->error_message());
     
     #logout session
     ok($ac->logout(), "Logout");
     
+    #login session with same key
     ok($ac->login(consumer_key => $creds1->{'key'},
 		  consumer_secret => $creds1->{'sec'}), "Log back in w/ same key/secret");
     
@@ -165,20 +169,6 @@ sub testClient {
     cond_logout($ac);
 
     #check login as different user has different profile
-    $ac = Bio::KBase::AuthClient->new(consumer_key => 'key6', consumer_secret => 'secret6');
-    $user5 = dclone($ac->user);
-    $ac->logout();
-    $ac->login(consumer_key => 'key4', consumer_secret => 'secret4');
-    #no is_not_deeply, unfortunately
-    ok(!eq_deeply($user5, $ac->user), "Test that multiple logins as the different users provide different profiles");
-
-    cond_logout($ac);
-
-    $ac = Bio::KBase::AuthClient->new(consumer_key => 'key5', consumer_secret => 'secret5');
-
-    $user2 = createUser();
-    $creds2 = getFirstAuthCreds($user2);
-
     $ac = Bio::KBase::AuthClient->new(consumer_key => $creds2->{'key'},
 				      consumer_secret => $creds2->{'sec'});
     $userref2 = dclone($ac->user);
