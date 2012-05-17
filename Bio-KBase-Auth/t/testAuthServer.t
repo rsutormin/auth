@@ -147,7 +147,7 @@ sub testClient {
     #logout session
     ok($ac->logout(), "Logout");
     ok(!$ac->logged_in, "Confirm logged_in set correctly");
-    ok(!(scalar keys $ac->oauth_cred), "No creds left in client");
+    ok(!(scalar keys(%{$ac->oauth_cred()})), "No creds left in client");
     
     #login session with same key
     ok($ac->login(consumer_key => $creds1->{'oauth_key'},
@@ -359,7 +359,7 @@ sub redrumAll(){
 
 sub getFirstAuthCreds() {
      my $user = shift;
-     @ckeys = keys($user->oauth_creds);
+     @ckeys = keys(%{$user->oauth_creds()} );
      $ckey = shift @ckeys;
 #     my %creds = (key => $userOrAC->oauth_creds->{$ckey}->{'oauth_key'},
 #                  sec => $userOrAC->oauth_creds->{$ckey}->{'oauth_secret'},            
