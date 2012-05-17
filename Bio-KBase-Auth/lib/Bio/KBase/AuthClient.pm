@@ -315,7 +315,7 @@ Contains information about the user using the client. Also the full set of oauth
 
 =item B<oauth_cred> (hash)
 
-Contains the specific oauth credential used for authentication. It is a hash of the same structure as the oauth_creds entries in the Bio::KBase::AuthUser
+Contains the hashref to specific oauth credential used for authentication. It is a hash of the same structure as the oauth_creds entries in the Bio::KBase::AuthUser
 
 =item B<logged_in> (boolean)
 

@@ -98,7 +98,7 @@ An array of strings for storing Unix style groups that the user is a member of
 
 =item B<oauth_creds> (hash)
 
-hash array keyed on consumer_keys that stores keys, secrets, verifiers and tokens associated with this user
+reference to hash array keyed on consumer_keys that stores keys, secrets, verifiers and tokens associated with this user
 
 =item B<name> (string)
 
