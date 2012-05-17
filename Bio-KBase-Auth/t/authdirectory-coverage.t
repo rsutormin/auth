@@ -45,8 +45,6 @@ is($user->name('Bob Testington'), 'Bob Testington', 'Properly set name to Bob Te
 ok($ad->create_user($user), "Successfully created user");
 ok(! $ad->create_user($user), "Could not create user 2x");
 is ($user->user_id, $user_id, "user_id is still $user_id");
-is ($user->consumer_key, undef, "consumer_key is still undefined");
-is ($user->consumer_secret, undef, "consumer_secret is still undefined");
 is ($user->token, undef, "token is still undefined");
 is ($user->error_message, undef, "error_message is still undefined");
 is ($user->enabled, 0, "enabled is 0");
