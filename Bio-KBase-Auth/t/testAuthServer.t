@@ -5,9 +5,8 @@
 # 5/3/12
 #
 
-
-#NOTE: json-rpc test prior line commented out, will always fail - was hanging script
-#NOTE: remove fixUser call when related bug is fixed
+#NOTE: some tests depend on the database being populated with specific users and auth creds.
+# if the DB doesn't exist or doesn't have that specific data pre-populated, tests will fail.
 
 use lib "../lib/";
 use lib "lib";
@@ -130,40 +129,37 @@ sub testClient {
     ###
     
     $user1 = createUser();
-    
-    #print Dumper($user1);
+    $creds1 = getFirstAuthCreds($user1);
        
     # Testing the newly created user
-    my %user1creds = %{$user1->oauth_creds};
-    my @keys = keys %user1creds;
-    my $key = shift ( @keys);
-    ok($ac = Bio::KBase::AuthClient->new(consumer_key => $user1->oauth_creds->{$key}->{oauth_key},
-					 consumer_secret => $user1->oauth_creds->{$key}->{oauth_secret}), "New client with AuthUser->consumer_key / secret, fixed if necc");
-    note( $ac->error_message());
+    ok($ac = Bio::KBase::AuthClient->new(consumer_key => $creds1->{'key'},
+					 consumer_secret => $creds1->{'sec'}), "New client with created user & creds");
+    note("AuthClient->new error message: " . $ac->error_message());
+    
     #logout session
     ok($ac->logout(), "Logout");
     
-    ok($ac->login(consumer_key => $user1->oauth_creds->{$key}->{oauth_key},
-		  consumer_secret => $user1->oauth_creds->{$key}->{oauth_secret}), "Log back in w/ same key/secret");
+    ok($ac->login(consumer_key => $creds1->{'key'},
+		  consumer_secret => $creds1->{'sec'}), "Log back in w/ same key/secret");
+    
     cond_logout($ac); #conditional logout
 
     #login w/ fresh client connection
-
-    $ac = Bio::KBase::AuthClient->new(consumer_key => $user1->oauth_creds->{$key}->{oauth_key},
-				      consumer_secret => $user1->oauth_creds->{$key}->{oauth_secret});
+    $ac = Bio::KBase::AuthClient->new(consumer_key => $creds1->{'key'},
+				      consumer_secret => $creds1->{'sec'});
     
     #double logout - second should fail
     $ac->logout();
     ok(!$ac->logout(), "Double logout should return false");
-    is($ac->error_message, "Not logged in", "Double logout error message check"); #error message is undocumented, so this is a guess
+    is($ac->error_message, "Not logged in", "Double logout error message check");
     
     #check login as same user has same profile
-    $ac = Bio::KBase::AuthClient->new(consumer_key => $user1->oauth_creds->{$key}->{oauth_key},
-				      consumer_secret => $user1->oauth_creds->{$key}->{oauth_secret});
+    $ac = Bio::KBase::AuthClient->new(consumer_key => $creds1->{'key'},
+				      consumer_secret => $creds1->{'sec'});
     $userrec = dclone($ac->user);
     $ac->logout();
-    $ac->login(consumer_key => $user1->oauth_creds->{$key}->{oauth_key},
-	       consumer_secret => $user1->oauth_creds->{$key}->{oauth_secret},);
+    $ac->login(consumer_key => $creds1->{'key'},
+	       consumer_secret => $creds1->{'sec'},);
     is_deeply($userrec, $ac->user, "Test that multiple logins as the same user provides the same profile");
     
     cond_logout($ac);
@@ -181,27 +177,22 @@ sub testClient {
     $ac = Bio::KBase::AuthClient->new(consumer_key => 'key5', consumer_secret => 'secret5');
 
     $user2 = createUser();
-    my %user2creds = %{$user2->oauth_creds};
-    @keys = keys %user2creds;
-    my $key2 = shift ( @keys);
+    $creds2 = getFirstAuthCreds($user2);
 
-    $ac = Bio::KBase::AuthClient->new(consumer_key => $user2->oauth_creds->{$key2}->{oauth_key},
-				      consumer_secret => $user2->oauth_creds->{$key2}->{oauth_secret});
+    $ac = Bio::KBase::AuthClient->new(consumer_key => $creds2->{'key'},
+				      consumer_secret => $creds2->{'sec'});
     $userref2 = dclone($ac->user);
     $ac->logout();
-    $ac->login(consumer_key => $user1->oauth_creds->{$key}->{oauth_key},
-	       consumer_secret => $user1->oauth_creds->{$key}->{oauth_secret});
+    $ac->login(consumer_key => $creds1->{'key'},
+	       consumer_secret => $creds1->{'sec'});
     ok(!eq_deeply($useref2, $ac->user), "Test that multiple logins as different users provide different profiles");
     ok(!($userref2->user_id eq $ac->user->user_id), "Test that multiple logins as different users have different ids");     
     
-    #cond_logout($ac);
+    cond_logout($ac);
     
     #More stuff to test
     #test async_return_url behavior for login and logout
     #test conversation_callback
-
-    #Other notes:
-    # What happens if the current test @ 140.221.92.45 isn't available or the data has been changed? All tests will fail in the former and many of the tests will fail in the latter.
     
     redrumAll(); # remove all created users
 
@@ -355,6 +346,16 @@ sub redrumAll(){
      note("Deleted test user " . $u->user_id);
         $ad->delete_user($u->user_id);
      }
+}
+
+sub getFirstAuthCreds() {
+     my $user = shift;
+     @ckeys = keys($user->oauth_creds);
+     $ckey = shift @ckeys;
+     my %creds = (key => $user->oauth_creds->{$ckey}->{'oauth_key'},
+                  sec => $user->oauth_creds->{$ckey}->{'oauth_secret'},            
+                 );
+     return \%creds;
 }
 
 ok( $d = HTTP::Daemon->new( LocalAddr => '127.0.0.1'), "Creating a HTTP::Daemon object for handling AuthServer") || die "Could not create HTTP::Daemon";
