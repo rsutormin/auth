@@ -129,11 +129,11 @@ sub testClient {
     # logout/login tests from a black box perspective 5/15/12________
     ###
     
-    $user1 = createUser();
-    $creds1 = getFirstAuthCreds($user1);
+    my $user1 = createUser();
+    my $creds1 = getFirstAuthCreds($user1);
     
-    $user2 = createUser();
-    $creds2 = getFirstAuthCreds($user2);
+    my $user2 = createUser();
+    my $creds2 = getFirstAuthCreds($user2);
 
        
     # Testing the newly created user
@@ -179,7 +179,7 @@ sub testClient {
     #check login as same user has same profile
     $ac = Bio::KBase::AuthClient->new(consumer_key => $creds1->{'oauth_key'},
 				      consumer_secret => $creds1->{'oauth_secret'});
-    $userrec = dclone($ac->user);
+    my $userrec = dclone($ac->user);
     $ac->logout();
     $ac->login(consumer_key => $creds1->{'oauth_key'},
 	       consumer_secret => $creds1->{'oauth_secret'},);
@@ -190,12 +190,12 @@ sub testClient {
     #check login as different user has different profile
     $ac = Bio::KBase::AuthClient->new(consumer_key => $creds2->{'oauth_key'},
 				      consumer_secret => $creds2->{'oauth_secret'});
-    $userref2 = dclone($ac->user);
+    my $userrec2 = dclone($ac->user);
     $ac->logout();
     $ac->login(consumer_key => $creds1->{'oauth_key'},
 	       consumer_secret => $creds1->{'oauth_secret'});
-    ok(!eq_deeply($useref2, $ac->user), "Test that multiple logins as different users provide different profiles");
-    ok(!($userref2->user_id eq $ac->user->user_id), "Test that multiple logins as different users have different ids");     
+    ok(!eq_deeply($userrec2, $ac->user), "Test that multiple logins as different users provide different profiles");
+    ok(!($userrec2->user_id eq $ac->user->user_id), "Test that multiple logins as different users have different ids");     
     
     cond_logout($ac);
     
@@ -307,7 +307,7 @@ sub testClient {
 
 # if logged in, logout
 sub cond_logout(){
-    $ac = shift;
+    my $ac = shift;
 
     if ($ac->{logged_in}){
          $ac->logout();
@@ -325,7 +325,7 @@ sub createUser() {
      );
      
      #print Dumper($user); 
-     $ad = Bio::KBase::AuthDirectory->new();
+     my $ad = Bio::KBase::AuthDirectory->new();
      
      $user = $ad->create_user($user);
      $ad->new_consumer($user->user_id);
@@ -339,13 +339,13 @@ sub createUser() {
      return $user;
 }
 
-# delete one user
-sub redrum(){
-     $user = shift;
-     $authdirectory = Bio::KBase::AuthDirectory->new();
-
-     $ad->delete_user($user->user_id);
-}
+# delete one user - untested
+#sub redrum(){
+#     my $user = shift;
+#     my $authdirectory = Bio::KBase::AuthDirectory->new();
+#
+#     $authdirectory->delete_user($user->user_id);
+#}
 
 # delete all users
 sub redrumAll(){
@@ -359,13 +359,9 @@ sub redrumAll(){
 
 sub getFirstAuthCreds() {
      my $user = shift;
-     @ckeys = keys(%{$user->oauth_creds()} );
-     $ckey = shift @ckeys;
-#     my %creds = (key => $userOrAC->oauth_creds->{$ckey}->{'oauth_key'},
-#                  sec => $userOrAC->oauth_creds->{$ckey}->{'oauth_secret'},            
-#                 );
-#     return \%creds;
-    return $user->oauth_creds->{$ckey};
+     my @ckeys = keys(%{$user->oauth_creds()} );
+     my $ckey = shift @ckeys;
+     return $user->oauth_creds->{$ckey};
 }
 
 ok( $d = HTTP::Daemon->new( LocalAddr => '127.0.0.1'), "Creating a HTTP::Daemon object for handling AuthServer") || die "Could not create HTTP::Daemon";
