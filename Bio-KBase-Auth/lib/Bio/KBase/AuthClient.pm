@@ -2,7 +2,7 @@ package Bio::KBase::AuthClient;
 
 use strict;
 use warnings;
-use Object::Tiny::RW qw { user logged_in error_message };
+use Object::Tiny::RW qw { user logged_in error_message oauth_cred};
 use Bio::KBase::Auth;
 use Bio::KBase::AuthUser;
 use MIME::Base64;
@@ -116,7 +116,7 @@ sub login {
             die "oauth_secret does not match";
         }
         $self->{user} =  $user;
-        $self->{oauth_creds} = $creds2;
+        $self->{oauth_cred} = $creds2;
         $self->{logged_in} = 1;
     };
     if ($@) {
@@ -147,13 +147,13 @@ sub auth_token {
     my $self = shift;
     my %auth_params = @_;
 
-    unless ( defined( $self->{oauth_creds})) {
-    	carp( "No oauth_creds defined in AuthClient object\n");
+    unless ( defined( $self->{oauth_cred})) {
+    	carp( "No oauth_cred defined in AuthClient object\n");
 	    return;
     }
     my $oauth = Net::OAuth->request('consumer')->new(
-	consumer_key => $self->{oauth_creds}->{oauth_key},
-	consumer_secret => $self->{oauth_creds}->{oauth_secret},
+	consumer_key => $self->{oauth_cred}->{oauth_key},
+	consumer_secret => $self->{oauth_cred}->{oauth_secret},
 	request_url => $auth_params{request_url},
 	request_method => $auth_params{request_method},
 	timestamp => time,
@@ -203,7 +203,7 @@ sub logout {
     if ( $self->{logged_in} ) {
 	$self->{user} = Bio::KBase::AuthUser->new();
 	$self->{logged_in} = 0;
-	$self->{oauth_creds} = {};
+	$self->{oauth_cred} = {};
 	return(1);
     } else {
 	$self->{error_message} = "Not logged in";
@@ -313,7 +313,7 @@ __END__
 
 Contains information about the user using the client. Also the full set of oauth credentials available for this user
 
-=item B<oauth_creds> (hash)
+=item B<oauth_cred> (hash)
 
 Contains the specific oauth credential used for authentication. It is a hash of the same structure as the oauth_creds entries in the Bio::KBase::AuthUser
 

@@ -5,8 +5,9 @@
 # 5/3/12
 #
 
-#NOTE: some tests depend on the database being populated with specific users and auth creds.
-# if the DB doesn't exist or doesn't have that specific data pre-populated, tests will fail.
+#TODO some tests depend on the database being populated with specific users and auth creds.
+#   if the DB doesn't exist or doesn't have that specific data pre-populated, tests will fail.
+#   Users & creds should be created and deleted rather than depending on their existence.
 
 use lib "../lib/";
 use lib "lib";
@@ -133,35 +134,42 @@ sub testClient {
     
     $user2 = createUser();
     $creds2 = getFirstAuthCreds($user2);
+
        
     # Testing the newly created user
-    ok($ac = Bio::KBase::AuthClient->new(consumer_key => $creds1->{'key'},
-					 consumer_secret => $creds1->{'sec'}), "New client with created user & creds");
+    ok($ac = Bio::KBase::AuthClient->new(consumer_key => $creds1->{'oauth_key'},
+					 consumer_secret => $creds1->{'oauth_secret'}), "New client with created user & creds");
     note("AuthClient->new() error message: " . $ac->error_message());
     is($ac->user->user_id, $user1->user_id, "Expected user id matches returned UID");
     ok($ac->logged_in, "Confirm logged_in set correctly");
+    is_deeply($ac->oauth_cred, $creds1, "User and Client creds match");
     
     #logout session
     ok($ac->logout(), "Logout");
     ok(!$ac->logged_in, "Confirm logged_in set correctly");
+    ok(!(scalar keys $ac->oauth_cred), "No creds left in client");
     
     #login session with same key
-    ok($ac->login(consumer_key => $creds1->{'key'},
-		  consumer_secret => $creds1->{'sec'}), "Log back in w/ same key/secret");
+    ok($ac->login(consumer_key => $creds1->{'oauth_key'},
+		  consumer_secret => $creds1->{'oauth_secret'}), "Log back in w/ same key/secret");
     is($ac->user->user_id, $user1->user_id, "Expected user id matches returned UID");
+    ok($ac->logged_in, "Confirm logged_in set correctly");
+    is_deeply($ac->oauth_cred, $creds1, "User and Client creds match");
     
     cond_logout($ac); #conditional logout
     
     #login session with different key
-    ok($ac->login(consumer_key => $creds2->{'key'},
-          consumer_secret => $creds2->{'sec'}), "Log back in w/ different key/secret");
+    ok($ac->login(consumer_key => $creds2->{'oauth_key'},
+          consumer_secret => $creds2->{'oauth_secret'}), "Log back in w/ different key/secret");
     is($ac->user->user_id, $user2->user_id, "Expected user id matches returned UID");
+    ok($ac->logged_in, "Confirm logged_in set correctly");
+    is_deeply($ac->oauth_cred, $creds2, "User and Client creds match");
     
     cond_logout($ac); #conditional logout
 
     #login w/ fresh client connection
-    $ac = Bio::KBase::AuthClient->new(consumer_key => $creds1->{'key'},
-				      consumer_secret => $creds1->{'sec'});
+    $ac = Bio::KBase::AuthClient->new(consumer_key => $creds1->{'oauth_key'},
+				      consumer_secret => $creds1->{'oauth_secret'});
     
     #double logout - second should fail
     $ac->logout();
@@ -169,23 +177,23 @@ sub testClient {
     is($ac->error_message, "Not logged in", "Double logout error message check");
     
     #check login as same user has same profile
-    $ac = Bio::KBase::AuthClient->new(consumer_key => $creds1->{'key'},
-				      consumer_secret => $creds1->{'sec'});
+    $ac = Bio::KBase::AuthClient->new(consumer_key => $creds1->{'oauth_key'},
+				      consumer_secret => $creds1->{'oauth_secret'});
     $userrec = dclone($ac->user);
     $ac->logout();
-    $ac->login(consumer_key => $creds1->{'key'},
-	       consumer_secret => $creds1->{'sec'},);
+    $ac->login(consumer_key => $creds1->{'oauth_key'},
+	       consumer_secret => $creds1->{'oauth_secret'},);
     is_deeply($userrec, $ac->user, "Test that multiple logins as the same user provides the same profile");
     
     cond_logout($ac);
 
     #check login as different user has different profile
-    $ac = Bio::KBase::AuthClient->new(consumer_key => $creds2->{'key'},
-				      consumer_secret => $creds2->{'sec'});
+    $ac = Bio::KBase::AuthClient->new(consumer_key => $creds2->{'oauth_key'},
+				      consumer_secret => $creds2->{'oauth_secret'});
     $userref2 = dclone($ac->user);
     $ac->logout();
-    $ac->login(consumer_key => $creds1->{'key'},
-	       consumer_secret => $creds1->{'sec'});
+    $ac->login(consumer_key => $creds1->{'oauth_key'},
+	       consumer_secret => $creds1->{'oauth_secret'});
     ok(!eq_deeply($useref2, $ac->user), "Test that multiple logins as different users provide different profiles");
     ok(!($userref2->user_id eq $ac->user->user_id), "Test that multiple logins as different users have different ids");     
     
@@ -217,8 +225,8 @@ sub testClient {
 
     # As a sanity check, trash the oauth_secret and make sure that
     # we get a negative result
-    my $secret = $ac->{oauth_creds}->{oauth_secret};
-    $ac->{oauth_creds}->{oauth_secret} = 'blahbldhblsdhj';
+    my $secret = $ac->{oauth_cred}->{oauth_secret};
+    $ac->{oauth_cred}->{oauth_secret} = 'blahbldhblsdhj';
     unless ($ac->sign_request( $req)) {
 	die "Client: Failed to sign request";
     }
@@ -229,7 +237,7 @@ sub testClient {
 
     # restore the secret and send an example of a good request with an embedded JSON
     # string that includes an extra signature
-    $ac->{oauth_creds}->{oauth_secret} = $secret;
+    $ac->{oauth_cred}->{oauth_secret} = $secret;
 
     $req = HTTP::Request->new( POST => $server. "some_rpc_handler" );
 
@@ -350,13 +358,14 @@ sub redrumAll(){
 }
 
 sub getFirstAuthCreds() {
-     my $userOrAC = shift;
-     @ckeys = keys($userOrAC->oauth_creds);
+     my $user = shift;
+     @ckeys = keys($user->oauth_creds);
      $ckey = shift @ckeys;
-     my %creds = (key => $userOrAC->oauth_creds->{$ckey}->{'oauth_key'},
-                  sec => $userOrAC->oauth_creds->{$ckey}->{'oauth_secret'},            
-                 );
-     return \%creds;
+#     my %creds = (key => $userOrAC->oauth_creds->{$ckey}->{'oauth_key'},
+#                  sec => $userOrAC->oauth_creds->{$ckey}->{'oauth_secret'},            
+#                 );
+#     return \%creds;
+    return $user->oauth_creds->{$ckey};
 }
 
 ok( $d = HTTP::Daemon->new( LocalAddr => '127.0.0.1'), "Creating a HTTP::Daemon object for handling AuthServer") || die "Could not create HTTP::Daemon";
