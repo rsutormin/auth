@@ -139,9 +139,11 @@ sub testClient {
 					 consumer_secret => $creds1->{'sec'}), "New client with created user & creds");
     note("AuthClient->new() error message: " . $ac->error_message());
     is($ac->user->user_id, $user1->user_id, "Expected user id matches returned UID");
+    ok($ac->logged_in, "Confirm logged_in set correctly");
     
     #logout session
     ok($ac->logout(), "Logout");
+    ok(!$ac->logged_in, "Confirm logged_in set correctly");
     
     #login session with same key
     ok($ac->login(consumer_key => $creds1->{'key'},
@@ -215,8 +217,8 @@ sub testClient {
 
     # As a sanity check, trash the oauth_secret and make sure that
     # we get a negative result
-    my $secret = $ac->{oauth_cred}->{oauth_secret};
-    $ac->{oauth_cred}->{oauth_secret} = 'blahbldhblsdhj';
+    my $secret = $ac->{oauth_creds}->{oauth_secret};
+    $ac->{oauth_creds}->{oauth_secret} = 'blahbldhblsdhj';
     unless ($ac->sign_request( $req)) {
 	die "Client: Failed to sign request";
     }
@@ -227,7 +229,7 @@ sub testClient {
 
     # restore the secret and send an example of a good request with an embedded JSON
     # string that includes an extra signature
-    $ac->{oauth_cred}->{oauth_secret} = $secret;
+    $ac->{oauth_creds}->{oauth_secret} = $secret;
 
     $req = HTTP::Request->new( POST => $server. "some_rpc_handler" );
 
@@ -348,11 +350,11 @@ sub redrumAll(){
 }
 
 sub getFirstAuthCreds() {
-     my $user = shift;
-     @ckeys = keys($user->oauth_creds);
+     my $userOrAC = shift;
+     @ckeys = keys($userOrAC->oauth_creds);
      $ckey = shift @ckeys;
-     my %creds = (key => $user->oauth_creds->{$ckey}->{'oauth_key'},
-                  sec => $user->oauth_creds->{$ckey}->{'oauth_secret'},            
+     my %creds = (key => $userOrAC->oauth_creds->{$ckey}->{'oauth_key'},
+                  sec => $userOrAC->oauth_creds->{$ckey}->{'oauth_secret'},            
                  );
      return \%creds;
 }
