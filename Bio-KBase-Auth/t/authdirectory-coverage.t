@@ -15,8 +15,6 @@ use Bio::KBase::AuthClient;
 use Bio::KBase::Auth;
 use Data::Dumper;
 
-$Bio::KBase::Auth::AuthSvcHost = 'http://127.0.0.1:8000';
-
 my $user_id  = 'testington_1_' . time;
 my $user_id2 = 'testington_2_' . time;
 my $user_id3 = 'testington_3_' . time;
