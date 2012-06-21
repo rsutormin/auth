@@ -25,12 +25,21 @@ django.contrib.auth.middleware.RemoteUserMiddleware
 used with this module, add it into the AUTHENTICATION_BACKENDS
 declaration in settings.py
 
+   To set the authentiction service to be used, set AUTHSVC in your
+settings.py file. Here is an example:
+
+AUTHSVC = 'http://auth.kbase.us'
+
+   Django modules can check the request.META['KBASEsessid'] for the
+session ID that will be used within the KBase session management
+infrastructure
+
    To test this, add in a handler to urls.py that does something like this:
 
 def authstatus(request):
     res = "request.user.is_authenticated = %s \n" % request.user.is_authenticated()
     if request.user.is_authenticated():
-        res = res + "request.user.username = %s" % request.user.username
+        res = res + "request.user.username = %s and your KBase SessionID is %s" % (request.user.username,request.META['KBASEsessid'])
     return HttpResponse(res)
 
    You can test it using this client script:
