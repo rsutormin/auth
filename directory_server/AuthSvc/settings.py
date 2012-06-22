@@ -99,7 +99,12 @@ MIDDLEWARE_CLASSES = (
     'django.middleware.common.CommonMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'AuthSvc.oauth.TwoLeggedOAuthMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+)
+
+AUTHENTICATION_BACKENDS = (
+    'django.contrib.auth.backends.RemoteUserBackend',
 )
 
 ROOT_URLCONF = 'AuthSvc.urls'
@@ -147,6 +152,8 @@ LOGGING = {
         },
     }
 }
+
+LOGIN_REDIRECT_URL = "/login"
 
 try:
     from local_settings import *

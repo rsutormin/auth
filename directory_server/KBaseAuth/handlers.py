@@ -3,6 +3,10 @@ from piston.utils import rc
 from KBaseAuth.models import *
 import pprint
 import datetime
+from django.utils import simplejson
+from django.http import HttpResponse
+from django.views.decorators.csrf import csrf_exempt, csrf_protect
+from django.contrib.auth.decorators import login_required
 
 # Handlers for piston API
 # sychan 4/19/2012
@@ -45,6 +49,15 @@ def strip_id_suffix(dest,dict):
             dict[key][dest] = dict[key][src]
             del dict[key][src]
     return dict
+
+# function to support login function
+def login( request ):
+    if request.user.is_authenticated():
+        print "Authenticated %s, %s" % (request.user.username, request.META['KBASEsessid'])
+        response = { 'sessid': request.META['KBASEsessid'], 'user_id': request.user.username}
+        return( HttpResponse( simplejson.dumps(response),mimetype='application/json'))
+    else:
+        return( HttpResponse( "Authentication failed. Requires OAuth authentication for access",status=401))
 
 class ProfileHandler(BaseHandler):
     model = Profile

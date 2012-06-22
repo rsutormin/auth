@@ -34,6 +34,7 @@ sub new {
         'oauth_creds' => {},
         'logged_in'  => 0,
         'error_message'  => "",
+	'KBASEsessid' => undef,
         @_
     );
 
