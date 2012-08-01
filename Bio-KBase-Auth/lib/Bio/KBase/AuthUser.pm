@@ -14,21 +14,8 @@ use Object::Tiny::RW qw {
     groups
     oauth_creds
     name
-    given_name
-    family_name
-    middle_name
-    nickname
-    profile
-    picture
-    website
     email
     verified
-    gender
-    birthday
-    zoneinfo
-    locale
-    phone_number
-    address
     updated_time
 };
 
@@ -110,39 +97,11 @@ An array of strings for storing Unix style groups that the user is a member of
 
 =item B<oauth_creds> (hash)
 
-reference to hash array keyed on consumer_keys that stores keys, secrets, verifiers and tokens associated with this user
+reference to hash array keyed on consumer_keys that stores public keys, private keys, verifiers and tokens associated with this user
 
 =item B<name> (string)
 
 End-User's full name in displayable form including all name parts, ordered according to End-User's locale and preferences.
-
-=item B<given_name> (string)
-
-Given name or first name of the End-User.
-
-=item B<family_name> (string)
-
-Surname or last name of the End-User.
-
-=item B<middle_name> (string)
-
-Middle name of the End-User.
-
-=item B<nickname> (string)
-
-Casual name of the End-User that may or may not be the same as the given_name. For instance, a nickname value of Mike might be returned alongside a given_name value of Michael.
-
-=item B<profile> (string)
-
-URL of End-User's profile page.
-
-=item B<picture> (string)
-
-URL of the End-User's profile picture.
-
-=item B<website> (string)
-
-URL of End-User's web page or blog.
 
 =item B<email> (string)
 
@@ -151,30 +110,6 @@ The End-User's preferred e-mail address.
 =item B<verified> (boolean)
 
 True if the End-User's e-mail address has been verified; otherwise false.
-
-=item B<gender> (string)
-
-The End-User's gender: Values defined by this specification are female and male. Other values MAY be used when neither of the defined values are applicable.
-
-=item B<birthday> (string)
-
-The End-User's birthday, represented as a date string in MM/DD/YYYY format. The year MAY be 0000, indicating that it is omitted.
-
-=item B<zoneinfo> (string)
-
-String from zoneinfo [zoneinfo] time zone database. For example, Europe/Paris or America/Los_Angeles.
-
-=item B<locale> (string)
-
-The End-User's locale, represented as a BCP47 [RFC5646] language tag. This is typically an ISO 639-1 Alpha-2 [ISO639‑1] language code in lowercase and an ISO 3166-1 Alpha-2 [ISO3166‑1] country code in uppercase, separated by a dash. For example, en-US or fr-CA. As a compatibility note, some implementations have used an underscore as the separator rather than a dash, for example, en_US; Implementations MAY choose to accept this locale syntax as well.
-
-=item B<phone_number> (string)
-
-The End-User's preferred telephone number. E.164 [E.164] is RECOMMENDED as the format of this Claim. For example, +1 (425) 555-1212 or +56 (2) 687 2400.
-
-=item B<address> (JSON object)
-
-The End-User's preferred address. The value of the address member is a JSON [RFC4627] structure containing some or all of the members defined in Section 2.4.2.1.
 
 =item B<updated_time> (string)
 

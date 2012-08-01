@@ -10,9 +10,13 @@ use Bio::KBase::AuthDirectory;
 use JSON;
 use Net::OAuth;
 use Digest::MD5 qw(md5_base64);
+use Digest::SHA1 qw(sha1_base64);
 use Data::Dumper;
 use Crypt::OpenSSL::RSA;
 use Crypt::OpenSSL::X509;
+use URI;
+use URI::QueryParam;
+use POSIX;
 
 # Location of the file where we're storing the authentication
 # credentials
@@ -86,9 +90,10 @@ sub login {
     eval {
 	my @x = glob( $auth_rc);
 	my $auth_rc = shift @x;
-        if ( $p{consumer_key} && $p{consumer_secret}) {
-            $creds->{'oauth_key'} = $p{consumer_key};
-            $creds->{'oauth_secret'} = $p{consumer_secret};
+        if ( $p{user_id} && $p{consumer_key} && $p{consumer_secret}) {
+            $creds->{'user_id'} = $p{'user_id'};
+            $creds->{'oauth_key'} = $p{'consumer_key'};
+            $creds->{'oauth_secret'} = $p{'consumer_secret'};
         } elsif ($auth_rc && -r $auth_rc) {
             open RC, "<", $auth_rc;
             my @rc = <RC>;
@@ -97,11 +102,11 @@ sub login {
             $creds = from_json( join( '',@rc));
         }
 
-        unless ( defined( $creds->{'oauth_key'})) {
-            die "No oauth_key found";
-        }
         unless ( defined( $creds->{'oauth_secret'})) {
             die "No oauth_secret found";
+        }
+        unless ( defined( $creds->{'user_id'})) {
+            die "No user_id found";
         }
 
         # This is a not a production-ready way to perform logins, but
@@ -213,6 +218,98 @@ sub logout {
     }
 
 }
+
+sub get_nexus_token {
+    my $self = shift @_;
+    my $user_id = shift @_;
+    my $key = shift @_;
+    my $body = shift @_;
+
+    die("no private key provided") unless ($key);
+    
+    my $path = "/goauth/authorize";
+    my $url = $Bio::KBase::Auth::AuthSvcHost;
+    my $method = "GET";
+    my $u = URI->new($url);
+    my %qparams = ("response_type" => "code",
+		   "client_id" => $user_id);
+    $u->query_form( %qparams );
+    my $query=$u->query();
+    
+    my %p = ( rsakey => $key,
+	      path => $path,
+	      method => $method,
+	      user_id => $user_id,
+	      query => $query,
+	      body => $body );
+    
+    my %headers = sign_with_rsa( %p);
+    my $headers = HTTP::Headers->new( %headers);
+    my $client = LWP::UserAgent->new(default_headers => $headers);
+    $client->ssl_opts(verify_hostname => 0);
+    my $geturl = sprintf('%s%s?%s', $url,$path,$query);
+    my $response = $client->get( $geturl);
+    my $nexus_response = decode_json( $response->content());
+    return($nexus_response->{'code'} );
+}
+
+
+# The basic sha1_base64 does not properly pad the encoded text
+# so we have this little wrapper to tack on extra '='.
+sub sha1_base64_padded {
+    my $in = shift;
+    my @pad = ('','===','==','=');
+
+    my $out = sha1_base64( $in);
+    return ($out.$pad[length($out) % 4]);
+}
+
+# Return a hash of HTTP headers used by Globus Nexus to authenticate
+# a token request.
+sub sign_with_rsa {
+    my %p = @_;
+
+    my $timestamp = canonical_time(time());
+    my %headers = ( 'X-Globus-UserId' => $p{user_id},
+		    'X-Globus-Sign'   => 'version=1.0',
+		    'X-Globus-Timestamp' => $timestamp,
+	);
+    
+    my $to_sign = join("\n",
+		       "Method:%s",
+		       "Hashed Path:%s",
+		       "X-Globus-Content-Hash:%s",
+		       "X-Globus-Query-Hash:%s",
+		       "X-Globus-Timestamp:%s",
+		       "X-Globus-UserId:%s");
+    $to_sign = sprintf( $to_sign,
+			   $p{method},
+			   sha1_base64_padded($p{path}),
+			   sha1_base64_padded($p{body}),
+			   sha1_base64_padded($p{query}),
+			   $timestamp,
+			   $headers{'X-Globus-UserId'});
+    my $pkey = Crypt::OpenSSL::RSA->new_private_key($p{rsakey});
+    $pkey->use_sha1_hash();
+    my $sig = $pkey->sign($to_sign);
+    my $sig_base64 = encode_base64( $sig);
+    my @sig_base64 = split( '\n', $sig_base64);
+    foreach my $x (0..$#sig_base64) {
+	$headers{ sprintf( 'X-Globus-Authorization-%s', $x)} = $sig_base64[$x];
+    }
+    return(%headers);
+    
+}
+
+# Formats a time string in the format desired by Globus Online
+# It is somewhat bogus, because they are claiming that it is
+# UTC, when in fact its the localtime.           
+sub canonical_time {
+    my $time = shift;
+    return( strftime("%Y-%m-%dT%H:%M:%S", localtime($time)) . 'Z');
+
+}
+
 
 1;
 
