@@ -11,6 +11,8 @@ use JSON;
 use Net::OAuth;
 use Digest::MD5 qw(md5_base64);
 use Data::Dumper;
+use Crypt::OpenSSL::RSA;
+use Crypt::OpenSSL::X509;
 
 # Location of the file where we're storing the authentication
 # credentials

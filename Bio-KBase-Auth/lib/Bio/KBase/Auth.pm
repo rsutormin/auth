@@ -5,9 +5,9 @@ package Bio::KBase::Auth;
 # sychan 4/24/2012
 use strict;
 
-$Bio::KBase::Auth::AuthSvcHost = "http://140.221.92.45/";
+$Bio::KBase::Auth::AuthSvcHost = "https://graph.api.go.sandbox.globuscs.info/";
 
-our $VERSION = 0.1;
+our $VERSION = 0.2;
 
 1;
 
