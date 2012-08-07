@@ -31,8 +31,6 @@ use POSIX;
 
 our $auth_rc = "~/.kbase-auth";
 
-
-
 sub new {
     my $class = shift @_;
     my %params = @_;
@@ -50,14 +48,15 @@ sub new {
     eval {
 	my @x = glob( $auth_rc);
 	my $auth_rc = shift @x;
-	my $creds = read_authrc( $auth_rc);
-	if (exists($params{ client_key})) {
+	my %creds;
+	if (exists($params{ 'user_id'}) ||
+	    exists($params{ 'auth_token'})) {
 	    $self->login( %params);
 	    unless ($self->{logged_in}) {
 		die( "Authentication failed:" . $self->error_message);
 	    }
-	} elsif ($creds) {
-	    unless ($self->login( $creds)) {
+	} elsif (%creds = read_authrc( $auth_rc)) {
+	    unless ($self->login( %creds)) {
 		# login failed, pass the error message along. Redundant for now, but
 		# we don't want later code possibly stomping on this result
 		die "auth_rc credentials failed login: " . $self->error_message;
@@ -92,7 +91,7 @@ sub login {
         }
     };
     if ($@) {
-	$self->error_message("Invalid credentials: $@");
+	$self->error_message("Invalid local credentials: $@");
     	return 0;
     }
     # If we have a token, skip this part where we try to get a token
@@ -101,7 +100,7 @@ sub login {
 	    $creds{'auth_token'} = $self->get_nexus_token( %creds);
 	};
 	if ($@) {
-	    $self->error_message("Could not authenticate with credentials $@");
+	    $self->error_message("Globus rejected credentials: $@");
 	    return(0);
 	}
     }
@@ -235,50 +234,50 @@ sub read_authrc {
 sub get_nexus_token {
     my $self = shift @_;
     my %p = @_;
-
-    # Make sure we have the right combo of creds
-    if ($p{'user_id'} && ($p{'client_secret'} || $p{'password'})) {
-	# no op
-    } elsif ( $p{'client_id'} && $p{'client_secret'}) {
-	# no op
-    } else {
-	die("Need either (user_id, client_secret || password) or (client_id, client_secret) to be defined.");
-    }
-    
-    my $path = "/goauth/authorize";
+    my $path = $Bio::KBase::Auth::AuthorizePath;
     my $url = $Bio::KBase::Auth::AuthSvcHost;
     my $method = "GET";
-    my $u = URI->new($url);
-    my %qparams = ("response_type" => "code",
-		   "client_id" => $p{'client_id'} ? $p{'client_id'} : $p{'user_id'});
-    $u->query_form( %qparams );
-    my $query=$u->query();
-    
-    # Okay, if we have user_id/password, get token using that, otherwise use the
-    # user_id or client_id and client_key for RSA authetication
     my $headers;
-    if ( $p{'user_id'} && $p{'password'}) {
-	$headers = HTTP::Headers->new;
-	$headers->authorization_basic( $p{'user_id'}, $p{'password'});
-	
-    } else {
-	my %p2 = ( rsakey => $p{'client_secret'},
-		   path => $path,
-		   method => $method,
-		   user_id => $p{'user_id'},
-		   query => $query,
-		   body => $p{'body'} );
-	
-	my %headers = sign_with_rsa( %p2);
-	$headers = HTTP::Headers->new( %headers);
-    }
-    my $client = LWP::UserAgent->new(default_headers => $headers);
-    # set a 5 second timeout
-    $client->timeout(5);
-    $client->ssl_opts(verify_hostname => 0);
-    my $geturl = sprintf('%s%s?%s', $url,$path,$query);
     my $nexus_response;
+
     eval {
+	# Make sure we have the right combo of creds
+	if ($p{'user_id'} && ($p{'client_secret'} || $p{'password'})) {
+	    # no op
+	# client_id and client_secret do not seem to be supported currently by Globus
+	#} elsif ( $p{'client_id'} && $p{'client_secret'}) {
+	#    # no op
+	} else {
+	    die("Need either (user_id, client_secret || password) or (client_id, client_secret) to be defined.");
+	}
+	
+	my $u = URI->new($url);
+	my %qparams = ("response_type" => "code",
+		       "client_id" => $p{'client_id'} ? $p{'client_id'} : $p{'user_id'});
+	$u->query_form( %qparams );
+	my $query=$u->query();
+	
+	# Okay, if we have user_id/password, get token using that, otherwise use the
+	# user_id and client_secret for RSA authentication
+	if ( $p{'user_id'} && $p{'password'}) {
+	    $headers = HTTP::Headers->new;
+	    $headers->authorization_basic( $p{'user_id'}, $p{'password'});
+	} else {
+	    my %p2 = ( rsakey => $p{'client_secret'},
+		       path => $path,
+		       method => $method,
+		       user_id => $p{'user_id'},
+		       query => $query,
+		       body => $p{'body'} );
+	    
+	    my %headers = sign_with_rsa( %p2);
+	    $headers = HTTP::Headers->new( %headers);
+	}
+	my $client = LWP::UserAgent->new(default_headers => $headers);
+	# set a 5 second timeout
+	$client->timeout(5);
+	$client->ssl_opts(verify_hostname => 0);
+	my $geturl = sprintf('%s%s?%s', $url,$path,$query);
 	my $response = $client->get( $geturl);
 	unless ($response->is_success) {
 	    die $response->status_line;
@@ -295,11 +294,16 @@ sub get_nexus_token {
     }
 }
 
+# Tries to fetch a user's profile from the Globus Online auth
+# service using the authentication token passed in
+# returns a AuthUser object if successful, throws exception
+# otherwise
 sub get_nexus_profile {
     my $token = shift @_;
 
-    my $path = "/users/";
+    my $path = $Bio::KBase::Auth::ProfilePath;
     my $url = $Bio::KBase::Auth::AuthSvcHost;
+    my %headers;
     my $method = "GET";
     my ($user_id) = $token =~ /un=(\w+)/;
 
@@ -307,7 +311,6 @@ sub get_nexus_profile {
 	die "Failed to parse username from un= clause in token. Is the token legit?";
     }
 
-    my %headers;
     $headers{'X-GLOBUS-GOAUTHTOKEN'} = $token;
     my $headers = HTTP::Headers->new( %headers);
     
@@ -317,18 +320,13 @@ sub get_nexus_profile {
     my $geturl = sprintf('%s%s/%s', $url,$path,$user_id);
     my $nuser;
 
-    eval {
-	my $response = $client->get( $geturl);
-	unless ($response->is_success) {
-	    die $response->status_line;
-	}
-	$nuser = decode_json( $response->content());
-	unless ($nuser->{'username'}) {
-	    die "No user found by name of $user_id";
-	}
-    };
-    if ($@) {
-	
+    my $response = $client->get( $geturl);
+    unless ($response->is_success) {
+	die $response->status_line;
+    }
+    $nuser = decode_json( $response->content());
+    unless ($nuser->{'username'}) {
+	die "No user found by name of $user_id";
     }
 
     my $user = Bio::KBase::AuthUser->new( 'user_id' => $nuser->{'username'} );
