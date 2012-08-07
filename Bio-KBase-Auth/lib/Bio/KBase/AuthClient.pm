@@ -117,8 +117,6 @@ sub login {
     }
     $self->{'user'}->{'oauth_creds'} = \%creds;
     return( $self->{logged_in} = 1);
-
-    
 }
 
 sub sign_request {
@@ -275,11 +273,26 @@ sub get_nexus_token {
 	$headers = HTTP::Headers->new( %headers);
     }
     my $client = LWP::UserAgent->new(default_headers => $headers);
+    # set a 5 second timeout
+    $client->timeout(5);
     $client->ssl_opts(verify_hostname => 0);
     my $geturl = sprintf('%s%s?%s', $url,$path,$query);
-    my $response = $client->get( $geturl);
-    my $nexus_response = decode_json( $response->content());
-    return($nexus_response->{'code'} );
+    my $nexus_response;
+    eval {
+	my $response = $client->get( $geturl);
+	unless ($response->is_success) {
+	    die $response->status_line;
+	}
+	$nexus_response = decode_json( $response->content());
+	unless ($nexus_response->{'code'}) {
+	    die "No token returned by Globus Online";
+	}
+    };
+    if ($@) {
+	die "Failed to get auth token: $@";
+    } else {
+	return($nexus_response->{'code'} );
+    }
 }
 
 sub get_nexus_profile {
@@ -299,12 +312,16 @@ sub get_nexus_profile {
     my $headers = HTTP::Headers->new( %headers);
     
     my $client = LWP::UserAgent->new(default_headers => $headers);
+    $client->timeout(5);
     $client->ssl_opts(verify_hostname => 0);
     my $geturl = sprintf('%s%s/%s', $url,$path,$user_id);
     my $nuser;
 
     eval {
 	my $response = $client->get( $geturl);
+	unless ($response->is_success) {
+	    die $response->status_line;
+	}
 	$nuser = decode_json( $response->content());
 	unless ($nuser->{'username'}) {
 	    die "No user found by name of $user_id";
