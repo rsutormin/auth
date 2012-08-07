@@ -2,7 +2,7 @@ package Bio::KBase::AuthClient;
 
 use strict;
 use warnings;
-use Object::Tiny::RW qw { user logged_in error_message oauth_cred};
+use Object::Tiny::RW qw { user logged_in error_message oauth_creds};
 use Bio::KBase::Auth;
 use Bio::KBase::AuthUser;
 use MIME::Base64;
@@ -21,9 +21,11 @@ use POSIX;
 # Location of the file where we're storing the authentication
 # credentials
 # It is a JSON formatted file with the following
-# {"oauth_key":"consumer_key_blahblah",
-#  "oauth_token":"token_blah_blah",
-#  "oauth_secret":"consumer_secret_blahblah"
+# {"user_id":"username",
+#  "password":"user password",
+#  "client_id":"client_key_blahblah",
+#  "client_secret":"client_secret_blahblah",
+#  "auth_token":"client_blah_blah",
 # }
 #
 
@@ -48,29 +50,17 @@ sub new {
     eval {
 	my @x = glob( $auth_rc);
 	my $auth_rc = shift @x;
-	if (exists($params{ consumer_key})) {
+	my $creds = read_authrc( $auth_rc);
+	if (exists($params{ client_key})) {
 	    $self->login( %params);
 	    unless ($self->{logged_in}) {
 		die( "Authentication failed:" . $self->error_message);
 	    }
-	} elsif (-e $auth_rc && -r $auth_rc) {
-	    if (-e $auth_rc && -r $auth_rc) {
-		open RC, "<", $auth_rc or die "Could not open $auth_rc : $!";
-		my @rc = <RC>;
-		close RC;
-		chomp( @rc);
-		my $creds = from_json( join( '',@rc));
-		unless ( defined( $creds->{'oauth_key'})) {
-		    die "No oauth_key found in $auth_rc";
-		}
-		unless ( defined( $creds->{'oauth_secret'})) {
-		    die "No oauth_secret found in $auth_rc";
-		}
-		unless ($self->login( $creds->{'oauth_key'},$creds->{'oauth_secret'})) {
-		    # login failed, pass the error message along. Redundant for now, but
-		    # we don't want later code possibly stomping on this result
-		    die "auth_rc credentials failed login: " . $self->error_message;
-		}
+	} elsif ($creds) {
+	    unless ($self->login( $creds)) {
+		# login failed, pass the error message along. Redundant for now, but
+		# we don't want later code possibly stomping on this result
+		die "auth_rc credentials failed login: " . $self->error_message;
 	    }
 	}
     };
@@ -80,58 +70,55 @@ sub new {
     return $self;
 }
 
+# Login using Globus Online service. Check for proper set of
+# credentials, authenticate using them to fetch an access token
+# Fetch the user's profile object from the Globus profile
+# service. 
 sub login {
     my $self = shift;
-    my %p = @_;
-    my $creds;
-    my $creds2;
+    my %creds = @_;
 
-    $self->{logged_in} = 0;
+    $self->{'logged_in'} = 0;
+    # Check for credentials
     eval {
 	my @x = glob( $auth_rc);
 	my $auth_rc = shift @x;
-        if ( $p{user_id} && $p{consumer_key} && $p{consumer_secret}) {
-            $creds->{'user_id'} = $p{'user_id'};
-            $creds->{'oauth_key'} = $p{'consumer_key'};
-            $creds->{'oauth_secret'} = $p{'consumer_secret'};
-        } elsif ($auth_rc && -r $auth_rc) {
-            open RC, "<", $auth_rc;
-            my @rc = <RC>;
-            close RC;
-            chomp( @rc);
-            $creds = from_json( join( '',@rc));
+        unless ( ($creds{'user_id'} && 
+		  ($creds{'client_secret'} || $creds{'password'})) ||
+		 ($creds{'client_id'} && $creds{'client_secret'}) ||
+		 ($creds{'auth_token'})) {
+	    my $creds = read_authrc( $auth_rc);
+	    %creds = %$creds;
         }
-
-        unless ( defined( $creds->{'oauth_secret'})) {
-            die "No oauth_secret found";
-        }
-        unless ( defined( $creds->{'user_id'})) {
-            die "No user_id found";
-        }
-
-        # This is a not a production-ready way to perform logins, but
-        # we're using it here for alpha testing,
-        # and must be replaced with oauth protected login before
-        # fetching user creds
-        my $ad=new Bio::KBase::AuthDirectory;
-        my $user = $ad->lookup_consumer( $creds->{'oauth_key'});
-        unless ( defined($user->oauth_creds()->{$creds->{'oauth_key'}})) {
-            die "Could not find matching oauth_key in user database";
-        }
-        $creds2 = $user->oauth_creds()->{$creds->{'oauth_key'}};
-        unless ( $creds2->{'oauth_secret'} eq $creds->{'oauth_secret'}) {
-            die "oauth_secret does not match";
-        }
-        $self->{user} =  $user;
-        $self->{oauth_cred} = $creds2;
-        $self->{logged_in} = 1;
     };
     if ($@) {
-	    $self->error_message("Local credentials invalid: $@");
+	$self->error_message("Invalid credentials: $@");
     	return 0;
-    } else {
-    	return 1;
     }
+    # If we have a token, skip this part where we try to get a token
+    unless ($creds{'auth_token'}) {
+	eval {
+	    $creds{'auth_token'} = $self->get_nexus_token( %creds);
+	};
+	if ($@) {
+	    $self->error_message("Could not authenticate with credentials $@");
+	    return(0);
+	}
+    }
+
+    $self->{'oauth_creds'} = \%creds;
+    # Use the token to fetch the user profile
+    eval {
+	$self->{'user'} = get_nexus_profile( $self->{'oauth_creds'}->{'auth_token'});
+    };
+    if ($@) {
+	$self->error_message("Could not fetch user profile using token: $@");
+	return(0);
+    }
+    $self->{'user'}->{'oauth_creds'} = \%creds;
+    return( $self->{logged_in} = 1);
+
+    
 }
 
 sub sign_request {
@@ -142,8 +129,7 @@ sub sign_request {
 
     # Create the appropriate authorization header with the auth_token
     # call and then push it into the request envelope
-    my $authz_hdr = $self->auth_token( request_url => $request->uri->as_string,
-				       request_method => $request->method);
+    my $authz_hdr = $self->auth_token( body => $request->content);
 
     $request->header( Authorization => $authz_hdr);
 
@@ -152,43 +138,14 @@ sub sign_request {
 
 sub auth_token {
     my $self = shift;
-    my %auth_params = @_;
+    my %p = @_;
 
-    unless ( defined( $self->{oauth_cred})) {
-    	carp( "No oauth_cred defined in AuthClient object\n");
+    unless ( defined( $self->{'oauth_creds'})) {
+    	carp( "No oauth_creds defined in AuthClient object. Are you logged in?\n");
 	    return;
     }
-    my $oauth = Net::OAuth->request('consumer')->new(
-	consumer_key => $self->{oauth_cred}->{oauth_key},
-	consumer_secret => $self->{oauth_cred}->{oauth_secret},
-	request_url => $auth_params{request_url},
-	request_method => $auth_params{request_method},
-	timestamp => time,
-	signature_method => 'HMAC-SHA1',
-	nonce => md5_base64( map { rand() } (0..4)));
-    $oauth->sign;
 
-    return $oauth->to_authorization_header();
-}
-
-
-# Normalize the request header on the client side - not finished yet!
-
-sub normalized_request_url {
-    my $self = shift;
-    my $req = shift;
-    
-    my ($proto) = $req->protocol =~ /([a-zA-Z]+)/;
-    $proto = lc( $proto);
-    my $host = $req->headers->{host};
-    my $path = $req->uri->path;
-    if (( $proto eq "https") && ($host =~ /:443$/)) {
-	$host =~ s/:443$//;
-    } elsif (( $proto eq "http") && ($host =~ /:80$/)) {
-	$host =~ s/:80$//;
-    }
-    return( sprintf( '%s://%s%s', $proto, $host, $path));
-    
+    return($self->get_nexus_token( body => $p{'body'}, %{$self->{'oauth_creds'}}));
 }
 
 
@@ -210,7 +167,7 @@ sub logout {
     if ( $self->{logged_in} ) {
 	$self->{user} = Bio::KBase::AuthUser->new();
 	$self->{logged_in} = 0;
-	$self->{oauth_cred} = {};
+	$self->{oauth_creds} = {};
 	return(1);
     } else {
 	$self->{error_message} = "Not logged in";
@@ -219,32 +176,104 @@ sub logout {
 
 }
 
+# Reads the auth_rc file and check for legit set of credentials
+# return if there is a legit set of credentials for login
+# otherwise throw an exception. The caller should be prepared to catch the
+# exception and just deal with no creds.
+# Returns undef if the auth_rc file is non-existent, throws error if
+# is unreadable
+sub read_authrc {
+    my $auth_rc = shift @_;
+    my $creds;
+
+    unless ( $auth_rc && -e $auth_rc) {
+	return( undef );
+    }
+
+    if ( -r $auth_rc) {
+	open RC, "<", $auth_rc;
+	my @rc = <RC>;
+	close RC;
+	chomp( @rc);
+	$creds = from_json( join( '',@rc));
+    } else {
+	die( "$auth_rc is unreadable");
+    }
+
+    # if we have an oauth_token, we're good and
+    # can just return right away
+    if ( defined( $creds->{'auth_token'})) {
+	return( %$creds);
+    }
+    
+    # otherwise check for necessary subsets of
+    # info for login
+    unless ( defined( $creds->{'user_id'}) ||
+	     defined( $creds->{'client_id'})) {
+	die "No user_id or client_id found";
+    }
+
+    if ( defined( $creds->{'client_secret'}) &&
+	 (defined( $creds->{'user_id'}) ||
+	  defined( $creds->{'client_id'}))) {
+	return( %$creds);
+    } elsif (defined( $creds->{'user_id'}) &&
+	     defined( $creds->{'password'})) {
+	return( %$creds);
+    } else {
+	die "Need either (user_id, (password || client_secret)) or (client_id, client_secret) to be defined.";
+    }
+}
+
+# Get a nexus token, using either user_id, password or user_id, rsakey.
+# Parameters passed in as a hash, looking for
+# body => body of the http message, if any, can be undefined
+# user_id => user name recognized on globus online for login
+# client_id => user name recognized on globus online for login
+# client_secret => the RSA private key used for signing
+# password => Globus online password
+# Throws an exception if either invalid set of creds or failed login
+
 sub get_nexus_token {
     my $self = shift @_;
-    my $user_id = shift @_;
-    my $key = shift @_;
-    my $body = shift @_;
+    my %p = @_;
 
-    die("no private key provided") unless ($key);
+    # Make sure we have the right combo of creds
+    if ($p{'user_id'} && ($p{'client_secret'} || $p{'password'})) {
+	# no op
+    } elsif ( $p{'client_id'} && $p{'client_secret'}) {
+	# no op
+    } else {
+	die("Need either (user_id, client_secret || password) or (client_id, client_secret) to be defined.");
+    }
     
     my $path = "/goauth/authorize";
     my $url = $Bio::KBase::Auth::AuthSvcHost;
     my $method = "GET";
     my $u = URI->new($url);
     my %qparams = ("response_type" => "code",
-		   "client_id" => $user_id);
+		   "client_id" => $p{'client_id'} ? $p{'client_id'} : $p{'user_id'});
     $u->query_form( %qparams );
     my $query=$u->query();
     
-    my %p = ( rsakey => $key,
-	      path => $path,
-	      method => $method,
-	      user_id => $user_id,
-	      query => $query,
-	      body => $body );
-    
-    my %headers = sign_with_rsa( %p);
-    my $headers = HTTP::Headers->new( %headers);
+    # Okay, if we have user_id/password, get token using that, otherwise use the
+    # user_id or client_id and client_key for RSA authetication
+    my $headers;
+    if ( $p{'user_id'} && $p{'password'}) {
+	$headers = HTTP::Headers->new;
+	$headers->authorization_basic( $p{'user_id'}, $p{'password'});
+	
+    } else {
+	my %p2 = ( rsakey => $p{'client_secret'},
+		   path => $path,
+		   method => $method,
+		   user_id => $p{'user_id'},
+		   query => $query,
+		   body => $p{'body'} );
+	
+	my %headers = sign_with_rsa( %p2);
+	$headers = HTTP::Headers->new( %headers);
+    }
     my $client = LWP::UserAgent->new(default_headers => $headers);
     $client->ssl_opts(verify_hostname => 0);
     my $geturl = sprintf('%s%s?%s', $url,$path,$query);
@@ -253,6 +282,45 @@ sub get_nexus_token {
     return($nexus_response->{'code'} );
 }
 
+sub get_nexus_profile {
+    my $token = shift @_;
+
+    my $path = "/users/";
+    my $url = $Bio::KBase::Auth::AuthSvcHost;
+    my $method = "GET";
+    my ($user_id) = $token =~ /un=(\w+)/;
+
+    unless ($user_id) {
+	die "Failed to parse username from un= clause in token. Is the token legit?";
+    }
+
+    my %headers;
+    $headers{'X-GLOBUS-GOAUTHTOKEN'} = $token;
+    my $headers = HTTP::Headers->new( %headers);
+    
+    my $client = LWP::UserAgent->new(default_headers => $headers);
+    $client->ssl_opts(verify_hostname => 0);
+    my $geturl = sprintf('%s%s/%s', $url,$path,$user_id);
+    my $nuser;
+
+    eval {
+	my $response = $client->get( $geturl);
+	$nuser = decode_json( $response->content());
+	unless ($nuser->{'username'}) {
+	    die "No user found by name of $user_id";
+	}
+    };
+    if ($@) {
+	
+    }
+
+    my $user = Bio::KBase::AuthUser->new( 'user_id' => $nuser->{'username'} );
+    $user->email( $nuser->{'email'});
+    $user->name( $nuser->{'fullname'});
+    $user->verified( $nuser->{'email_validated'});
+    return( $user);
+    
+}
 
 # The basic sha1_base64 does not properly pad the encoded text
 # so we have this little wrapper to tack on extra '='.
@@ -269,6 +337,11 @@ sub sha1_base64_padded {
 sub sign_with_rsa {
     my %p = @_;
 
+    # The sha1_base64 functions choke on an undefs, so
+    # set body to an empty string if it is undef
+    unless (defined($p{'body'})) {
+	$p{'body'} = "";
+    }
     my $timestamp = canonical_time(time());
     my %headers = ( 'X-Globus-UserId' => $p{user_id},
 		    'X-Globus-Sign'   => 'version=1.0',
@@ -412,7 +485,7 @@ __END__
 
 Contains information about the user using the client. Also the full set of oauth credentials available for this user
 
-=item B<oauth_cred> (hash)
+=item B<oauth_creds> (hash)
 
 Contains the hashref to specific oauth credential used for authentication. It is a hash of the same structure as the oauth_creds entries in the Bio::KBase::AuthUser
 
@@ -436,7 +509,7 @@ returns Bio::KBase::AuthClient
 
 Class constructor. Create and return a new client authentication object. Optionally takes arguments that are used for a call to the login() method. By default will check ~/.kbase-auth file for declarations for the consumer_key and consumer_secret, and if found, will pull those in and perform a login(). Environment variables are also an option and should be discussed.
 
-=item B<login>( [consumer_key=>key, consumer_secret=>secret] |
+=item B<login>( [user_id => someuserid, consumer_key=>key, consumer_secret=>secret] |
 [user_id=>”someuserid”,[password=>’somepassword’] |
 [conversation_callback => ptr_conversation_function] |
 [return_url = async_return_url])>
