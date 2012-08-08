@@ -162,7 +162,7 @@ sub logout {
     my $self = shift @_;
     
     if ( $self->{logged_in} ) {
-	$self->{user} = Bio::KBase::AuthUser->new();
+	$self->{user} = Bio::KBase::AuthUser->new( user_id => "", password => "");
 	$self->{logged_in} = 0;
 	$self->{oauth_creds} = {};
 	return(1);
