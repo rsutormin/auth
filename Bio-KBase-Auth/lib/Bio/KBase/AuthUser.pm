@@ -3,8 +3,8 @@ package Bio::KBase::AuthUser;
 use strict;
 use warnings;
 use JSON;
-use REST::Client;
 use Bio::KBase::Auth;
+use LWP::UserAgent;
 
 # We use Object::Tiny::RW to generate getters/setters for the attributes
 # and save ourselves some tedium
@@ -23,8 +23,16 @@ use Object::Tiny::RW qw {
     updated_time
 };
 
-our @top_attrs = ("username", "email_validated", "opt_in", "fullname", "email","system_admin");
-our $rest;
+# Mapping of internal user attribute names to
+# top level Globus Online profile attributes.
+# Attributes not in this list go into the
+# nexted "custom_fields" of globus online
+our %top_attrs = ( "user_id" => "username",
+		   "verified" => "email_validated",
+		   "opt_in" => "opt_in",
+		   "name" => "fullname",
+		   "email" => "email",
+		   "system_admin" => "system_admin");
 
 sub new() {
     my $class = shift;
@@ -35,10 +43,6 @@ sub new() {
         'oauth_creds' => {},
         @_
     );
-
-    unless ( defined $rest) {
-        $rest = new REST::Client( host => $Bio::KBase::Auth::AuthSvcHost);
-    }
 
     return($self);
 }
@@ -64,22 +68,20 @@ sub user_id {
 # hash.
 # A special hash key called "__subpath__" can be defined to
 # have it added to the URL path, for updating a subpath, like
-# credentials/ssh
+# credentials/ssh. In general, any hash key beginning with
+# an _ will be dropped from the updates
 sub update {
     my $self = shift;
     my %p = @_;
-    my $json;
-    my $token = $self->oauth_creds->{'auth_token'};
-
-    my $path = $Bio::KBase::Auth::ProfilePath;
-    my $url = $Bio::KBase::Auth::AuthSvcHost;
-    my %headers;
-    my ($user_id) = $token =~ /un=(\w+)/;
 
     eval {
+	my $json;
+	my $token = $self->oauth_creds->{'auth_token'};
+	my $path = $Bio::KBase::Auth::ProfilePath;
 	unless ($token) {
 	    die "Not logged in.";
 	}
+	my ($user_id) = $token =~ /un=(\w+)/;
 	unless (keys( %p)) {
 	    die "No values for update";
 	}
@@ -91,9 +93,9 @@ sub update {
 	my %attrs = map { $_, $p{$_}} grep { ! /^_/ } (keys %p);
 	# construct top level hash for appropriate attrs
 	my %top;
-	foreach my $x (@top_attrs) {
+	foreach my $x (keys %top_attrs) {
 	    if (exists($attrs{ $x})) {
-		$top{$x} = $attrs{$x};
+		$top{$top_attrs{$x}} = $attrs{$x};
 		delete( $attrs{$x});
 	    }
 	}
@@ -101,24 +103,12 @@ sub update {
 	if (keys %attrs) {
 	    $top{'custom_fields'} = \%attrs;
 	}
-	
 	$json = to_json( \%top);
 
-	$headers{'X-GLOBUS-GOAUTHTOKEN'} = $token;
-	$headers{'Content-Type'} = 'application/json';
-	my $headers = HTTP::Headers->new( %headers);
-    
-	my $client = LWP::UserAgent->new(default_headers => $headers);
-	$client->timeout(5);
-	$client->ssl_opts(verify_hostname => 0);
-
-	my $puturl = sprintf('%s%s', $url,$path);
-	my $req = HTTP::Request->new("PUT", $puturl);
-	$req->content( $json);
-	my $response = $client->request( $req);
-	unless ($response->is_success) {
-	    die $response->status_line;
-	}
+	# go_request will die() unless it goes through
+	my $res = $self->go_request('token' => $token, 'method' => 'PUT',
+				    'body' => $json, 'path' => $path);
+	# update self with new values
 	$self->get();
     };
     if ($@) {
@@ -136,44 +126,33 @@ sub get {
     my $self = shift @_;
     my $token = shift @_;
 
-    my $path = $Bio::KBase::Auth::ProfilePath;
-    my $url = $Bio::KBase::Auth::AuthSvcHost;
-    my %headers;
-    my $method = "GET";
-    # if we aren't passed a token, try to pull it from the
-    # the existing record
-    unless ($token) {
-	$token = $self->{'oauth_creds'}->{'auth_token'};
-    }
     eval {
+	my $path = $Bio::KBase::Auth::ProfilePath;
+	my %headers;
+	# if we aren't passed a token, try to pull it from the
+	# the existing record
+	unless ($token) {
+	    $token = $self->{'oauth_creds'}->{'auth_token'};
+	}
+	unless( $token ) {
+	    die "Authentication token required";
+	}
 	my ($user_id) = $token =~ /un=(\w+)/;
 	unless ($user_id) {
 	    die "Failed to parse username from un= clause in token. Is the token legit?";
 	}
-	
-	$headers{'X-GLOBUS-GOAUTHTOKEN'} = $token;
-	my $headers = HTTP::Headers->new( %headers);
-	
-	my $client = LWP::UserAgent->new(default_headers => $headers);
-	$client->timeout(5);
-	$client->ssl_opts(verify_hostname => 0);
-	my $geturl = sprintf('%s%s/%s?custom_fields=*', $url,$path,$user_id);
-	my $nuser;
-	
-	my $response = $client->get( $geturl);
-	unless ($response->is_success) {
-	    die $response->status_line;
-	}
+	$path = sprintf('%s/%s?custom_fields=*',$path,$user_id);
+
+	# go_request will throw an error if it chokes and exit this eval block
+	my $nuser = $self->go_request( 'path' => $path, 'token' => $token);
+
 	$self->{'oauth_creds'}->{'auth_token'} = $token;
-	$nuser = decode_json( $response->content());
-	$nuser = $self->_SquashJSONBool( $nuser);
 	unless ($nuser->{'username'}) {
 	    die "No user found by name of $user_id";
 	}
-	$self->user_id( $nuser->{'username'});
-	$self->email( $nuser->{'email'});
-	$self->name( $nuser->{'fullname'});
-	$self->verified( $nuser->{'email_validated'});
+	foreach my $x (keys %top_attrs) {
+	    $self->{$x} = $nuser->{$top_attrs{$x}};
+	}
 	foreach my $x (keys %{$nuser->{'custom_fields'}}) {
 	    $self->{$x} = $nuser->{'custom_fields'}->{$x};
 	}
@@ -185,6 +164,71 @@ sub get {
 	return( $self);
     }
     
+}
+
+# function that handles Globus Online requests
+# takes the following params in hash
+# path => path/query part of the URL, doesn't include protocol/host
+# token => token string to be used, if not provided will
+#         look for oauth_creds->oauth_token. Value will go
+#         into X-GLOBUS-GOAUTHTOKEN header
+# method => (GET|PUT|POST|DELETE) defaults to GET
+# body => string for http content
+#         Content-Type will be set to application/json
+#         automatically
+# headers => hashref for any additional headers to be put into
+#         the request. X-GLOBUS-GOAUTHTOKEN automatically set
+#         by token param
+#
+# Returns a hashref to the json data that was returned
+# throw an exception if there is an error, make sure you
+# trap this with an eval{}!
+sub go_request {
+    my $self = shift @_;
+    my %p = @_;
+
+    my $json;
+    eval {
+	my $baseurl = $Bio::KBase::Auth::AuthSvcHost;
+	my %headers;
+	unless ($p{'token'}) {
+	        $p{'token'} = $self->oauth_creds->{'auth_token'};
+	}
+	unless ($p{'token'}) {
+	    die "No authentication token";
+	}
+	unless ($p{'path'}) {
+	    die "No path specified";
+	}
+	$headers{'X-GLOBUS-GOAUTHTOKEN'} = $p{'token'};
+	$headers{'Content-Type'} = 'application/json';
+	if (defined($p{'headers'})) {
+	    %headers = (%headers, %{$p{'headers'}});
+	}
+	my $headers = HTTP::Headers->new( %headers);
+    
+	my $client = LWP::UserAgent->new(default_headers => $headers);
+	$client->timeout(5);
+	$client->ssl_opts(verify_hostname => 0);
+	my $method = $p{'method'} ? $p{'method'} : "GET";
+	my $url = sprintf('%s%s', $baseurl,$p{'path'});
+	my $req = HTTP::Request->new($method, $url);
+	if ($p{'body'}) {
+	    $req->content( $p{'body'});
+	}
+	my $response = $client->request( $req);
+	unless ($response->is_success) {
+	    die $response->status_line;
+	}
+	$json = decode_json( $response->content());
+	$json = $self->_SquashJSONBool( $json);
+    };
+    if ($@) {
+	die "Failed to query Globus Online: $@";
+    } else {
+	return( $json);
+    }
+
 }
 
 sub _SquashJSONBool {

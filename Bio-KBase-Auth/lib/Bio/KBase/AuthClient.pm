@@ -17,7 +17,6 @@ use Crypt::OpenSSL::X509;
 use URI;
 use URI::QueryParam;
 use POSIX;
-use REST::Client;
 
 # Location of the file where we're storing the authentication
 # credentials
@@ -31,7 +30,6 @@ use REST::Client;
 #
 
 our $auth_rc = "~/.kbase-auth";
-our $rest = undef;
 
 sub new {
     my $class = shift @_;
@@ -48,10 +46,6 @@ sub new {
     # Try calling login to see if creds defined
 
     eval {
-
-	unless ( defined $rest) {
-	    $rest = new REST::Client( host => $Bio::KBase::Auth::AuthSvcHost);
-	}
 
 	my @x = glob( $auth_rc);
 	my $auth_rc = shift @x;
@@ -170,27 +164,6 @@ sub new_consumer {
     	return( undef);
     }
     
-}
-
-# This function updates the current user record. We must be
-# logged in, and the parameters are a hash of the name/values
-# that are to be updated.
-# 
-sub update_user {
-    my $self = shift;
-    my %p = @_;
-
-    my $res;
-
-    eval {
-
-    };
-    if ($@) {
-	my $err = "Error while updating user: $@";
-	$self->error_message($err);
-	return(undef);
-    }
-    return( $res);
 }
 
 sub logout {
@@ -327,52 +300,6 @@ sub get_nexus_token {
     } else {
 	return($nexus_response->{'code'} );
     }
-}
-
-# Tries to fetch a user's profile from the Globus Online auth
-# service using the authentication token passed in
-# returns a AuthUser object if successful, throws exception
-# otherwise
-sub get_nexus_profile {
-    my $token = shift @_;
-
-    my $path = $Bio::KBase::Auth::ProfilePath;
-    my $url = $Bio::KBase::Auth::AuthSvcHost;
-    my %headers;
-    my $method = "GET";
-    my ($user_id) = $token =~ /un=(\w+)/;
-
-    unless ($user_id) {
-	die "Failed to parse username from un= clause in token. Is the token legit?";
-    }
-
-    $headers{'X-GLOBUS-GOAUTHTOKEN'} = $token;
-    my $headers = HTTP::Headers->new( %headers);
-    
-    my $client = LWP::UserAgent->new(default_headers => $headers);
-    $client->timeout(5);
-    $client->ssl_opts(verify_hostname => 0);
-    my $geturl = sprintf('%s%s/%s?custom_fields=*', $url,$path,$user_id);
-    my $nuser;
-
-    my $response = $client->get( $geturl);
-    unless ($response->is_success) {
-	die $response->status_line;
-    }
-    $nuser = decode_json( $response->content());
-    unless ($nuser->{'username'}) {
-	die "No user found by name of $user_id";
-    }
-
-    my $user = Bio::KBase::AuthUser->new( 'user_id' => $nuser->{'username'} );
-    $user->email( $nuser->{'email'});
-    $user->name( $nuser->{'fullname'});
-    $user->verified( $nuser->{'email_validated'});
-    foreach my $x (keys %{$nuser->{'custom_fields'}}) {
-	$user->{$x} = $nuser->{'custom_fields'}->{$x};
-    }
-    return( $user);
-    
 }
 
 # The basic sha1_base64 does not properly pad the encoded text
