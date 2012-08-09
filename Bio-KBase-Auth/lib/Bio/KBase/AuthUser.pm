@@ -2,6 +2,10 @@ package Bio::KBase::AuthUser;
 
 use strict;
 use warnings;
+use JSON;
+use REST::Client;
+use Bio::KBase::Auth;
+
 # We use Object::Tiny::RW to generate getters/setters for the attributes
 # and save ourselves some tedium
 use Object::Tiny::RW qw {
@@ -19,6 +23,9 @@ use Object::Tiny::RW qw {
     updated_time
 };
 
+our @top_attrs = ("username", "email_validated", "opt_in", "fullname", "email","system_admin");
+our $rest;
+
 sub new() {
     my $class = shift;
 
@@ -28,6 +35,10 @@ sub new() {
         'oauth_creds' => {},
         @_
     );
+
+    unless ( defined $rest) {
+        $rest = new REST::Client( host => $Bio::KBase::Auth::AuthSvcHost);
+    }
 
     return($self);
 }
@@ -44,6 +55,150 @@ sub user_id {
     }
     return( $self->{'user_id'});
 }
+
+# This function updates the current user record. We must be
+# logged in, and the parameters are a hash of the name/values
+# that are to be updated.
+# Attributes that aren't part of the @top_attrs list defined
+# at the top of this module are pushed into the custom_fields
+# hash.
+# A special hash key called "__subpath__" can be defined to
+# have it added to the URL path, for updating a subpath, like
+# credentials/ssh
+sub update {
+    my $self = shift;
+    my %p = @_;
+    my $json;
+    my $token = $self->oauth_creds->{'auth_token'};
+
+    my $path = $Bio::KBase::Auth::ProfilePath;
+    my $url = $Bio::KBase::Auth::AuthSvcHost;
+    my %headers;
+    my ($user_id) = $token =~ /un=(\w+)/;
+
+    eval {
+	unless ($token) {
+	    die "Not logged in.";
+	}
+	unless (keys( %p)) {
+	    die "No values for update";
+	}
+	$path .= "/".$self->{'user_id'};
+	if (defined( $p{'__subpath__'})) {
+	    $path .= "/".$p{'__subpath__'};
+	}
+	# strip out any hash keys that begin with "_"
+	my %attrs = map { $_, $p{$_}} grep { ! /^_/ } (keys %p);
+	# construct top level hash for appropriate attrs
+	my %top;
+	foreach my $x (@top_attrs) {
+	    if (exists($attrs{ $x})) {
+		$top{$x} = $attrs{$x};
+		delete( $attrs{$x});
+	    }
+	}
+	# any leftovers go into custom_fields
+	if (keys %attrs) {
+	    $top{'custom_fields'} = \%attrs;
+	}
+	
+	$json = to_json( \%top);
+
+	$headers{'X-GLOBUS-GOAUTHTOKEN'} = $token;
+	$headers{'Content-Type'} = 'application/json';
+	my $headers = HTTP::Headers->new( %headers);
+    
+	my $client = LWP::UserAgent->new(default_headers => $headers);
+	$client->timeout(5);
+	$client->ssl_opts(verify_hostname => 0);
+
+	my $puturl = sprintf('%s%s', $url,$path);
+	my $req = HTTP::Request->new("PUT", $puturl);
+	$req->content( $json);
+	my $response = $client->request( $req);
+	unless ($response->is_success) {
+	    die $response->status_line;
+	}
+	$json = decode_json( $response->content());
+	#my $res = $rest->POST($query, $json, {'Content-Type' => 'application/json'});
+	#unless ( ($rest->responseCode() < 300) && ($rest->responseCode() >=200)) {
+	#    die $rest->responseCode() . ":" . $rest->responseContent();
+	#}
+    };
+    if ($@) {
+	my $err = "Error while updating user: $@";
+	$self->error_message($err);
+	return(undef);
+    }
+    $json = $self->_SquashJSONBool( $json);
+    return( %$json);
+}
+
+# Tries to fetch a user's profile from the Globus Online auth
+# service using the authentication token passed in
+# Sets all the appropriate attributes based on the return values
+sub get {
+    my $self = shift @_;
+    my $token = shift @_;
+
+    my $path = $Bio::KBase::Auth::ProfilePath;
+    my $url = $Bio::KBase::Auth::AuthSvcHost;
+    my %headers;
+    my $method = "GET";
+    my ($user_id) = $token =~ /un=(\w+)/;
+
+    unless ($user_id) {
+	die "Failed to parse username from un= clause in token. Is the token legit?";
+    }
+
+    $headers{'X-GLOBUS-GOAUTHTOKEN'} = $token;
+    my $headers = HTTP::Headers->new( %headers);
+    
+    my $client = LWP::UserAgent->new(default_headers => $headers);
+    $client->timeout(5);
+    $client->ssl_opts(verify_hostname => 0);
+    my $geturl = sprintf('%s%s/%s?custom_fields=*', $url,$path,$user_id);
+    my $nuser;
+
+    my $response = $client->get( $geturl);
+    unless ($response->is_success) {
+	die $response->status_line;
+    }
+    $nuser = decode_json( $response->content());
+    $nuser = $self->_SquashJSONBool( $nuser);
+    unless ($nuser->{'username'}) {
+	die "No user found by name of $user_id";
+    }
+    $self->user_id( $nuser->{'username'});
+    $self->email( $nuser->{'email'});
+    $self->name( $nuser->{'fullname'});
+    $self->verified( $nuser->{'email_validated'});
+    foreach my $x (keys %{$nuser->{'custom_fields'}}) {
+	$self->{$x} = $nuser->{'custom_fields'}->{$x};
+    }
+    return( $self);
+    
+}
+
+sub _SquashJSONBool {
+    # Walk an object ref returned by from_json() and squash references
+    # to JSON::XS::Boolean
+    my $self = shift;
+    my $json_ref = shift;
+    my $type;
+
+    foreach (keys %$json_ref) {
+	$type = ref $json_ref->{$_};
+	next unless ($type);
+	if ( 'HASH' eq $type) {
+	    _SquashJSONBool( $self, $json_ref->{$_});
+	} elsif ( 'JSON::XS::Boolean' eq $type) {
+	    $json_ref->{$_} = ( $json_ref->{$_} ? 1 : 0 );
+	}
+    }
+    return $json_ref;
+}
+
 
 1;
 

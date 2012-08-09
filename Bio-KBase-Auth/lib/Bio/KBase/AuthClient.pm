@@ -17,6 +17,7 @@ use Crypt::OpenSSL::X509;
 use URI;
 use URI::QueryParam;
 use POSIX;
+use REST::Client;
 
 # Location of the file where we're storing the authentication
 # credentials
@@ -30,6 +31,7 @@ use POSIX;
 #
 
 our $auth_rc = "~/.kbase-auth";
+our $rest = undef;
 
 sub new {
     my $class = shift @_;
@@ -46,6 +48,11 @@ sub new {
     # Try calling login to see if creds defined
 
     eval {
+
+	unless ( defined $rest) {
+	    $rest = new REST::Client( host => $Bio::KBase::Auth::AuthSvcHost);
+	}
+
 	my @x = glob( $auth_rc);
 	my $auth_rc = shift @x;
 	my %creds;
@@ -108,7 +115,7 @@ sub login {
     $self->{'oauth_creds'} = \%creds;
     # Use the token to fetch the user profile
     eval {
-	$self->{'user'} = get_nexus_profile( $self->{'oauth_creds'}->{'auth_token'});
+	$self->user->get( $self->{'oauth_creds'}->{'auth_token'});
     };
     if ($@) {
 	$self->error_message("Could not fetch user profile using token: $@");
@@ -148,14 +155,42 @@ sub auth_token {
 
 sub new_consumer {
     my $self = shift @_;
-    my $ad = Bio::KBase::AuthDirectory->new();
+    my %p = @_;
 
-    unless ( $self->{logged_in}) {
-	    carp("No user currently logged in");
-    	return;
+    unless (defined( $p{'alias'})) {
+	$self->error_message("alias parameter not set");
+	return( undef);
     }
-    my $oauth = $ad->new_consumer( $self->{user}->{user_id});
-    return $oauth;
+    unless (defined( $p{'rsa_key'})) {
+	$self->error_message("rsa_key parameter not set");
+	return( undef);
+    }
+    unless ( $self->{logged_in}) {
+	$self->error_message("No user currently logged in");
+    	return( undef);
+    }
+    
+}
+
+# This function updates the current user record. We must be
+# logged in, and the parameters are a hash of the name/values
+# that are to be updated.
+# 
+sub update_user {
+    my $self = shift;
+    my %p = @_;
+
+    my $res;
+
+    eval {
+
+    };
+    if ($@) {
+	my $err = "Error while updating user: $@";
+	$self->error_message($err);
+	return(undef);
+    }
+    return( $res);
 }
 
 sub logout {
@@ -317,7 +352,7 @@ sub get_nexus_profile {
     my $client = LWP::UserAgent->new(default_headers => $headers);
     $client->timeout(5);
     $client->ssl_opts(verify_hostname => 0);
-    my $geturl = sprintf('%s%s/%s', $url,$path,$user_id);
+    my $geturl = sprintf('%s%s/%s?custom_fields=*', $url,$path,$user_id);
     my $nuser;
 
     my $response = $client->get( $geturl);
@@ -333,6 +368,9 @@ sub get_nexus_profile {
     $user->email( $nuser->{'email'});
     $user->name( $nuser->{'fullname'});
     $user->verified( $nuser->{'email_validated'});
+    foreach my $x (keys %{$nuser->{'custom_fields'}}) {
+	$user->{$x} = $nuser->{'custom_fields'}->{$x};
+    }
     return( $user);
     
 }
