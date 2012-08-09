@@ -119,19 +119,14 @@ sub update {
 	unless ($response->is_success) {
 	    die $response->status_line;
 	}
-	$json = decode_json( $response->content());
-	#my $res = $rest->POST($query, $json, {'Content-Type' => 'application/json'});
-	#unless ( ($rest->responseCode() < 300) && ($rest->responseCode() >=200)) {
-	#    die $rest->responseCode() . ":" . $rest->responseContent();
-	#}
+	$self->get();
     };
     if ($@) {
 	my $err = "Error while updating user: $@";
 	$self->error_message($err);
 	return(undef);
     }
-    $json = $self->_SquashJSONBool( $json);
-    return( %$json);
+    return( $self);
 }
 
 # Tries to fetch a user's profile from the Globus Online auth
@@ -145,38 +140,50 @@ sub get {
     my $url = $Bio::KBase::Auth::AuthSvcHost;
     my %headers;
     my $method = "GET";
-    my ($user_id) = $token =~ /un=(\w+)/;
-
-    unless ($user_id) {
-	die "Failed to parse username from un= clause in token. Is the token legit?";
+    # if we aren't passed a token, try to pull it from the
+    # the existing record
+    unless ($token) {
+	$token = $self->{'oauth_creds'}->{'auth_token'};
     }
-
-    $headers{'X-GLOBUS-GOAUTHTOKEN'} = $token;
-    my $headers = HTTP::Headers->new( %headers);
-    
-    my $client = LWP::UserAgent->new(default_headers => $headers);
-    $client->timeout(5);
-    $client->ssl_opts(verify_hostname => 0);
-    my $geturl = sprintf('%s%s/%s?custom_fields=*', $url,$path,$user_id);
-    my $nuser;
-
-    my $response = $client->get( $geturl);
-    unless ($response->is_success) {
-	die $response->status_line;
+    eval {
+	my ($user_id) = $token =~ /un=(\w+)/;
+	unless ($user_id) {
+	    die "Failed to parse username from un= clause in token. Is the token legit?";
+	}
+	
+	$headers{'X-GLOBUS-GOAUTHTOKEN'} = $token;
+	my $headers = HTTP::Headers->new( %headers);
+	
+	my $client = LWP::UserAgent->new(default_headers => $headers);
+	$client->timeout(5);
+	$client->ssl_opts(verify_hostname => 0);
+	my $geturl = sprintf('%s%s/%s?custom_fields=*', $url,$path,$user_id);
+	my $nuser;
+	
+	my $response = $client->get( $geturl);
+	unless ($response->is_success) {
+	    die $response->status_line;
+	}
+	$self->{'oauth_creds'}->{'auth_token'} = $token;
+	$nuser = decode_json( $response->content());
+	$nuser = $self->_SquashJSONBool( $nuser);
+	unless ($nuser->{'username'}) {
+	    die "No user found by name of $user_id";
+	}
+	$self->user_id( $nuser->{'username'});
+	$self->email( $nuser->{'email'});
+	$self->name( $nuser->{'fullname'});
+	$self->verified( $nuser->{'email_validated'});
+	foreach my $x (keys %{$nuser->{'custom_fields'}}) {
+	    $self->{$x} = $nuser->{'custom_fields'}->{$x};
+	}
+    };
+    if ($@) {
+	$self->error_message("Failed to get profile: $@");
+	return( undef);
+    } else {
+	return( $self);
     }
-    $nuser = decode_json( $response->content());
-    $nuser = $self->_SquashJSONBool( $nuser);
-    unless ($nuser->{'username'}) {
-	die "No user found by name of $user_id";
-    }
-    $self->user_id( $nuser->{'username'});
-    $self->email( $nuser->{'email'});
-    $self->name( $nuser->{'fullname'});
-    $self->verified( $nuser->{'email_validated'});
-    foreach my $x (keys %{$nuser->{'custom_fields'}}) {
-	$self->{$x} = $nuser->{'custom_fields'}->{$x};
-    }
-    return( $self);
     
 }
 
