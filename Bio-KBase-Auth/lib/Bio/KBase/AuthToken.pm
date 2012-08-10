@@ -5,14 +5,24 @@ use warnings;
 use JSON;
 use Bio::KBase::Auth;
 use LWP::UserAgent;
+use Digest::SHA1 qw(sha1_base64);
+use Crypt::OpenSSL::RSA;
+use Crypt::OpenSSL::X509;
+use MIME::Base64;
+use URI;
+use URI::QueryParam;
+use POSIX;
 
 # We use Object::Tiny::RW to generate getters/setters for the attributes
 # and save ourselves some tedium
 use Object::Tiny::RW qw {
-    token
     error_message
+    user_id
+    password
+    client_secret
 };
 
+our @trust_token_signers = ( 'https://graph.api.go.sandbox.globuscs.info/goauth/keys/da0a4e96-e22a-11e1-9b09-1231381bc4c2');
 
 sub new() {
     my $class = shift;
@@ -25,21 +35,227 @@ sub new() {
         @_
     );
 
+    eval {
+	# If we were given a token, try set that using the formal setter
+	# elsif we have appropriate login credentials, try to get a
+	# token
+	if ($self->{'token'}) {
+	    $self->token( $self->{'token'});
+	} elsif ($self->{'user_id'} &&
+		 ($self->{'password'} || $self->{'client_secret'})) {
+	    $self->get();
+	}
+    };
+    if ($@) {
+	$self->error_message("Failed to acquire token: $@");
+    }
     return($self);
 }
 
-sub user_id {
-    my $self = shift;
+# getter/setter for token, if we are given a token, parse it out
+# and set the appropriate attributes 
+sub token {
+    my $self = shift @_;
+    my $token = shift;
 
-    return();
+    unless( $token) {
+	return( $self->{'token'});
+    }
+
+    # parse out token and set user_id
+    eval {
+	$self->{'token'} = $token;
+	($self->{'user_id'}) = $token =~ /un=(\w+)/;
+	unless ($self->{'user_id'}) {
+	    die "Cannot parse user_id from token - illegal token";
+	}
+    };
+    if ($@) {
+	$self->error_message("Invalid token: $@");
+	return( undef);
+    } else {
+	return( $token);
+    }
+}
+
+# Get a nexus token, using either user_id, password or user_id, rsakey.
+# Parameters looked for within $self:
+# body => body of the http message, if any, can be undefined
+# user_id => user name recognized on globus online for login
+# client_id => user name recognized on globus online for login
+# client_secret => the RSA private key used for signing
+# password => Globus online password
+# Throws an exception if either invalid set of creds or failed login
+
+sub get {
+    my $self = shift @_;
+    my %p = @_;
+    my $path = $Bio::KBase::Auth::AuthorizePath;
+    my $url = $Bio::KBase::Auth::AuthSvcHost;
+    my $method = "GET";
+    my %headers;
+    my $res;
+
+    eval {
+	if ($p{'user_id'}) {
+	    $self->user_id($p{'user_id'});
+	}
+	if ($p{'client_secret'}) {
+	    $self->client_secret($p{'client_secret'});
+	}
+	if ($p{'password'}) {
+	    $self->password($p{'password'});
+	}
+
+	# Make sure we have the right combo of creds
+	if ($self->{'user_id'} && ($self->{'client_secret'} || $self->{'password'})) {
+	    # no op
+	} else {
+	    die("Need either (user_id, client_secret || password) or (client_id, client_secret) to be defined.");
+	}
+	
+	my $u = URI->new($url);
+	my %qparams = ("response_type" => "code",
+		       "client_id" => $self->{'client_id'} ? $self->{'client_id'} : $self->{'user_id'});
+	$u->query_form( %qparams );
+	my $query=$u->query();
+	
+	# Okay, if we have user_id/password, create a basic auth header and extract it
+	# otherwise create a set of RSA signature headers using
+	# user_id and client_secret
+	my $headers;
+	if ( $self->{'user_id'} && $self->{'password'}) {
+	    $headers = HTTP::Headers->new;
+	    $headers->authorization_basic( $self->{'user_id'}, $self->{'password'});
+	    $headers{'Authorization'} = $headers->header('Authorization');
+	} else {
+	    my %p2 = ( rsakey => $self->{'client_secret'},
+		       path => $path,
+		       method => $method,
+		       user_id => $self->{'user_id'},
+		       query => $query,
+		       body => $self->{'body'} );
+	    
+	    %headers = sign_with_rsa( %p2);
+	}
+	my $path2 = sprintf('%s?%s',$path,$query);
+	$res = $self->go_request( "path" => $path2, 'headers' => \%headers);
+	unless ($res->{'code'}) {
+	    die "No token returned by Globus Online";
+	}
+    };
+    if ($@) {
+	$self->{'token'} = undef;
+	$self->{'user_id'} = undef;
+	die "Failed to get auth token: $@";
+    } else {
+	return($self->token( $res->{'code'}));
+    }
+}
+
+# The basic sha1_base64 does not properly pad the encoded text
+# so we have this little wrapper to tack on extra '='.
+sub sha1_base64_padded {
+    my $in = shift;
+    my @pad = ('','===','==','=');
+
+    my $out = sha1_base64( $in);
+    return ($out.$pad[length($out) % 4]);
+}
+
+# Return a hash of HTTP headers used by Globus Nexus to authenticate
+# a token request.
+sub sign_with_rsa {
+    my %p = @_;
+    my %headers;
+
+    eval {
+	# The sha1_base64 functions choke on an undefs, so
+	# set body to an empty string if it is undef
+	unless (defined($p{'body'})) {
+	    $p{'body'} = "";
+	}
+	my $timestamp = canonical_time(time());
+	%headers = ( 'X-Globus-UserId' => $p{user_id},
+			'X-Globus-Sign'   => 'version=1.0',
+			'X-Globus-Timestamp' => $timestamp,
+	    );
+	
+	my $to_sign = join("\n",
+			   "Method:%s",
+			   "Hashed Path:%s",
+			   "X-Globus-Content-Hash:%s",
+			   "X-Globus-Query-Hash:%s",
+			   "X-Globus-Timestamp:%s",
+			   "X-Globus-UserId:%s");
+	$to_sign = sprintf( $to_sign,
+			    $p{method},
+			    sha1_base64_padded($p{path}),
+			    sha1_base64_padded($p{body}),
+			    sha1_base64_padded($p{query}),
+			    $timestamp,
+			    $headers{'X-Globus-UserId'});
+	my $pkey = Crypt::OpenSSL::RSA->new_private_key($p{rsakey});
+	$pkey->use_sha1_hash();
+	my $sig = $pkey->sign($to_sign);
+	my $sig_base64 = encode_base64( $sig);
+	my @sig_base64 = split( '\n', $sig_base64);
+	foreach my $x (0..$#sig_base64) {
+	    $headers{ sprintf( 'X-Globus-Authorization-%s', $x)} = $sig_base64[$x];
+	}
+    };
+    if ($@) {
+	die "Could not sign headers: $@";
+    } else {
+	return(%headers);
+    }
+}
+
+# Formats a time string in the format desired by Globus Online
+# It is somewhat bogus, because they are claiming that it is
+# UTC, when in fact its the localtime.           
+sub canonical_time {
+    my $time = shift;
+    return( strftime("%Y-%m-%dT%H:%M:%S", localtime($time)) . 'Z');
+
+}
+
+# Function that returns if the token is valid or not
+sub validate {
+    my $self = shift;
+    my $verify;
+
+    eval {
+	my ($sig_data) = $self->{'token'} =~ /^(.*)\|sig=/;
+	unless ($sig_data) {
+	    die "Token lacks signature fields";
+	}
+	my %vars = map { split /=/ } split /\|/, $self->{'token'};
+	my $binary_sig = pack('H*',$vars{'sig'});
+
+	my $client = LWP::UserAgent->new();
+	$client->ssl_opts(verify_hostname => 0);
+	$client->timeout(5);
+	my $response = $client->get( $vars{'SigningSubject'});
+
+	my $data = from_json( $response->content());
+	
+	my $rsa = Crypt::OpenSSL::RSA->new_public_key( $data->{'pubkey'});
+	$rsa->use_sha1_hash();
+
+	$verify = $rsa->verify($sig_data,$binary_sig);
+    };
+    if ($@) {
+	$self->error_message("Failed to verify token: $@");
+	return( undef);
+    } else {
+	return( $verify);
+    }
 }
 
 # function that handles Globus Online requests
 # takes the following params in hash
 # path => path/query part of the URL, doesn't include protocol/host
-# token => token string to be used, if not provided will
-#         look for oauth_creds->oauth_token. Value will go
-#         into X-GLOBUS-GOAUTHTOKEN header
 # method => (GET|PUT|POST|DELETE) defaults to GET
 # body => string for http content
 #         Content-Type will be set to application/json
@@ -51,6 +267,7 @@ sub user_id {
 # Returns a hashref to the json data that was returned
 # throw an exception if there is an error, make sure you
 # trap this with an eval{}!
+
 sub go_request {
     my $self = shift @_;
     my %p = @_;
@@ -59,16 +276,9 @@ sub go_request {
     eval {
 	my $baseurl = $Bio::KBase::Auth::AuthSvcHost;
 	my %headers;
-	unless ($p{'token'}) {
-	        $p{'token'} = $self->oauth_creds->{'auth_token'};
-	}
-	unless ($p{'token'}) {
-	    die "No authentication token";
-	}
 	unless ($p{'path'}) {
 	    die "No path specified";
 	}
-	$headers{'X-GLOBUS-GOAUTHTOKEN'} = $p{'token'};
 	$headers{'Content-Type'} = 'application/json';
 	if (defined($p{'headers'})) {
 	    %headers = (%headers, %{$p{'headers'}});
