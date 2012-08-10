@@ -1,4 +1,4 @@
-package Bio::KBase::AuthUser;
+package Bio::KBase::AuthToken;
 
 use strict;
 use warnings;
@@ -11,28 +11,8 @@ use LWP::UserAgent;
 use Object::Tiny::RW qw {
     token
     error_message
-    enabled
-    last_login_time
-    last_login_ip
-    roles
-    groups
-    oauth_creds
-    name
-    email
-    verified
-    updated_time
 };
 
-# Mapping of internal user attribute names to
-# top level Globus Online profile attributes.
-# Attributes not in this list go into the
-# nested "custom_fields" of globus online
-our %top_attrs = ( "user_id" => "username",
-		   "verified" => "email_validated",
-		   "opt_in" => "opt_in",
-		   "name" => "fullname",
-		   "email" => "email",
-		   "system_admin" => "system_admin");
 
 sub new() {
     my $class = shift;
@@ -40,7 +20,8 @@ sub new() {
     # Don't bother with calling the Object::Tiny::RW constructor,
     # since it doesn't do anything except return a blessed empty hash
     my $self = $class->SUPER::new(
-        'oauth_creds' => {},
+        'token' => undef,
+        'error_message' => undef,
         @_
     );
 
@@ -49,124 +30,8 @@ sub new() {
 
 sub user_id {
     my $self = shift;
-    my $user_id = shift;
 
-    # If there is a user_id value set already, do not accept a new
-    # value, just return the old value
-
-    if ($user_id && !(exists $self->{user_id})) {
-	$self->{'user_id'} = $user_id;
-    }
-    return( $self->{'user_id'});
-}
-
-# This function updates the current user record. We must be
-# logged in, and the parameters are a hash of the name/values
-# that are to be updated. Returns a reference to itself
-# if successful, with the attributes reloaded from the
-# profile server. Returns undef if there is an error.
-# Attributes that aren't part of the @top_attrs list defined
-# at the top of this module are pushed into the custom_fields
-# hash.
-# A special hash key called "__subpath__" can be defined to
-# have it added to the URL path, for updating a subpath, like
-# credentials/ssh. In general, any hash key beginning with
-# an _ will be dropped from the updates
-sub update {
-    my $self = shift;
-    my %p = @_;
-
-    eval {
-	my $json;
-	my $token = $self->oauth_creds->{'auth_token'};
-	my $path = $Bio::KBase::Auth::ProfilePath;
-	unless ($token) {
-	    die "Not logged in.";
-	}
-	my ($user_id) = $token =~ /un=(\w+)/;
-	unless (keys( %p)) {
-	    die "No values for update";
-	}
-	$path .= "/".$self->{'user_id'};
-	if (defined( $p{'__subpath__'})) {
-	    $path .= "/".$p{'__subpath__'};
-	}
-	# strip out any hash keys that begin with "_"
-	my %attrs = map { $_, $p{$_}} grep { ! /^_/ } (keys %p);
-	# construct top level hash for appropriate attrs
-	my %top;
-	foreach my $x (keys %top_attrs) {
-	    if (exists($attrs{ $x})) {
-		$top{$top_attrs{$x}} = $attrs{$x};
-		delete( $attrs{$x});
-	    }
-	}
-	# any leftovers go into custom_fields
-	if (keys %attrs) {
-	    $top{'custom_fields'} = \%attrs;
-	}
-	$json = to_json( \%top);
-
-	# go_request will die() unless it goes through
-	my $res = $self->go_request('token' => $token, 'method' => 'PUT',
-				    'body' => $json, 'path' => $path);
-    };
-    if ($@) {
-	my $err = "Error while updating user: $@";
-	$self->error_message($err);
-	return(undef);
-    }
-    # update self with new values
-    return( $self->get());
-}
-
-# Tries to fetch a user's profile from the Globus Online auth
-# service using the authentication token passed in
-# Sets all the appropriate attributes based on the return values
-# returns a reference to self if successsful, returns undef
-# if not
-sub get {
-    my $self = shift @_;
-    my $token = shift @_;
-
-    eval {
-	my $path = $Bio::KBase::Auth::ProfilePath;
-	my %headers;
-	# if we aren't passed a token, try to pull it from the
-	# the existing record
-	unless ($token) {
-	    $token = $self->{'oauth_creds'}->{'auth_token'};
-	}
-	unless( $token ) {
-	    die "Authentication token required";
-	}
-	my ($user_id) = $token =~ /un=(\w+)/;
-	unless ($user_id) {
-	    die "Failed to parse username from un= clause in token. Is the token legit?";
-	}
-	$path = sprintf('%s/%s?custom_fields=*',$path,$user_id);
-
-	# go_request will throw an error if it chokes and exit this eval block
-	my $nuser = $self->go_request( 'path' => $path, 'token' => $token);
-
-	$self->{'oauth_creds'}->{'auth_token'} = $token;
-	unless ($nuser->{'username'}) {
-	    die "No user found by name of $user_id";
-	}
-	foreach my $x (keys %top_attrs) {
-	    $self->{$x} = $nuser->{$top_attrs{$x}};
-	}
-	foreach my $x (keys %{$nuser->{'custom_fields'}}) {
-	    $self->{$x} = $nuser->{'custom_fields'}->{$x};
-	}
-    };
-    if ($@) {
-	$self->error_message("Failed to get profile: $@");
-	return( undef);
-    } else {
-	return( $self);
-    }
-    
+    return();
 }
 
 # function that handles Globus Online requests
