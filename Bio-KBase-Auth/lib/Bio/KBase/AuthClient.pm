@@ -384,8 +384,10 @@ __END__
     my $req = HTTP::Request->new( GET => $server. "someurl" );
 
     # Create a KBase client and attach the authorization headers to the
-    # request object. Use a "key" and "secret" as the secret
-    my $ac = Bio::KBase::AuthClient->new(consumer_key => 'key', consumer_secret => 'secret');
+    # request object. Use a "key" and "secret" as the secret, where secret
+    # is an RSA private key where the public key has been associated with the
+    # username on Globus nexus
+    my $ac = Bio::KBase::AuthClient->new(user_id => 'username', client_secret => 'secret');
     unless ($ac->{logged_in}) {
         die "Client: Failed to login with credentials!";
     }
@@ -454,7 +456,7 @@ __END__
 
 { "oauth_key":"consumer_key_blahblah",
   "oauth_token":"token_blah_blah",
-  "oauth_secret":"consumer_secret_blahblah"
+  "oauth_secret":"client_secret_blahblah"
  }
 
 =head2 Instance Variables
@@ -483,13 +485,13 @@ Most recent error msg from call to instance method.
 
 =over
 
-=item B<new>([consumer_key=>key, consumer_secret=>secret])
+=item B<new>([consumer_key=>key, client_secret=>secret])
 
 returns Bio::KBase::AuthClient
 
-Class constructor. Create and return a new client authentication object. Optionally takes arguments that are used for a call to the login() method. By default will check ~/.kbase-auth file for declarations for the consumer_key and consumer_secret, and if found, will pull those in and perform a login(). Environment variables are also an option and should be discussed.
+Class constructor. Create and return a new client authentication object. Optionally takes arguments that are used for a call to the login() method. By default will check ~/.kbase-auth file for declarations for the consumer_key and client_secret, and if found, will pull those in and perform a login(). Environment variables are also an option and should be discussed.
 
-=item B<login>( [user_id => someuserid, consumer_key=>key, consumer_secret=>secret] |
+=item B<login>( [user_id => someuserid, consumer_key=>key, client_secret=>secret] |
 [user_id=>”someuserid”,[password=>’somepassword’] |
 [conversation_callback => ptr_conversation_function] |
 [return_url = async_return_url])>
@@ -499,7 +501,7 @@ returns boolean for login success/fail.
 If no parameters are given then consumer (key,secret) will be populated automatically from ~/.kbase-auth. Environment variables are also an option.
 
 When this is called, the client will attempt to connect to the back end server to validate the credentials provided.
-The most common use case will be to pull the consumer_key and consumer_secret from the environment. You can also specify the user_id and password for authentication - this is only recommended for bootstrapping the use of consumer (key,secret).
+The most common use case will be to pull the consumer_key and client_secret from the environment. You can also specify the user_id and password for authentication - this is only recommended for bootstrapping the use of consumer (key,secret).
 
 If the authentication is a little more complicated there are 2 options
   - define a function that handles the login interaction (same idea as the PAM conversation function).
@@ -526,7 +528,7 @@ returns string
 
 Returns a base64 encoded authentication token (tentatively based on the XOauth SASL token) that can be used for a single session within a non-HTTP protocol. The URL passed in is used to identify the resource being accessed, and is used in the computation of the hash signature. The url passed to Bio::KBase::AuthServer::validate_auth_token() on the other end of the exchange must be identical. Authentication tokens are also timestamped and intended for a single use. The token is generated from the consumer key and secret, and should not be stored across sessions for re-use (at the very least, it should timeout even if token replay safeguards fail).
 
-=item B<new_consumer()> returns hash { consumer_key => key, consumer_secret => secret}
+=item B<new_consumer()> returns hash { consumer_key => key, client_secret => secret}
 
 This function requests a consumer (key,secret) pair from the user directory that can be used for subsequent authentication. The (key,secret) should be stored in the environment. Note that the key/secret are associated with the account when you generate it - please do not overuse and cause a proliferation of key/secret pairs.
 

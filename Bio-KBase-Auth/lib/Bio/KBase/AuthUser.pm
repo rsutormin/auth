@@ -12,15 +12,11 @@ use Object::Tiny::RW qw {
     token
     error_message
     enabled
-    last_login_time
-    last_login_ip
-    roles
     groups
     oauth_creds
     name
     email
     verified
-    updated_time
 };
 
 # Mapping of internal user attribute names to
@@ -269,12 +265,13 @@ This is a container for user attributes - creating, destroying them in the user 
 =head2 Examples
 
    my $user = Bio::KBase::AuthUser->new()
-   # Voila!
+   # fetch from profile service
+   $user->get( 'user_id' => "mrbig", 'password' => 'bigP@SSword');
+   # $user's attributes should now be populated.
 
 =head2 Instance Variables
 
 =over
-
 
 =item B<user_id> (string)
 
@@ -283,22 +280,6 @@ REQUIRED Identifier for the End-User at the Issuer.
 =item B<error_message> (string)
 
 contains error messages, if any, from most recent method call
-
-=item B<enabled> (boolean)
-
-Is this user allowed to login
-
-=item B<last_login_time> (timestamp)
-
-time of last login
-
-=item B<last_login_ip> (ip address)
-
-ip address of last login
-
-=item B<roles> (string array)
-
-An array of strings for storing roles that the user possesses
 
 =item B<groups> (string array)
 
@@ -320,19 +301,40 @@ The End-User's preferred e-mail address.
 
 True if the End-User's e-mail address has been verified; otherwise false.
 
-=item B<updated_time> (string)
-
-Time the End-User's information was last updated, represented as a RFC 3339 [RFC3339] datetime. For example, 2011-01-03T23:58:42+0000.
-
 =back
 
 =head2 Methods
 
 =over
 
-=item B<new>()
+=item B<new>(Bio::KBase::AuthUser)
 
-returns a Bio::KBase::AuthUser reference
+returns a Bio::KBase::AuthUser reference. Parameters are a hash used to initialize a new user object
+
+=item B<user_id>(string)
+
+returns a string representing the user_id of the user in the AuthUser object
+
+=item B<get>(string)
+
+If given a token string as its only argument, fetch the user profile associated with
+the token from Globus Nexus.
+
+   Example:
+   $token = "un=sychan|clientid=sychan|expiry=1376426267|SigningSubject=https://graph.api.go.sandbox.globuscs.info/goauth/keys/da0a4e96-e22a-11e1-9b09-1231381bc4c2|sig=8ef2ff2027b60165d5af12db70f5eba8f239fc42140de82ec262a8b4e525cc53a2866bc9da9efcf5faa893875ecea7fb5c7d3563f3f2dae48cbc0bd7dabaf2ce48e76ea0f755f15d7c1b24d8f9adf7dd0";
+
+   $user = new Bio::KBase::AuthUser;
+   $user->get( $token);
+
+=item B<update>(Bio::KBase::AuthUser)
+
+updates the user's profile if we have appropriate login credentials. Takes a hash list of profile attributes and updates those values on the profile service. Returns a reference to the updated AuthUser object. Note that the API supports arbitrary custom fields, so if you would like to add a new attribute to the user profile, simply call this with the appropriater hash/value parameters
+
+   Example:
+   # assuming we have a legit $token for the user
+   $user = new Bio::KBase::AuthUser;
+   $user->get( $token); # Get the user's record using the token
+   $user->update( 'new_attribute' => 'new_value'); # Should be written to the backend service
 
 =back
 

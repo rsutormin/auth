@@ -23,6 +23,8 @@ use Object::Tiny::RW qw {
 };
 
 our @trust_token_signers = ( 'https://graph.api.go.sandbox.globuscs.info/goauth/keys/da0a4e96-e22a-11e1-9b09-1231381bc4c2');
+# Set a token lifetime of 12 hours
+our $token_lifetime = 12 * 60 * 60;
 
 sub new() {
     my $class = shift;
@@ -74,6 +76,7 @@ sub token {
 	$self->error_message("Invalid token: $@");
 	return( undef);
     } else {
+	$self->{'error_message'} = undef;
 	return( $token);
     }
 }
@@ -231,6 +234,9 @@ sub validate {
 	    die "Token lacks signature fields";
 	}
 	my %vars = map { split /=/ } split /\|/, $self->{'token'};
+	unless (($vars{'expiry'} + $token_lifetime) >= time) {
+	    die "Token expired at: ".scalar( localtime($vars{'expiry'} + $token_lifetime)) ;
+	}
 	my $binary_sig = pack('H*',$vars{'sig'});
 
 	my $client = LWP::UserAgent->new();
@@ -239,7 +245,11 @@ sub validate {
 	my $response = $client->get( $vars{'SigningSubject'});
 
 	my $data = from_json( $response->content());
-	
+	$data = $self->_SquashJSONBool( $data);
+	unless ($data->{'valid'}) {
+	    die "Signing key is not valid:".$response->content();
+	}
+
 	my $rsa = Crypt::OpenSSL::RSA->new_public_key( $data->{'pubkey'});
 	$rsa->use_sha1_hash();
 
@@ -249,6 +259,7 @@ sub validate {
 	$self->error_message("Failed to verify token: $@");
 	return( undef);
     } else {
+	$self->{'error_message'} = undef;
 	return( $verify);
     }
 }
@@ -335,69 +346,68 @@ __END__
 
 =pod
 
-=head1 Bio::KBase::AuthUser
+=head1 Bio::KBase::AuthToken
 
-User object for KBase authentication. Stores user profile and authentication information, including oauth credentials.
+Token object for Globus Online/Globus Nexus tokens. For general information about Globus Nexus service see:
+http://globusonline.github.com/nexus-docs/api.html
 
-This is a container for user attributes - creating, destroying them in the user database is handled by the Bio::KBase::AuthDirectory class.
 
 =head2 Examples
 
-   my $user = Bio::KBase::AuthUser->new()
-   # Voila!
+   # Acquiring a new token when you have username/password credentials
+   my $token = Bio::KBase::AuthToken->new( 'user_id' => 'mrbig', 'password' => 'bigP@SSword');
+
+   # or if you have an SSH private key for RSA authentication
+
+   my $token2 = Bio::KBase::AuthToken->new( 'user_id' => 'mrbig', 'client_secret' => $rsakey);
+
+
+   # If you have a token in $tok, and wish to check if it is valid
+   my $token3 = Bio::KBase::AuthToken->new( 'token' => $tok);
+   if ($token3->validate()) {
+       # token is legit
+       my $user_id = $token3->user_id();
+
+       # acquiring a full user profile once you have a token
+       my $profile = new Bio::KBase::AuthUser->new;
+       $profile->get( $token3->token());
+
+   } else {
+       die "Begone, evildoer!\n";
+   }
 
 =head2 Instance Variables
 
 =over
 
-
 =item B<user_id> (string)
 
-REQUIRED Identifier for the End-User at the Issuer.
+REQUIRED Userid of the associated with the token
+
+=item B<token> (string)
+
+A string containing a signed assertion from the Globus Nexus service. Here is an example:
+
+un=sychan|clientid=sychan|expiry=1376425658|SigningSubject=https://graph.api.go.sandbox.globuscs.info/goauth/keys/da0a4e96-e22a-11e1-9b09-1231381bc4c2|sig=88cb32eae2782452817f106a2ce8cf9215f3356ce123d43395a5c99c5ec4184eaf5d70111124a06cf9267e5340f1d06b9258cf2e70e8000000000000000000000000000000583c68755de5453b4b019ebf3d7d4547778ef7d6322f2ba8f42d370bbce4b693ef7a9b3c7be3c6970132e72c654e3274afab9ea39ba9724383f1594
+
+   It is a series of name value pairs:
+   un = username
+   clientid = Globus Nexus client id
+   expiry = time when the token was issued
+   SigningSubject = url to the public key used to verify the signature
+   sig = RSA sha1 signature hash
+
+=item B<password> (string)
+
+The password used to acquire token (if provided). Note that it is not possible to pull down the password from the authentication service.
+
+=item B<client_secret> (string)
+
+An openssh formatted RSA private key string used for authentication
 
 =item B<error_message> (string)
 
-contains error messages, if any, from most recent method call
-
-=item B<enabled> (boolean)
-
-Is this user allowed to login
-
-=item B<last_login_time> (timestamp)
-
-time of last login
-
-=item B<last_login_ip> (ip address)
-
-ip address of last login
-
-=item B<roles> (string array)
-
-An array of strings for storing roles that the user possesses
-
-=item B<groups> (string array)
-
-An array of strings for storing Unix style groups that the user is a member of
-
-=item B<oauth_creds> (hash)
-
-reference to hash array keyed on consumer_keys that stores public keys, private keys, verifiers and tokens associated with this user
-
-=item B<name> (string)
-
-End-User's full name in displayable form including all name parts, ordered according to End-User's locale and preferences.
-
-=item B<email> (string)
-
-The End-User's preferred e-mail address.
-
-=item B<verified> (boolean)
-
-True if the End-User's e-mail address has been verified; otherwise false.
-
-=item B<updated_time> (string)
-
-Time the End-User's information was last updated, represented as a RFC 3339 [RFC3339] datetime. For example, 2011-01-03T23:58:42+0000.
+contains error messages, if any, from most recent method call.
 
 =back
 
@@ -407,7 +417,29 @@ Time the End-User's information was last updated, represented as a RFC 3339 [RFC
 
 =item B<new>()
 
-returns a Bio::KBase::AuthUser reference
+returns a Bio::KBase::AuthToken reference. Optionally pass in hash params to initialize attributes. If we have enough attributes to perform a login either a token, or (user_id,password) or (user_id,client_secret) then the library will try to acquire a new token from Globus Nexus.
+
+   Examples:
+
+   # Acquiring a new token when you have username/password credentials
+   my $token = Bio::KBase::AuthToken->new( 'user_id' => 'mrbig', 'password' => 'bigP@SSword');
+
+   # or if you have an SSH private key for RSA authentication
+
+   $rsakey = `cat ~/.id_rsa`;
+   my $token2 = Bio::KBase::AuthToken->new( 'user_id' => 'mrbig', 'client_secret' => $rsakey);
+
+   # we have a token string in $tok, and want to verify it
+   my $token3 = 
+   
+
+=item B<user_id>()
+
+returns the user_id associated with the token, if any. If a single string value is passed in, it will be used to set the value of the user_id
+
+=item B<validate>()
+
+attempts to verify the signature on the token, and returns a boolean value signifying whether the token is legit
 
 =back
 
