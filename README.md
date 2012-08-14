@@ -6,8 +6,11 @@
     * Object::Tiny::RW
     * JSON
     * REST::Client
-    * Digest::SHA
-    * Digest::MD5
+    * Digest::SHA1
+    * Crypt::OpenSSL::RSA
+    * Crypt::OpenSSL::X509
+    * URI::Escape
+    * URI::QueryParam
     * MIME::Base64
     * HTTP::Request
     * HTTP::Daemon
@@ -38,9 +41,6 @@
    makefile will install the Perl libraries
 
 4. Run tests
-   Load the testdata for the python instance
-      cd (git working directory for auth module)
-      cd Bio-KBase-Auth
-      /kb/runtime/bin/perl ./Build test
+   sudo make test-libs
 
       
