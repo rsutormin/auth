@@ -37,9 +37,13 @@
 
    There is a Google Doc that can be accessed at this URL:
 
-https://docs.google.com/a/lbl.gov/document/d/1lrT_HbdHZHQSM1RsTZNfvTG51adWmg3D4ju76SOp1XE/edit
+https://docs.google.com/a/lbl.gov/document/d/1R3PSQbeR3EGpigupzGnua4qdBXpVjBQ-rQ0NBp3p6xY/edit#
 
    Over time, all information in that document wll be migrated into perldocs and it will be superfluous
+
+   To create accounts, please use this URL and register any accounts you need:
+
+   https://test.globuscs.info/
 
 ### Setup using the kbase VMs
 
