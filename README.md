@@ -42,5 +42,3 @@
 
 4. Run tests
    sudo make test-libs
-
-      
