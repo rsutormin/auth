@@ -50,9 +50,9 @@ TODO: {
   );
 
   module_boilerplate_ok('lib/Bio/KBase/Auth.pm');
-  module_boilerplate_ok('lib/Bio/KBase/AuthDirectory.pm');
+  module_boilerplate_ok('lib/Bio/KBase/AuthToken.pm');
+  module_boilerplate_ok('lib/Bio/KBase/AuthUser.pm');
   module_boilerplate_ok('lib/Bio/KBase/AuthClient.pm');
-  module_boilerplate_ok('lib/Bio/KBase/AuthServer.pm');
 
 
 }
