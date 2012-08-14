@@ -56,5 +56,3 @@ https://docs.google.com/a/lbl.gov/document/d/1R3PSQbeR3EGpigupzGnua4qdBXpVjBQ-rQ
 
 4. Run tests
    sudo make test-libs
-
-      
