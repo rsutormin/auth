@@ -43,6 +43,25 @@ You can also look for information at:
         http://search.cpan.org/dist/Bio-KBase-Auth/
 
 
+NOTE FOR MACOS LION AND HIGHER
+
+Crypt::OpenSSL::X509 (v1.800.2 as of this writing) does not appear to install in
+MacOS X 10.7 or higher. A few hacks to the makefile seem to resolve it.
+
+Download the module from CPAN, then edit Makefile.PL. Change:
+
+cc_optimize_flags('-O2 -g -Wall -Werror');
+to
+cc_optimize_flags('-O2 -g');
+
+Then, in the generated Makefile, remove clang flags for -arch ppc -arch ppc64.
+
+You can then proceed with make, make install as normal. It will throw a lot of errors now
+but it's the best we can do.
+
+Mountain Lion users may need to upgrade OpenSSL as well, and edit the Makefile.PL to point
+to the appropriate newly installed library.
+
 LICENSE AND COPYRIGHT
 
 Copyright (C) 2012 Steve Chan
