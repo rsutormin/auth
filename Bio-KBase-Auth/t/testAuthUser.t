@@ -33,6 +33,8 @@ ok($au->get($at->token), "Trying to fetch user profile using legitimate token fo
 note( Dumper( $au));
 is($au->user_id(), "kbasetest", "Verifying that the user record acquired is for the kbasetest user");
 is($au->email(), 'sychan@lbl.gov', "Verifying that email address is sychan\@lbl.gov");
+ok($au2 = Bio::KBase::AuthUser->new( 'token' => $at->token), "Creating a new AuthUser object initialized with token");
+is($au2->user_id(), "kbasetest", "Verifying that the user record acquired is for the kbasetest user");
 
 # Generate random string for testing custom field settings
 srand(time);

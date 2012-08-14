@@ -40,6 +40,14 @@ sub new() {
         @_
     );
 
+    # If we're passed in a token parameter, push it into the oauth_creds->oauth_token
+    if ( $self->{'token'}) {
+	$self->{'oauth_creds'}->{'auth_token'} = $self->{'token'};
+	undef(  $self->{'token'});
+    }
+    if (  $self->{'oauth_creds'}->{'auth_token'}) {
+	$self->get();
+    }
     return($self);
 }
 
@@ -311,7 +319,7 @@ True if the End-User's e-mail address has been verified; otherwise false.
 
 =item B<new>(Bio::KBase::AuthUser)
 
-returns a Bio::KBase::AuthUser reference. Parameters are a hash used to initialize a new user object
+returns a Bio::KBase::AuthUser reference. Parameters are a hash used to initialize a new user object. As a convenience, you can specify a field "token" and give it the value of an AuthToken, and the library will force it into the $self->oauth_creds->auth_token and then run the get() method to fetch the user record from the Globus Nexus service.
 
 =item B<user_id>(string)
 
