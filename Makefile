@@ -10,3 +10,5 @@ deploy: install-libs
 install-libs:
 	cd Bio-KBase-Auth; /kb/runtime/bin/perl ./Build.PL; /kb/runtime/bin/perl ./Build installdeps; /kb/runtime/bin/perl ./Build install; 
 
+test-libs: install-libs
+	cd Bio-KBase-Auth; /kb/runtime/bin/perl ./Build test;
