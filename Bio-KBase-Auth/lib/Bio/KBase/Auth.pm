@@ -5,7 +5,7 @@ package Bio::KBase::Auth;
 # sychan 4/24/2012
 use strict;
 
-$Bio::KBase::Auth::AuthSvcHost = "https://graph.api.go.sandbox.globuscs.info/";
+$Bio::KBase::Auth::AuthSvcHost = "https://graph.api.test.globuscs.info/";
 $Bio::KBase::Auth::AuthorizePath = "/goauth/authorize";
 $Bio::KBase::Auth::ProfilePath = "users";
 
