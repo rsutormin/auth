@@ -11,7 +11,6 @@ use Data::Dumper;
 use HTTP::Daemon;
 use HTTP::Request;
 use LWP::UserAgent;
-use Net::OAuth;
 use JSON;
 use Digest::MD5 qw( md5_base64);
 use Test::More 'no_plan';
