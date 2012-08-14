@@ -40,7 +40,7 @@ sub testServer {
 	    my $token = $r->header('Authorization');
 	    $at->token( $token);
 	    note( "Server received request with token: ".$token);
-	    note( sprintf("Validation result on server side: %s", $at->validate()));
+	    note( sprintf("Validation result on server side: %s", $at->validate() ? $at->validate() : 0 ));
 	    if ($at->validate()) {
 		$res->code(200);
 		$body .= sprintf( "Successfully logged in as user %s\n",
