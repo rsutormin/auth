@@ -229,6 +229,9 @@ sub validate {
     my $verify;
 
     eval {
+	unless ($self->{'token'}) {
+	    die "No token.";
+	}
 	my ($sig_data) = $self->{'token'} =~ /^(.*)\|sig=/;
 	unless ($sig_data) {
 	    die "Token lacks signature fields";

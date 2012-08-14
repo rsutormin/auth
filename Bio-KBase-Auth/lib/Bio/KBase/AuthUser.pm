@@ -53,6 +53,7 @@ sub user_id {
     if ($user_id && !(exists $self->{user_id})) {
 	$self->{'user_id'} = $user_id;
     }
+    $self->error_message(undef);
     return( $self->{'user_id'});
 }
 
@@ -160,6 +161,7 @@ sub get {
 	$self->error_message("Failed to get profile: $@");
 	return( undef);
     } else {
+	$self->error_message(undef);
 	return( $self);
     }
     
