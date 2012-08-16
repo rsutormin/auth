@@ -24,6 +24,7 @@ use Object::Tiny::RW qw {
 
 our @trust_token_signers = ( 'https://graph.api.go.sandbox.globuscs.info/goauth/keys/da0a4e96-e22a-11e1-9b09-1231381bc4c2');
 # Set a token lifetime of 12 hours
+# This can be be overridden  with a parameter passed into the validate() function.
 our $token_lifetime = 12 * 60 * 60;
 
 sub new() {
@@ -224,8 +225,13 @@ sub canonical_time {
 }
 
 # Function that returns if the token is valid or not
+# optionally accepts hash as parameters
+# lifetime => seconds The number of seconds to use for token
+#                     lifetime, overrides the class variable
+#                     $token_lifetime 
 sub validate {
     my $self = shift;
+    my %p = @_;
     my $verify;
 
     eval {
@@ -237,8 +243,18 @@ sub validate {
 	    die "Token lacks signature fields";
 	}
 	my %vars = map { split /=/ } split /\|/, $self->{'token'};
-	unless (($vars{'expiry'} + $token_lifetime) >= time) {
-	    die "Token expired at: ".scalar( localtime($vars{'expiry'} + $token_lifetime)) ;
+	unless (defined($p{'lifetime'})) {
+	    $p{'lifetime'} = $token_lifetime;
+	}
+	unless (($vars{'expiry'} + $p{'lifetime'}) >= time) {
+	    die "Token expired at: ".scalar( localtime($vars{'expiry'} + $p{'lifetime'})) ;
+	}
+	# As a sanity check, we are going to verify that the
+	# signing subject has a URL that matches the URL for our
+	# Globus Nexus Rest service. A token that is signed by someone
+	# else isn't really that interesting to us.
+	unless ( $vars{'SigningSubject'} =~ /^\Q$Bio::KBase::Auth::AuthSvcHost\E/) {
+	    die "Token signed by unrecognized source: ".$vars{'SigningSubject'};
 	}
 	my $binary_sig = pack('H*',$vars{'sig'});
 
