@@ -26,8 +26,9 @@ our @trust_token_signers = ( 'https://graph.api.go.sandbox.globuscs.info/goauth/
 # Set a token lifetime of 12 hours
 # This can be be overridden  with a parameter passed into the validate() function.
 our $token_lifetime = 12 * 60 * 60;
+our $authrc = "~/.authrc";
 
-sub new() {
+sub new {
     my $class = shift;
 
     # Don't bother with calling the Object::Tiny::RW constructor,
@@ -46,6 +47,14 @@ sub new() {
 	    $self->token( $self->{'token'});
 	} elsif ($self->{'user_id'} &&
 		 ($self->{'password'} || $self->{'client_secret'})) {
+	    $self->get();
+	} elsif ( -e $authrc ) {
+	    my %creds = read_authrc( $authrc);
+	    foreach my $attr ( 'user_id','password','client_secret','token') {
+		if (exists( $creds{ $attr} )) {
+		    $self->{$attr} = $creds{ $attr};
+		}
+	    }
 	    $self->get();
 	}
     };
@@ -356,6 +365,54 @@ sub _SquashJSONBool {
 	}
     }
     return $json_ref;
+}
+
+# Reads the auth_rc file and check for legit set of credentials
+# return if there is a legit set of credentials for login
+# otherwise throw an exception. The caller should be prepared to catch the
+# exception and just deal with no creds.
+# Returns undef if the auth_rc file is non-existent, throws error if
+# is unreadable
+sub read_authrc {
+    my $auth_rc = shift @_;
+    my $creds;
+
+    unless ( $auth_rc && -e $auth_rc) {
+	return( undef );
+    }
+
+    if ( -r $auth_rc) {
+	open RC, "<", $auth_rc;
+	my @rc = <RC>;
+	close RC;
+	chomp( @rc);
+	$creds = from_json( join( '',@rc));
+    } else {
+	die( "$auth_rc is unreadable");
+    }
+
+    # if we have an oauth_token, we're good and
+    # can just return right away
+    if ( defined( $creds->{'auth_token'})) {
+	return( %$creds);
+    }
+    
+    # otherwise check for necessary subsets of
+    # info for login
+    unless ( defined( $creds->{'user_id'})) {
+	die "No user_id found";
+    }
+    
+    if ( defined( $creds->{'client_secret'}) &&
+	 (defined( $creds->{'user_id'}) ||
+	  defined( $creds->{'client_id'}))) {
+	return( %$creds);
+    } elsif (defined( $creds->{'user_id'}) &&
+	     defined( $creds->{'password'})) {
+	return( %$creds);
+    } else {
+	die "Need either (user_id, (password || client_secret)) to be defined.";
+    }
 }
 
 
