@@ -202,7 +202,7 @@ ok( $at->user_id() eq "kbasetest", "Verifying that kbasetest user was read from 
 ok( $at->validate(), "Verifying that kbasetest user token was acquired properly with userid, rsa key and passphrase");
 
 ok( $at = Bio::KBase::AuthToken->new( ignore_authrc => 1), "Creating a blank object by ignoring the authrc file");
-ok( $at->user_id() eq undef, "Verifying that authrc was ignored");
+ok( ! defined($at->user_id()), "Verifying that authrc was ignored");
 
 $authrc = qq({"keyfile":"$keyfile",","user_id":"kbasetest"});
 open( TMP, ">".$Bio::KBase::AuthToken::authrc);
@@ -210,7 +210,7 @@ print TMP $authrc;
 close( TMP);
 
 ok( $at = Bio::KBase::AuthToken->new(), "Creating a new token object for testing authrc with RSA key and but no passphrase");
-ok( $at->user_id() ne "kbasetest", "Verifying that authentication failed");
+ok( ! defined($at->user_id()), "Verifying that authentication failed");
 ok( ! $at->validate(), "Verifying that kbasetest user token was no acquired properly when missing passphrase");
 
 unlink($Bio::KBase::AuthToken::authrc);
