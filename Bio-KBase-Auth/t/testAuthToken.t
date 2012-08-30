@@ -88,13 +88,8 @@ sub testClient {
     }
 }
 
-# if logged in, logout
-sub cond_logout(){
-    my $ac = shift;
-
-    if ($ac->{logged_in}){
-         $ac->logout();
-    }
+if ( -e $Bio::KBase::AuthToken::authrc) {
+    rename $Bio::KBase::AuthToken::authrc, $Bio::KBase::AuthToken::authrc.$$;
 }
 
 ok( $at = Bio::KBase::AuthToken->new('user_id' => 'papa', 'password' => 'papa'), "Logging in using papa account");
@@ -112,7 +107,6 @@ ok(!($at->validate()), "Testing that undef user_id fails");
 ok( $at = Bio::KBase::AuthToken->new('user_id' => 'kbasetest', 'password' => '@Suite525'), "Logging in using papa account using username/password");
 ok($at->validate(), "Validating token from kbasetest username/password");
 
-# Read in the RSA key from a local file
 $rsakey = <<EOT;
 -----BEGIN RSA PRIVATE KEY-----
 MIICWgIBAAKBgQC1QVwNCLinZJfKBfFaQm2nZQM0JvwVhV5fwjiLkUPF51I2HfEX
@@ -144,6 +138,86 @@ EOT2
 ok( $at = Bio::KBase::AuthToken->new('token' => $badtoken), "Creating token with bad SigningSubject");
 ok(!($at->validate()), "Validating that bad SigningSubject fails");
 ok(($at->error_message() =~ /Token signed by unrecognized source/), "Checking for 'unrecognized source' error message");
+
+# test out the keyfile functions
+$keyfile = "/tmp/keyfile.$$";
+open(TMP, ">$keyfile");
+print TMP $rsakey;
+close(TMP);
+ok( $at = Bio::KBase::AuthToken->new('user_id' => 'kbasetest', 'keyfile' => $keyfile), "Logging in using kbasetest account using username/rsa_key with rsa_key specified in keyfile parameter");
+ok($at->validate(), "Validating RSA kbasetest login with keyfile only");
+
+# Test the same token, but encrypted with the passphrase "testing"
+$rsa2 = <<EOT3;
+-----BEGIN RSA PRIVATE KEY-----
+Proc-Type: 4,ENCRYPTED
+DEK-Info: DES-EDE3-CBC,CF421A48268DD7FD
+
+9uREbfScTMIW7rRM8s8UVw9D7FllMI39NtpNKIOl9PVB3QJ/+deyd2AUgxoDCPrG
+uhBOrErGofcCEeLGK3M9qOJspgx182gR/w98/i8Yzp6m2DNHIHAWO6tvCeLYwJtF
+lPn3t7mswS0cmAzi2Fkp5UPK5AwhvK8bmZ01TTiCQLv4pAn4rPSZcw809pSjkyZL
+8IvX3PBSRaCkKtFbDheZYFhTYhfOHtbSKwn4KyOYUs3EnqhFZOJJk0IpAbGWVQQP
+dwl6YlCbE8kxsZBRE5QshIulYieTJRZSM4tR8RWZK5/v51OIuyX4FyXN2w/WH1H6
+t92uM/nQkMlCK3xt/vyPjvRr2w+9E98qLiGw8p0+vsPH8ukZetEPzZYv+KcRgIQ+
+0sbFKNG48+ESHGLmizPzDf9WlSftJaAh77OXgzs+30O7WrbYfGOXCVHvy5iTnZpd
+b1KThmENf4YWLH7OwH3Xlb0vC8hV4AvL8yB9muVzSlODbUwOg9MdyMESzQuikm/l
+vZQPX6Wk0JotXo7JG68LtMmXzDbHCAiv8RMTcYUJW5Rro5NfRyKZKvtKtv11JTnA
+UL2EedAS+PUQ65i04eBCymMjcVSKL/Ew5y+PlsF9wNn9mGXOo1ktx7XP2ts5tlV7
+8HW9SUFGmDS5c9bWxxbY9wVKigGV6yv7TgVOFid94RY91AXFGtvqBh/I5ZAGIP0N
+oKWnUgRDW9LU0fvmRS/XPqJmg6/KLr4CkzZYiOSysILkAOWOmQ/bl88XTIxrZfBW
+e219B0DDVRd35Ey7PVLmw0Wj5StxTmhV49C05qivNug=
+-----END RSA PRIVATE KEY-----
+EOT3
+
+open(TMP, ">$keyfile");
+print TMP $rsa2;
+close(TMP);
+ok( $at = Bio::KBase::AuthToken->new('user_id' => 'kbasetest', 'keyfile' => $keyfile,
+				     'keyfile_passphrase' => 'testing'), "Logging in using kbasetest account using username/rsa_key with rsa_key specified in keyfile and keyfile_passphrase parameters");
+ok($at->validate(), "Validating RSA kbasetest login with keyfile and passphrase");
+ok( $at = Bio::KBase::AuthToken->new('user_id' => 'kbasetest', 'keyfile' => $keyfile,
+					       'keyfile_passphrase' => 'test'), "Testing bad login token using kbasetest account using username/rsa_key with rsa_key specified in keyfile, and bad keyfile_passphrase parameters");
+ok( ($at->error_message =~ /Bad key\/passphrase/), "Checking for bad passphrase error message." );
+ok(!($at->validate()), "Validating failed RSA kbasetest login from improper passphrase");
+
+note( "Creating files for testing ~/authrc");
+$authrc = q({"password":"@Suite525","user_id":"kbasetest"});
+
+open( TMP, ">".$Bio::KBase::AuthToken::authrc);
+print TMP $authrc;
+close( TMP);
+
+ok( $at = Bio::KBase::AuthToken->new(), "Creating a new token object for testing authrc with password");
+ok( $at->user_id() eq "kbasetest", "Verifying that kbasetest user was read from authrc");
+ok( $at->validate(), "Verifying that kbasetest user token was acquired properly with userid and password");
+
+$authrc = qq({"keyfile":"$keyfile","keyfile_passphrase":"testing","user_id":"kbasetest"});
+open( TMP, ">".$Bio::KBase::AuthToken::authrc);
+print TMP $authrc;
+close( TMP);
+
+ok( $at = Bio::KBase::AuthToken->new(), "Creating a new token object for testing authrc with RSA key and passphrase");
+note( "Passphrase for keyfile was: ".$at->{'keyfile_passphrase'});
+ok( $at->user_id() eq "kbasetest", "Verifying that kbasetest user was read from authrc");
+ok( $at->validate(), "Verifying that kbasetest user token was acquired properly with userid, rsa key and passphrase");
+
+ok( $at = Bio::KBase::AuthToken->new( ignore_authrc => 1), "Creating a blank object by ignoring the authrc file");
+ok( $at->user_id() eq undef, "Verifying that authrc was ignored");
+
+$authrc = qq({"keyfile":"$keyfile",","user_id":"kbasetest"});
+open( TMP, ">".$Bio::KBase::AuthToken::authrc);
+print TMP $authrc;
+close( TMP);
+
+ok( $at = Bio::KBase::AuthToken->new(), "Creating a new token object for testing authrc with RSA key and but no passphrase");
+ok( $at->user_id() ne "kbasetest", "Verifying that authentication failed");
+ok( ! $at->validate(), "Verifying that kbasetest user token was no acquired properly when missing passphrase");
+
+unlink($Bio::KBase::AuthToken::authrc);
+if ( -e $Bio::KBase::AuthToken::authrc.$$) {
+    rename $Bio::KBase::AuthToken::authrc.$$, $Bio::KBase::AuthToken::authrc;
+}
+unlink( $keyfile);
 
 ok( $d = HTTP::Daemon->new( LocalAddr => '127.0.0.1'), "Creating a HTTP::Daemon object for handling AuthServer") || die "Could not create HTTP::Daemon";
 

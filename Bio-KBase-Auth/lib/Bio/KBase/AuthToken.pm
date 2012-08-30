@@ -8,6 +8,7 @@ use LWP::UserAgent;
 use Digest::SHA1 qw(sha1_base64);
 use Crypt::OpenSSL::RSA;
 use Crypt::OpenSSL::X509;
+use Convert::PEM;
 use MIME::Base64;
 use URI;
 use URI::QueryParam;
@@ -26,8 +27,12 @@ our @trust_token_signers = ( 'https://graph.api.go.sandbox.globuscs.info/goauth/
 # Set a token lifetime of 12 hours
 # This can be be overridden  with a parameter passed into the validate() function.
 our $token_lifetime = 12 * 60 * 60;
-our $authrc = "~/.authrc";
+our $authrc = glob "~/.authrc";
 
+# Your typical constructor - takes a hash that specifies the initial values to
+# plug into the object.
+# A special attribute is "ignore_authrc", if that it set then we will not bother
+# trying to read the authrc file
 sub new {
     my $class = shift;
 
@@ -45,17 +50,12 @@ sub new {
 	# token
 	if ($self->{'token'}) {
 	    $self->token( $self->{'token'});
-	} elsif ($self->{'user_id'} &&
-		 ($self->{'password'} || $self->{'client_secret'})) {
+	} elsif ($self->{'user_id'} && 
+		 ($self->{'password'} || $self->{'client_secret'} || $self->{'keyfile'})) {
 	    $self->get();
-	} elsif ( -e $authrc ) {
+	} elsif ( -e $authrc && ! $self->{'ignore_authrc'}) {
 	    my %creds = read_authrc( $authrc);
-	    foreach my $attr ( 'user_id','password','client_secret','token') {
-		if (exists( $creds{ $attr} )) {
-		    $self->{$attr} = $creds{ $attr};
-		}
-	    }
-	    $self->get();
+	    $self->get( %creds );
 	}
     };
     if ($@) {
@@ -110,9 +110,34 @@ sub get {
     my $res;
 
     eval {
+	# If we are given a path to a private key
+	# try to load that, using a passphrase to decrypt if
+	# provided
+	if ( defined( $p{'keyfile'}) ) {
+	    $self->{'keyfile'} = $p{'keyfile'};
+	}						     
+	if ( defined( $p{'keyfile_passphrase'}) ) {
+	    $self->{'keyfile_passphrase'} = $p{'keyfile_passphrase'};
+	}						     
+
+	# read in the decrypted private key if it was specified
+	if ( $self->{'keyfile'} ) {
+	    if ($self->{'keyfile_passphrase'}) {
+		$self->client_secret (decryptPEM( $self->{'keyfile'},
+						  $self->{'keyfile_passphrase'}));
+	    } else {
+		open( KEY, $self->{'keyfile'});
+		read( KEY, $self->{'client_secret'}, -s KEY);
+		close( KEY);
+	    }
+	}
+
 	if ($p{'user_id'}) {
 	    $self->user_id($p{'user_id'});
 	}
+
+	# Note the side effect - if a client secret is explicitly specified, it
+	# will override anything specified with the keyfile argument
 	if ($p{'client_secret'}) {
 	    $self->client_secret($p{'client_secret'});
 	}
@@ -367,8 +392,8 @@ sub _SquashJSONBool {
     return $json_ref;
 }
 
-# Reads the auth_rc file and check for legit set of credentials
-# return if there is a legit set of credentials for login
+# Reads the auth_rc file and filter it down to only recognized attributes
+# return if the file was readable
 # otherwise throw an exception. The caller should be prepared to catch the
 # exception and just deal with no creds.
 # Returns undef if the auth_rc file is non-existent, throws error if
@@ -376,6 +401,9 @@ sub _SquashJSONBool {
 sub read_authrc {
     my $auth_rc = shift @_;
     my $creds;
+    # List of legitimate attributes to allow from the authrc file
+    my @attrs = ( 'user_id', 'auth_token','client_secret', 'keyfile',
+		  'keyfile_passphrase','password');
 
     unless ( $auth_rc && -e $auth_rc) {
 	return( undef );
@@ -391,28 +419,44 @@ sub read_authrc {
 	die( "$auth_rc is unreadable");
     }
 
-    # if we have an oauth_token, we're good and
-    # can just return right away
-    if ( defined( $creds->{'auth_token'})) {
-	return( %$creds);
-    }
-    
-    # otherwise check for necessary subsets of
-    # info for login
-    unless ( defined( $creds->{'user_id'})) {
-	die "No user_id found";
-    }
-    
-    if ( defined( $creds->{'client_secret'}) &&
-	 (defined( $creds->{'user_id'}) ||
-	  defined( $creds->{'client_id'}))) {
-	return( %$creds);
-    } elsif (defined( $creds->{'user_id'}) &&
-	     defined( $creds->{'password'})) {
-	return( %$creds);
-    } else {
-	die "Need either (user_id, (password || client_secret)) to be defined.";
-    }
+    # return only the filtered set of attributes that are allowed - don't
+    # let just any old line noise into the mix
+    my %creds2 = map { $_, $creds->{ $_ } } grep { defined( $creds->{ $_ }); } @attrs;
+    return(%creds2);
+}
+
+# Code to read in an encrypted an openssh RSA private key file,
+# cribbed shamelessly from http://www.indra.com/homepages/spike/stuff/openssl-rsa.html
+#
+# Returns the a decrypted private key if everything is good, throws an exception
+# with the error message from Convert::PEM if not
+#
+sub decryptPEM {
+  my ($file,$password) = @_;
+
+  my $pem = Convert::PEM->new(
+			      Name => 'RSA PRIVATE KEY',
+			      ASN  => qq(
+                  RSAPrivateKey SEQUENCE {
+                      version INTEGER,
+                      n INTEGER,
+                      e INTEGER,
+                      d INTEGER,
+                      p INTEGER,
+                      q INTEGER,
+                      dp INTEGER,
+                      dq INTEGER,
+                      iqmp INTEGER
+                  }
+           ));
+
+
+  my $pkey = $pem->read(Filename => $file, Password => $password);
+  if ($pkey) {
+      return($pem->encode(Content => $pkey));
+  } else {
+      die( "Failed to read private key: ".$pem->errstr());
+  }
 }
 
 
@@ -434,9 +478,30 @@ http://globusonline.github.com/nexus-docs/api.html
    my $token = Bio::KBase::AuthToken->new( 'user_id' => 'mrbig', 'password' => 'bigP@SSword');
 
    # or if you have an SSH private key for RSA authentication
-
    my $token2 = Bio::KBase::AuthToken->new( 'user_id' => 'mrbig', 'client_secret' => $rsakey);
 
+   # or if you have an unencrypted token in the file $keyfile, you can use
+   my $token3 = Bio::KBase::AuthToken->new( 'user_id' => 'mrbig', 'keyfile' => $keyfile);
+
+   # or if you have a token in the file $keyfile, protected by passphrase "testing" 
+   my $token3 = Bio::KBase::AuthToken->new( 'user_id' => 'mrbig', 'keyfile' => $keyfile,
+                                            'keyfile_passphrase' => 'testing');
+
+   # any parameters got credentials/login that can be passed in to the new() method can
+   # be a JSON formatted declaration in the authrc file ( typically in ~/.authrc
+   # see ~Bio::KBase::AuthToken::authrc )
+   # This is triggered by not providing any parameters to the new() method
+   # if ~/.authrc contains {"keyfile":"/Users/sychan/.ssh/id_rsa",","user_id":"kbasetest"} you
+   # can simply use:
+   my $token4 = Bio::KBase::AuthToken->new();
+
+   # instead of
+   my $token4 = Bio::KBase::AuthToken->new( "keyfile" => "/Users/sychan/.ssh/id_rsa",
+                                            "user_id" => "kbasetest");
+
+   # It is possible to ignore the authrc file by setting ignore_authrc as an arg to new.
+   # This will ignore the authrc file even if it contains valid contents
+   my $token5 = Bio::KBase::AuthToken->new( ignore_authrc => 1 );
 
    # If you have a token in $tok, and wish to check if it is valid
    my $token3 = Bio::KBase::AuthToken->new( 'token' => $tok);

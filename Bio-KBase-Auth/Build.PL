@@ -9,6 +9,7 @@ Module::Build->new(
 		  'Digest::SHA1' => 2.13,
 		  'Crypt::OpenSSL::RSA' => 0.28,
 		  'Crypt::OpenSSL::X509' => 0.28,
+		  'Convert::PEM' => 0.08,
 		  'MIME::Base64' => 3.08,
 		  'HTTP::Request' => 6.00,
 		  'HTTP::Daemon' => 6.00,
