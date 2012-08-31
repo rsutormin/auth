@@ -22,11 +22,14 @@ use Object::Tiny::RW qw {
     client_secret
 };
 
-our @trust_token_signers = ( 'https://graph.api.go.sandbox.globuscs.info/goauth/keys/da0a4e96-e22a-11e1-9b09-1231381bc4c2');
-# Set a token lifetime of 12 hours
+our @trust_token_signers = ( 'https://graph.api.go.sandbox.globuscs.info/goauth/keys/');
+# Tokens (last time we checked) had a 24 hour lifetime, this value can be
+# used to add extra time to the lifetime of tokens. The unit is seconds.
 # This can be be overridden  with a parameter passed into the validate() function.
-our $token_lifetime = 12 * 60 * 60;
+our $token_lifetime = 0;
 our $authrc = glob "~/.authrc";
+our @attrs = ( 'user_id', 'auth_token','client_secret', 'keyfile',
+	       'keyfile_passphrase','password');
 
 # Your typical constructor - takes a hash that specifies the initial values to
 # plug into the object.
@@ -401,8 +404,6 @@ sub read_authrc {
     my $auth_rc = shift @_;
     my $creds;
     # List of legitimate attributes to allow from the authrc file
-    my @attrs = ( 'user_id', 'auth_token','client_secret', 'keyfile',
-		  'keyfile_passphrase','password');
 
     unless ( $auth_rc && -e $auth_rc) {
 	return( undef );
@@ -516,6 +517,28 @@ http://globusonline.github.com/nexus-docs/api.html
        die "Begone, evildoer!\n";
    }
 
+=head2 Class Variables
+
+=over
+
+=item B<trust_token_signers> list
+
+An array that contains prefixes for trusted signing URLs in the SigningSubject field of tokens.
+
+=item B<token_lifetime> numeric
+
+Additional seconds to add to the expiration time of tokens. Tokens currently issued with a default 24 hour lifetime, but modifying this value will change when the validate() function will no longer accept the token. The units are in seconds.
+
+=item B<authrc> string
+
+This file contains JSON formatted attributes for the AuthToken object related to acquiring credentials. When no parameters are passed into the new() method, it will default to reading in parameters from the authrc file to initialize the token. The default value is glob( "~/.authrc")
+
+=item B<attrs> list
+
+List of strings that enumerate the attributes allowed to be read from the B<authrc> file.
+
+=back
+
 =head2 Instance Variables
 
 =over
@@ -530,7 +553,8 @@ A string containing a signed assertion from the Globus Nexus service. Here is an
 
 un=sychan|clientid=sychan|expiry=1376425658|SigningSubject=https://graph.api.go.sandbox.globuscs.info/goauth/keys/da0a4e96-e22a-11e1-9b09-1231381bc4c2|sig=88cb32eae2782452817f106a2ce8cf9215f3356ce123d43395a5c99c5ec4184eaf5d70111124a06cf9267e5340f1d06b9258cf2e70e8000000000000000000000000000000583c68755de5453b4b019ebf3d7d4547778ef7d6322f2ba8f42d370bbce4b693ef7a9b3c7be3c6970132e72c654e3274afab9ea39ba9724383f1594
 
-   It is a series of name value pairs:
+It is a series of name value pairs:
+
    un = username
    clientid = Globus Nexus client id
    expiry = time when the token was issued
@@ -543,7 +567,15 @@ The password used to acquire token (if provided). Note that it is not possible t
 
 =item B<client_secret> (string)
 
-An openssh formatted RSA private key string used for authentication
+An unencrypted openssh formatted RSA private key string used for authentication
+
+=item B<keyfile> (string)
+
+File containing a B<client_secret> (typically something like ~user/.ssh/id_rsa). This must be readable by the effective UID of the running process. If the file contains an encrypted passphrase then the B<keyfile_passphrase> must also be specified. Private keys can be created using the ssh-keygen command (for example "ssh-keygen -t rsa -b 1024 -f kbase_rsa")
+
+=item B<keyfile_passphrase> (string)
+
+The passphrase used to decrypt the RSA private specified in B<keyfile>. See the ssh-keygen man page for information and setting/clering the passphrase.
 
 =item B<error_message> (string)
 
@@ -557,21 +589,24 @@ contains error messages, if any, from most recent method call.
 
 =item B<new>()
 
-returns a Bio::KBase::AuthToken reference. Optionally pass in hash params to initialize attributes. If we have enough attributes to perform a login either a token, or (user_id,password) or (user_id,client_secret) then the library will try to acquire a new token from Globus Nexus.
+returns a Bio::KBase::AuthToken reference. Optionally pass in hash params to initialize attributes. If we have enough attributes to perform a login either a token, or (user_id,password) or (user_id,client_secret) then the library will try to acquire a new token from Globus Nexus. If no parameters are given, then the library will look for a readable file in ~/.authrc and extract the attributes that match from @Bio::KBase::AuthToken::attrs into the new token an attempt to fetch a token from the Globus Online service. If you wish to short circuit the authrc file, you can pass in a ignore_authrc => 1 as a parameter to new()
 
    Examples:
 
    # Acquiring a new token when you have username/password credentials
    my $token = Bio::KBase::AuthToken->new( 'user_id' => 'mrbig', 'password' => 'bigP@SSword');
 
-   # or if you have an SSH private key for RSA authentication
+   # or if you have an SSH private key in the string $rsakey
 
-   $rsakey = `cat ~/.id_rsa`;
    my $token2 = Bio::KBase::AuthToken->new( 'user_id' => 'mrbig', 'client_secret' => $rsakey);
 
-   # we have a token string in $tok, and want to verify it
-   my $token3 = 
+   # you have an rsa key in the file /home/mrbig/.ssh/id_rsa and wish to use it for authentication
+   my $token3 = Bio::KBase::AuthToken->new( 'user_id' => 'mrbig', 'keyfile' => '/home/mrbig/.ssh/id_rsa');
    
+   # Whoops, turns out it was encrypted
+   my $token3 = Bio::KBase::AuthToken->new( 'user_id' => 'mrbig', 'keyfile' => '/home/mrbig/.ssh/id_rsa',
+                                            'keyfile_passphrase' => 'L33Tp@55word');
+
 
 =item B<user_id>()
 
