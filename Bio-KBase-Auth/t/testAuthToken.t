@@ -13,7 +13,7 @@ use HTTP::Request;
 use LWP::UserAgent;
 use JSON;
 use Digest::MD5 qw( md5_base64);
-use Test::More 'no_plan';
+use Test::More tests => 45;
 use Storable qw(dclone);
 use Test::Deep::NoTest qw(eq_deeply);
 use Data::Dumper;

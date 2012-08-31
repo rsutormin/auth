@@ -8,4 +8,4 @@ BEGIN {
     use_ok( 'Bio::KBase::AuthUser' ) || print "Bail out!\n";
 }
 
-diag( "Testing Bio::KBase::Auth $Bio::KBase::Auth::VERSION, Perl $], $^X" );
+note( "Testing Bio::KBase::Auth $Bio::KBase::Auth::VERSION, Perl $], $^X" );

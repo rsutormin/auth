@@ -12,7 +12,7 @@ use HTTP::Daemon;
 use HTTP::Request;
 use LWP::UserAgent;
 use JSON;
-use Test::More 'no_plan';
+use Test::More tests => 25;
 use Storable qw(dclone);
 use Test::Deep::NoTest qw(eq_deeply);
 use Data::Dumper;
