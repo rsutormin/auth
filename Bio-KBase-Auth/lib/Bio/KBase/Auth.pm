@@ -9,7 +9,7 @@ $Bio::KBase::Auth::AuthSvcHost = "https://graph.api.test.globuscs.info/";
 $Bio::KBase::Auth::AuthorizePath = "/goauth/authorize";
 $Bio::KBase::Auth::ProfilePath = "users";
 
-our $VERSION = 0.2;
+our $VERSION = 0.3;
 
 1;
 
