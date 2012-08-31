@@ -411,10 +411,10 @@ sub read_authrc {
 
     if ( -r $auth_rc) {
 	open RC, "<", $auth_rc;
-	my @rc = <RC>;
+	my @creds = <RC>;
+	chomp( @creds);
 	close RC;
-	chomp( @rc);
-	$creds = from_json( join( '',@rc));
+	$creds = from_json( join( '\n', @creds));
     } else {
 	die( "$auth_rc is unreadable");
     }
