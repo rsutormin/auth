@@ -7,7 +7,6 @@ use Bio::KBase::Auth;
 use LWP::UserAgent;
 use Digest::SHA1 qw(sha1_base64);
 use Crypt::OpenSSL::RSA;
-use Crypt::OpenSSL::X509;
 use Convert::PEM;
 use MIME::Base64;
 use URI;

@@ -10,7 +10,6 @@ use JSON;
 use Digest::SHA1 qw(sha1_base64);
 use Data::Dumper;
 use Crypt::OpenSSL::RSA;
-use Crypt::OpenSSL::X509;
 use URI;
 use URI::QueryParam;
 use POSIX;

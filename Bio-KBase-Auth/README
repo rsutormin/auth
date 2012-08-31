@@ -38,9 +38,6 @@ You can also look for information at:
 
 NOTE FOR MACOS LION AND HIGHER
 
-Crypt::OpenSSL::X509 (v1.800.2 as of this writing) does not appear to install in
-MacOS X 10.7 or higher. A few hacks to the makefile seem to resolve it.
-
 Download the module from CPAN, then edit Makefile.PL. Change:
 
 cc_optimize_flags('-O2 -g -Wall -Werror');
