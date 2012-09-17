@@ -155,7 +155,7 @@ sub get {
 	}
 	
 	my $u = URI->new($url);
-	my %qparams = ("response_type" => "code",
+	my %qparams = ("grant_type" => "client_credentials",
 		       "client_id" => $self->{'client_id'} ? $self->{'client_id'} : $self->{'user_id'});
 	$u->query_form( %qparams );
 	my $query=$u->query();
@@ -180,7 +180,7 @@ sub get {
 	}
 	my $path2 = sprintf('%s?%s',$path,$query);
 	$res = $self->go_request( "path" => $path2, 'headers' => \%headers);
-	unless ($res->{'code'}) {
+	unless ($res->{'access_token'}) {
 	    die "No token returned by Globus Online";
 	}
     };
@@ -189,7 +189,7 @@ sub get {
 	$self->{'user_id'} = undef;
 	die "Failed to get auth token: $@";
     } else {
-	return($self->token( $res->{'code'}));
+	return($self->token( $res->{'access_token'}));
     }
 }
 
