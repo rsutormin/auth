@@ -183,7 +183,7 @@ class OAuth2Middleware(AuthenticationMiddleware):
                 token_map[key] = value
             keyurl = self.__class__.authsvc + "/users/" + token_map['un'] + "?custom_fields=*"
             res,body = self.http.request(keyurl,"GET",
-                                         headers={ 'X-GLOBUS-GOAUTHTOKEN': token })
+                                         headers={ 'Authorization': 'Globus-Goauthtoken ' + token })
             if (200 <= int(res.status)) and ( int(res.status) < 300):
                 profile = json.loads( body)
                 return profile
@@ -197,6 +197,14 @@ class OAuth2Middleware(AuthenticationMiddleware):
 def AuthStatus(request):
     res = "request.user.is_authenticated = %s \n" % request.user.is_authenticated()
     if request.user.is_authenticated():
-        res = res + "request.user.username = %s and your KBase SessionID is %s\n" % (request.user.username,request.META['KBASEsessid'])
-        res = res + "Your profile record is:\n%s\n" % pformat( request.META['profile'])
+        try:
+            res = res + "request.user.username = %s and your KBase SessionID is %s\n" % (request.user.username,request.META['KBASEsessid'])
+        except KeyError, e:
+            request.META['KBASEsessid'] = None
+            res = res + "request.user.username = %s and your KBase SessionID is %s\n" % (request.user.username,request.META['KBASEsessid'])
+        try:
+            res = res + "Your profile record is:\n%s\n" % pformat( request.META['profile'])
+        except KeyError, e:
+            request.META['profile'] = None
+            res = res + "Your profile record is:\n%s\n" % pformat( request.META['profile'])
     return HttpResponse(res)
