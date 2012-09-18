@@ -183,7 +183,7 @@ class OAuth2Middleware(AuthenticationMiddleware):
                 token_map[key] = value
             keyurl = self.__class__.authsvc + "/users/" + token_map['un'] + "?custom_fields=*"
             res,body = self.http.request(keyurl,"GET",
-                                         headers={ 'X-GLOBUS-GOAUTHTOKEN': token })
+                                         headers={ 'Authorization': 'Globus-Goauthtoken ' + token })
             if (200 <= int(res.status)) and ( int(res.status) < 300):
                 profile = json.loads( body)
                 return profile
