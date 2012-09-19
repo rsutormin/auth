@@ -31,7 +31,7 @@ simply re-use the existing remote user backend code
 https://docs.djangoproject.com/en/1.4/howto/auth-remote-user/
 
    You configure it the same way using the normal instructions, except
-that you use this module oauth.TwoLeggedOAuthMiddleware instead of
+that you use this module oauth.OAuth2Middleware instead of
 django.contrib.auth.middleware.RemoteUserMiddleware
 
    The django.contrib.auth.backends.RemoteUserBackend module is also
