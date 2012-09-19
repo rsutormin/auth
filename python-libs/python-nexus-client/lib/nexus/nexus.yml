@@ -1,4 +1,4 @@
-server: graph.api.go.sandbox.globuscs.info
+server: graph.api.test.globuscs.info 
 cache:
   class: 'nexus.token_utils.InMemoryCache'
 verify_ssl: false
