@@ -2,6 +2,7 @@ from piston.handler import BaseHandler
 from piston.utils import rc
 import pprint
 import datetime
+from pymongo import Connection
 from piston.resource import Resource
 
 
@@ -17,11 +18,35 @@ def dictify(objs,key):
 
 class RoleHandler( BaseHandler):
     allowed_methods = ('GET','POST','PUT','DELETE')
+    fields = ('role_id','description','read','modify','delete','impersonate','grant','create')
+    exclude = ( '_id' )
+
+    conn = Connection()
+    db = conn.authorization
+    roles = db.roles
 
     def read(self, request):
-        return({})
+        r = self.roles.find_one( { 'role_id': role_id })
+        return(r)
     def create(self, request):
-        return({})
+        r = request.data
+        print pprint.pformat( r)
+        try:
+            if self.roles.find( { 'role_id': r['role_id'] }).count() == 0:
+                new = { x : r.get(x, []) for x in ('read','modify','delete','impersonate','grant','create') }
+                new['role_id'] = r['role_id']
+                new['description'] = r['description']
+                self.roles.insert( new)
+                res = new
+            else:
+                res = rc.DUPLICATE_ENTRY
+        except KeyError as e:
+            res = rc.BAD_REQUEST
+            res.write(' required fields: %s' % e )
+        except Exception as e:
+            res = rc.BAD_REQUEST
+            res.write('Error: %s' % e )
+        return(res)
     def update(self, request):
         return({})
     def delete(self, request):
