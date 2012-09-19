@@ -25,7 +25,7 @@ class RoleHandler( BaseHandler):
     db = conn.authorization
     roles = db.roles
 
-    def read(self, request):
+    def read(self, request, role_id=None):
         r = self.roles.find_one( { 'role_id': role_id })
         return(r)
     def create(self, request):
@@ -37,7 +37,7 @@ class RoleHandler( BaseHandler):
                 new['role_id'] = r['role_id']
                 new['description'] = r['description']
                 self.roles.insert( new)
-                res = new
+                res = rc.CREATED
             else:
                 res = rc.DUPLICATE_ENTRY
         except KeyError as e:
@@ -49,8 +49,22 @@ class RoleHandler( BaseHandler):
         return(res)
     def update(self, request):
         return({})
-    def delete(self, request):
-        return({})
+    def delete(self, request, role_id=None):
+        try:
+
+        try:
+            if role_id == None:
+                role_id = request.data['role_id']
+            r = self.roles.find_one( { 'role_id': role_id })
+            if r.has_key('_id'):
+                self.roles.remove( { '_id' : r['_id'] }, safe=True)
+                res = rc.DELETED
+            else:
+                res = rc.NOT_HERE
+        except KeyError as e:
+            res = rc.BAD_REQUEST
+            res.write('role_id must be specified')
+        return(res)
 
 
 
