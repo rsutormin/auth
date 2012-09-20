@@ -91,13 +91,14 @@ class OAuth2Middleware(AuthenticationMiddleware):
     """
 
     # Authentication server
+    # Create a Python Globus client
+    client = Client(config_file=os.path.join(os.path.dirname(__file__), 'nexus/nexus.yml'))
+
     try:
         authsvc = settings.AUTHSVC
     except:
-        authsvc = 'https://graph.api.test.globuscs.info/'
+        authsvc = 'https://nexus.api.globusonline.org/'
 
-    # Create a Python Globus client
-    client = Client(config_file=os.path.join(os.path.dirname(__file__), 'nexus/nexus.yml'))
 
     # Set the salt used for computing a session hash from the signature hash
     salt = "(African || European)?"
@@ -182,6 +183,7 @@ class OAuth2Middleware(AuthenticationMiddleware):
                 key, value = entry.split('=')
                 token_map[key] = value
             keyurl = self.__class__.authsvc + "/users/" + token_map['un'] + "?custom_fields=*"
+            print keyurl
             res,body = self.http.request(keyurl,"GET",
                                          headers={ 'Authorization': 'Globus-Goauthtoken ' + token })
             if (200 <= int(res.status)) and ( int(res.status) < 300):
