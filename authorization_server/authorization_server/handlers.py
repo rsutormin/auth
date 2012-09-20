@@ -19,18 +19,27 @@ def dictify(objs,key):
 class RoleHandler( BaseHandler):
     allowed_methods = ('GET','POST','PUT','DELETE')
     fields = ('role_id','description','read','modify','delete','impersonate','grant','create')
-    exclude = ( '_id' )
+    exclude = ( '_id', )
 
     conn = Connection()
     db = conn.authorization
     roles = db.roles
 
     def read(self, request, role_id=None):
-        r = self.roles.find_one( { 'role_id': role_id })
-        return(r)
+        try:
+            res = self.roles.find_one( { 'role_id': role_id })
+            if res != None:
+                for excl in self.exclude:
+                    if excl in res:
+                        del res[excl]
+        except Exception as e:
+            res = rc.BAD_REQUEST
+            res.write('Error: %s' % e )
+        return(res)
+
     def create(self, request):
         r = request.data
-        print pprint.pformat( r)
+#        print pp.pformat( r)
         try:
             if self.roles.find( { 'role_id': r['role_id'] }).count() == 0:
                 new = { x : r.get(x, []) for x in ('read','modify','delete','impersonate','grant','create') }
@@ -49,7 +58,7 @@ class RoleHandler( BaseHandler):
         return(res)
     def update(self, request, role_id=None):
         r = request.data
-        print pprint.pformat( r)
+#        print pp.pformat( r)
         try:
             if role_id == None:
                 role_id = request.data['role_id']
@@ -80,6 +89,9 @@ class RoleHandler( BaseHandler):
         except KeyError as e:
             res = rc.BAD_REQUEST
             res.write('role_id must be specified')
+        except Exception as e:
+            res = rc.BAD_REQUEST
+            res.write('Error: %s' % e)
         return(res)
 
 
