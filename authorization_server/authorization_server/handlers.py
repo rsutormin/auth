@@ -47,16 +47,34 @@ class RoleHandler( BaseHandler):
             res = rc.BAD_REQUEST
             res.write('Error: %s' % e )
         return(res)
-    def update(self, request):
-        return({})
-    def delete(self, request, role_id=None):
+    def update(self, request, role_id=None):
+        r = request.data
+        print pprint.pformat( r)
         try:
-
+            if role_id == None:
+                role_id = request.data['role_id']
+            old = self.roles.find_one( { 'role_id': role_id })
+            if old != None:
+                new = { x : r.get(x, old[x]) for x in ('_id','role_id','description',
+                                                       'read','modify','delete',
+                                                       'impersonate','grant','create') }
+                self.roles.save( new)
+                res = rc.CREATED
+            else:
+                res = rc.NOT_HERE
+        except KeyError as e:
+            res = rc.BAD_REQUEST
+            res.write(' required fields: %s' % e )
+        except Exception as e:
+            res = rc.BAD_REQUEST
+            res.write('Error: %s' % e )
+        return(res)
+    def delete(self, request, role_id=None):
         try:
             if role_id == None:
                 role_id = request.data['role_id']
             r = self.roles.find_one( { 'role_id': role_id })
-            if r.has_key('_id'):
+            if r != None:
                 self.roles.remove( { '_id' : r['_id'] }, safe=True)
                 res = rc.DELETED
             else:
