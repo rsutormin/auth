@@ -95,7 +95,8 @@ class OAuth2Middleware(AuthenticationMiddleware):
     client = Client(config_file=os.path.join(os.path.dirname(__file__), 'nexus/nexus.yml'))
 
     try:
-        authsvc = settings.AUTHSVC
+        authsvc = "https://%s/" % client.config['server']
+#        authsvc = settings.AUTHSVC
     except:
         authsvc = 'https://nexus.api.globusonline.org/'
 
@@ -152,6 +153,11 @@ class OAuth2Middleware(AuthenticationMiddleware):
             if (profile == None):
                 logging.error("Token validated, but could not retrieve user profile")
                 return None
+            # For now, compute a sessionid based on hashing the
+            # the signature with the salt
+            request.META['KBASEsessid'] = hashlib.sha256(token_map['sig']+OAuth2Middleware.salt).hexdigest()
+            # Add in some useful details that came in from the token validation
+            request.META['profile'] = profile
             # See if the username is already associated with any currently logged
             # in user, if so just pass over the rest
             if (request.user.is_authenticated()):
@@ -164,6 +170,7 @@ class OAuth2Middleware(AuthenticationMiddleware):
                 # For now, compute a sessionid based on hashing the
                 # the signature with the salt
                 request.META['KBASEsessid'] = hashlib.sha256(token_map['sig']+OAuth2Middleware.salt).hexdigest()
+                print pformat( request.META['KBASEsessid'])
                 # Add in some useful details that came in from the token validation
                 request.META['profile'] = profile
                 login(request,user)
@@ -173,7 +180,7 @@ class OAuth2Middleware(AuthenticationMiddleware):
             logging.exception("Error in TwoLeggedOAuthMiddleware.")
             request.user = AnonymousUser()
         except Exception, e:
-            logging.exception("Error in TwoLeggedOAuthMiddleware.")
+            logging.exception("Error in TwoLeggedOAuthMiddleware: %s" % e)
 
 
     def get_profile(self,token):
@@ -183,7 +190,6 @@ class OAuth2Middleware(AuthenticationMiddleware):
                 key, value = entry.split('=')
                 token_map[key] = value
             keyurl = self.__class__.authsvc + "/users/" + token_map['un'] + "?custom_fields=*"
-            print keyurl
             res,body = self.http.request(keyurl,"GET",
                                          headers={ 'Authorization': 'Globus-Goauthtoken ' + token })
             if (200 <= int(res.status)) and ( int(res.status) < 300):
