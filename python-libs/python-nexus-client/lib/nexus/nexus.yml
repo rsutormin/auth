@@ -1,4 +1,4 @@
-server: nexus.api.globusonline.org 
+server: nexus.api.globusonline.org
 cache:
   class: 'nexus.token_utils.InMemoryCache'
 verify_ssl: false

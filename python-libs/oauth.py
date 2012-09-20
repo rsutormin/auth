@@ -31,7 +31,7 @@ simply re-use the existing remote user backend code
 https://docs.djangoproject.com/en/1.4/howto/auth-remote-user/
 
    You configure it the same way using the normal instructions, except
-that you use this module oauth.OAuth2Middleware instead of
+that you use this module oauth.TwoLeggedOAuthMiddleware instead of
 django.contrib.auth.middleware.RemoteUserMiddleware
 
    The django.contrib.auth.backends.RemoteUserBackend module is also
@@ -91,13 +91,15 @@ class OAuth2Middleware(AuthenticationMiddleware):
     """
 
     # Authentication server
-    try:
-        authsvc = settings.AUTHSVC
-    except:
-        authsvc = 'https://graph.api.test.globuscs.info/'
-
     # Create a Python Globus client
     client = Client(config_file=os.path.join(os.path.dirname(__file__), 'nexus/nexus.yml'))
+
+    try:
+        authsvc = "https://%s/" % client.config['server']
+#        authsvc = settings.AUTHSVC
+    except:
+        authsvc = 'https://nexus.api.globusonline.org/'
+
 
     # Set the salt used for computing a session hash from the signature hash
     salt = "(African || European)?"
@@ -151,6 +153,11 @@ class OAuth2Middleware(AuthenticationMiddleware):
             if (profile == None):
                 logging.error("Token validated, but could not retrieve user profile")
                 return None
+            # For now, compute a sessionid based on hashing the
+            # the signature with the salt
+            request.META['KBASEsessid'] = hashlib.sha256(token_map['sig']+OAuth2Middleware.salt).hexdigest()
+            # Add in some useful details that came in from the token validation
+            request.META['profile'] = profile
             # See if the username is already associated with any currently logged
             # in user, if so just pass over the rest
             if (request.user.is_authenticated()):
@@ -163,6 +170,7 @@ class OAuth2Middleware(AuthenticationMiddleware):
                 # For now, compute a sessionid based on hashing the
                 # the signature with the salt
                 request.META['KBASEsessid'] = hashlib.sha256(token_map['sig']+OAuth2Middleware.salt).hexdigest()
+                print pformat( request.META['KBASEsessid'])
                 # Add in some useful details that came in from the token validation
                 request.META['profile'] = profile
                 login(request,user)
@@ -172,7 +180,7 @@ class OAuth2Middleware(AuthenticationMiddleware):
             logging.exception("Error in TwoLeggedOAuthMiddleware.")
             request.user = AnonymousUser()
         except Exception, e:
-            logging.exception("Error in TwoLeggedOAuthMiddleware.")
+            logging.exception("Error in TwoLeggedOAuthMiddleware: %s" % e)
 
 
     def get_profile(self,token):
