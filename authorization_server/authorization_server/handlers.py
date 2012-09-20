@@ -2,6 +2,7 @@ from piston.handler import BaseHandler
 from piston.utils import rc
 import pprint
 import datetime
+import json
 from pymongo import Connection
 from piston.resource import Resource
 
@@ -27,11 +28,38 @@ class RoleHandler( BaseHandler):
 
     def read(self, request, role_id=None):
         try:
-            res = self.roles.find_one( { 'role_id': role_id })
-            if res != None:
-                for excl in self.exclude:
-                    if excl in res:
-                        del res[excl]
+            if role_id == None and 'role_id' in request.GET:
+                role_id = request.GET.get('role_id')
+            filter = request.GET.get('filter', None)
+            if role_id == None and filter == None:
+                res = { 'id' : 'KBase Authorization',
+                        'documentation' : 'https://docs.google.com/document/d/1CTkthDUPwNzMF22maLyNIktI1sHdWPwtd3lJk0aFb20/edit',
+                        'resources' : { 'role_id' : 'Unique human readable identifer for role (required)',
+                                        'description' : 'Description of the role (required)',
+                                        'read' : 'List of kbase object ids (strings) that this role allows read privs',
+                                        'modify' : 'List of kbase object ids (strings) that this role allows modify privs',
+                                        'delete' : 'List of kbase object ids (strings) that this role allows delete privs',
+                                        'impersonate' : 'List of kbase user_ids (strings) that this role allows impersonate privs',
+                                        'grant' : 'List of kbase authz role_ids (strings) that this role allows grant privs',
+                                        'create' : 'Boolean value - does this role provide the create privilege'
+                                        },
+                        'contact' : { 'email' : 'sychan@lbl.gov' }
+                        }
+            elif role_id != None:
+                res = self.roles.find_one( { 'role_id': role_id })
+                if res != None:
+                    for excl in self.exclude:
+                        if excl in res:
+                            del res[excl]
+            else:
+#                print "Filter = %s\n" % pp.pformat(filter)
+                filter = json.loads(filter)
+                match = self.roles.find( filter )
+                res = [ match[x] for x in range( match.count())]
+                for x in res:
+                    for excl in self.exclude:
+                        if excl in x:
+                            del x[excl]
         except Exception as e:
             res = rc.BAD_REQUEST
             res.write('Error: %s' % e )
