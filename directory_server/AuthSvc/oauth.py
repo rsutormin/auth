@@ -120,7 +120,7 @@ class TwoLeggedOAuthMiddleware(AuthenticationMiddleware):
                 auth_header_value = request.META.get('HTTP_AUTHORIZATION')
                 key = get_oauth_consumer_key_from_header(auth_header_value)
             if not key:
-                logging.error("Not oauth_consumer key given")
+                logging.error("Consumer key did not match any known key")
                 return None
             consumer = self.get_consumer(key)
             if (consumer == None):
