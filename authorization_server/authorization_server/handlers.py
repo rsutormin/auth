@@ -55,8 +55,8 @@ class RoleHandler( BaseHandler):
                 role_id = request.data['role_id']
             old = self.roles.find_one( { 'role_id': role_id })
             if old != None:
-                new = dict( old.items() + r.items())
-                self.roles.save( new)
+                old.update(r)
+                self.roles.save( old)
                 res = rc.CREATED
             else:
                 res = rc.NOT_HERE
