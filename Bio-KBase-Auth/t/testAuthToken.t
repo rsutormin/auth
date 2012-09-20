@@ -92,7 +92,7 @@ if ( -e $Bio::KBase::AuthToken::authrc) {
     rename $Bio::KBase::AuthToken::authrc, $Bio::KBase::AuthToken::authrc.$$;
 }
 
-ok( $at = Bio::KBase::AuthToken->new('user_id' => 'papa', 'password' => 'papa'), "Logging in using papa account");
+ok( $at = Bio::KBase::AuthToken->new('user_id' => 'papa', 'password' => 'papapa'), "Logging in using papa account");
 ok($at->validate(), "Validating token for papa user using username/password");
 
 ok( $at = Bio::KBase::AuthToken->new('user_id' => 'papa', 'password' => 'poopa'), "Logging in using papa account and bad password");

@@ -5,7 +5,7 @@ package Bio::KBase::Auth;
 # sychan 4/24/2012
 use strict;
 
-$Bio::KBase::Auth::AuthSvcHost = "https://graph.api.test.globuscs.info/";
+$Bio::KBase::Auth::AuthSvcHost = "https://nexus.api.globusonline.org/";
 $Bio::KBase::Auth::AuthorizePath = "/goauth/token";
 $Bio::KBase::Auth::ProfilePath = "users";
 
