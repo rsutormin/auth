@@ -209,7 +209,7 @@ sub go_request {
 	unless ($p{'path'}) {
 	    die "No path specified";
 	}
-	$headers{'X-GLOBUS-GOAUTHTOKEN'} = $p{'token'};
+	$headers{'Authorization'} = 'Globus-Goauthtoken ' . $p{'token'};
 	$headers{'Content-Type'} = 'application/json';
 	if (defined($p{'headers'})) {
 	    %headers = (%headers, %{$p{'headers'}});

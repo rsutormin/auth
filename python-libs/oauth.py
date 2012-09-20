@@ -1,12 +1,25 @@
 import logging
-import oauth2
 import httplib2
 import json
+import os
+import hashlib
+
+# This module performs authentication based on the tokens
+# issued by Globus Online's Nexus service, see this URL for
+# details:
+# http://globusonline.github.com/nexus-docs/api.html
+#
+# Import the Globus Online client libraries, originally
+# sourced from:
+# https://github.com/globusonline/python-nexus-client
+from nexus import Client
 
 from django.contrib.auth.models import AnonymousUser,User
 from django.contrib.auth import login,authenticate
 from django.contrib.auth.middleware import AuthenticationMiddleware
 from django.conf import settings
+from django.http import HttpResponse
+from pprint import pformat
 
 """
 This is the 2-legged OAuth authentication code from tastypie
@@ -18,7 +31,7 @@ simply re-use the existing remote user backend code
 https://docs.djangoproject.com/en/1.4/howto/auth-remote-user/
 
    You configure it the same way using the normal instructions, except
-that you use this module oauth.TwoLeggedOAuthMiddleware instead of
+that you use this module oauth.OAuth2Middleware instead of
 django.contrib.auth.middleware.RemoteUserMiddleware
 
    The django.contrib.auth.backends.RemoteUserBackend module is also
@@ -28,40 +41,32 @@ declaration in settings.py
    To set the authentiction service to be used, set AUTHSVC in your
 settings.py file. Here is an example:
 
-AUTHSVC = 'http://auth.kbase.us'
+AUTHSVC = 'https://graph.api.go.sandbox.globuscs.info/'
 
    Django modules can check the request.META['KBASEsessid'] for the
 session ID that will be used within the KBase session management
 infrastructure
 
-   To test this, add in a handler to urls.py that does something like this:
+   To test this, bind the sample handler into urls.py like this:
+...
+from oauth import AuthStatus
+...
+urlpatterns = patterns( ...
+    ...
+    url(r'^authstatus/?$', AuthStatus),
+    ...
+)
 
-def authstatus(request):
-    res = "request.user.is_authenticated = %s \n" % request.user.is_authenticated()
-    if request.user.is_authenticated():
-        res = res + "request.user.username = %s and your KBase SessionID is %s" % (request.user.username,request.META['KBASEsessid'])
-    return HttpResponse(res)
+   Then visit the authstatus URL to see the auth state.
 
-   You can test it using this client script:
-
-#!/usr/bin/python
-# Heavily stripped down sample 2-legged oauth client
-
-import oauth2 as oauth
-
-# test key and secret that we know works on the demo auth service
-consumer_key = 'key1'
-consumer_secret = 'secret1'
-
-consumer = oauth.Consumer(consumer_key, consumer_secret)
-client = oauth.Client(consumer)
-resp,content = client.request('http://127.0.0.1:8001/authstatus/', 'GET')
-print content
-
+   If you have the perl Bio::KBase::AuthToken libraries installed,
+you can test it like this:
+token=`perl -MBio::KBase::AuthToken -e 'print Bio::KBase::AuthToken->new( user_id => "papa", password => "papa")->token,"\n";'`
+curl -H "Authorization: Bearer $token" http://127.0.0.1:8000/authstatus/
 
    Steve Chan
    sychan@lbl.gov
-   6/7/2012
+   9/6/2012
 
    Previous documentation follows:
 
@@ -76,7 +81,7 @@ Adapted from example:
  - http://philipsoutham.com/post/2172924723/two-legged-oauth-in-python
 """
 
-class TwoLeggedOAuthMiddleware(AuthenticationMiddleware):
+class OAuth2Middleware(AuthenticationMiddleware):
 
     """
     Two Legged OAuth authenticator. 
@@ -89,12 +94,18 @@ class TwoLeggedOAuthMiddleware(AuthenticationMiddleware):
     try:
         authsvc = settings.AUTHSVC
     except:
-        authsvc = 'http://140.221.92.45'
+        authsvc = 'https://graph.api.test.globuscs.info/'
+
+    # Create a Python Globus client
+    client = Client(config_file=os.path.join(os.path.dirname(__file__), 'nexus/nexus.yml'))
+
+    # Set the salt used for computing a session hash from the signature hash
+    salt = "(African || European)?"
 
     def __init__(self, realm='API'):
         self.realm = realm
         self.user = None
-        self.http = httplib2.Http()
+        self.http = httplib2.Http(disable_ssl_certificate_validation=True)
 
 
     def process_request(self, request):
@@ -111,39 +122,52 @@ class TwoLeggedOAuthMiddleware(AuthenticationMiddleware):
                 " MIDDLEWARE_CLASSES setting to insert"
                 " 'django.contrib.auth.middleware.AuthenticationMiddleware'"
                 " before the RemoteUserMiddleware class.")
-        oauth_server, oauth_request = initialize_oauth_server_request(request)
         try:
-            key = request.GET.get('oauth_consumer_key')
-            if not key:
-                key = request.POST.get('oauth_consumer_key')
-            if not key:
-                auth_header_value = request.META.get('HTTP_AUTHORIZATION')
-                key = get_oauth_consumer_key_from_header(auth_header_value)
-            if not key:
-                logging.error("Consumer key did not match any known key")
+            if 'HTTP_AUTHORIZATION' in request.META:
+                auth_header = request.META.get('HTTP_AUTHORIZATION')
+            else:
+                logging.info("No authorization header found.")
                 return None
-            consumer = self.get_consumer(key)
-            if (consumer == None):
-                logging.error("Consumer key did not match any known key")
-                return
-            # See if the consumer key is already associated with any currently logged
+            # Extract the token based on whether it is an OAuth or Bearer
+            # token
+            if auth_header[:6] == 'OAuth ':
+                token = auth_header[6:]
+            elif auth_header[:7] == 'Bearer ':
+                token = auth_header[7:]
+            else:
+                logging.error("Authorization header did not contain OAuth or Bearer type token")
+                return None
+            user_id = OAuth2Middleware.client.authenticate_user( token)
+            if not user_id:
+                logging.error("Authentication token failed validation")
+                return None
+            else:
+                logging.info("Validated as user " + user_id)
+            token_map = {}
+            for entry in token.split('|'):
+                key, value = entry.split('=')
+                token_map[key] = value
+            profile = self.get_profile(token)
+            if (profile == None):
+                logging.error("Token validated, but could not retrieve user profile")
+                return None
+            # See if the username is already associated with any currently logged
             # in user, if so just pass over the rest
             if (request.user.is_authenticated()):
-                if request.user.username == consumer['user_id']:
+                if request.user.username == profile['username']:
                     return
             # Raises exception if it doesn't pass 
-            oauth_server.verify_request(oauth_request, oauth2.Consumer(consumer['oauth_key'],consumer['oauth_secret']), None)
-            user = authenticate(remote_user=consumer['user_id'])
+            user = authenticate(remote_user=profile['username'])
             if user:
                 request.user = user
-                # For now, use the signature hash as the sessionid
-                request.META['KBASEsessid'] = oauth_request['oauth_signature']
+                # For now, compute a sessionid based on hashing the
+                # the signature with the salt
+                request.META['KBASEsessid'] = hashlib.sha256(token_map['sig']+OAuth2Middleware.salt).hexdigest()
+                # Add in some useful details that came in from the token validation
+                request.META['profile'] = profile
                 login(request,user)
             else:
-                logging.error( "Failed to return user from call to authenticate() with username " + consumer['user_id'])
-        except oauth2.Error, e:
-            logging.exception("Error in TwoLeggedOAuthMiddleware.")
-            request.user = AnonymousUser()
+                logging.error( "Failed to return user from call to authenticate() with username " + profile['username'])
         except KeyError, e:
             logging.exception("Error in TwoLeggedOAuthMiddleware.")
             request.user = AnonymousUser()
@@ -151,66 +175,36 @@ class TwoLeggedOAuthMiddleware(AuthenticationMiddleware):
             logging.exception("Error in TwoLeggedOAuthMiddleware.")
 
 
-    def get_consumer(self,key):
-        keyurl = self.__class__.authsvc + "/oauthkeys/" + key
+    def get_profile(self,token):
         try:
-            res,body = self.http.request(keyurl)
+            token_map = {}
+            for entry in token.split('|'):
+                key, value = entry.split('=')
+                token_map[key] = value
+            keyurl = self.__class__.authsvc + "/users/" + token_map['un'] + "?custom_fields=*"
+            res,body = self.http.request(keyurl,"GET",
+                                         headers={ 'Authorization': 'Globus-Goauthtoken ' + token })
             if (200 <= int(res.status)) and ( int(res.status) < 300):
-                consumer = json.loads( body)
-                consumer = consumer[key]
-                return consumer
+                profile = json.loads( body)
+                return profile
+            logging.error( body)
             raise Exception("HTTP", res)
-        except:
+        except Exception, e:
+            logging.exception("Error in get_profile.")
             return None
 
-def initialize_oauth_server_request(request):
-    """
-    OAuth initialization.
-    """
-    
-    # Since 'Authorization' header comes through as 'HTTP_AUTHORIZATION', convert it back
-    auth_header = {}
-    if 'HTTP_AUTHORIZATION' in request.META:
-        auth_header = {'Authorization':request.META.get('HTTP_AUTHORIZATION')}
-    
-    absolute_uri = request.build_absolute_uri()
-    url = absolute_uri
-    if absolute_uri.find('?') != -1:
-        url = absolute_uri[:absolute_uri.find('?')]
-        
-    oauth_request = oauth2.Request.from_request(
-            request.method, url, headers=auth_header, 
-            parameters=dict(request.REQUEST.items()))
-        
-    if oauth_request:
-        oauth_server = oauth2.Server(signature_methods={
-            # Supported signature methods
-            'HMAC-SHA1': oauth2.SignatureMethod_HMAC_SHA1()
-        })
 
-    else:
-        oauth_server = None
-    return oauth_server, oauth_request
-
-
-def get_oauth_consumer_key_from_header(auth_header_value):
-    key = None
-    
-    # Process Auth Header
-    # Check that the authorization header is OAuth.
-    if not auth_header_value:
-        return None
-    if auth_header_value[:6] == 'OAuth ':
-        auth_header = auth_header_value[6:]
+def AuthStatus(request):
+    res = "request.user.is_authenticated = %s \n" % request.user.is_authenticated()
+    if request.user.is_authenticated():
         try:
-            # Get the parameters from the header.
-            header_params = oauth2.Request._split_header(auth_header)
-            if 'oauth_consumer_key' in header_params:
-                key = header_params['oauth_consumer_key']
-        except:
-            raise Exception('Unable to parse OAuth parameters from '
-                'Authorization header.')
-    return key
-
-
-
+            res = res + "request.user.username = %s and your KBase SessionID is %s\n" % (request.user.username,request.META['KBASEsessid'])
+        except KeyError, e:
+            request.META['KBASEsessid'] = None
+            res = res + "request.user.username = %s and your KBase SessionID is %s\n" % (request.user.username,request.META['KBASEsessid'])
+        try:
+            res = res + "Your profile record is:\n%s\n" % pformat( request.META['profile'])
+        except KeyError, e:
+            request.META['profile'] = None
+            res = res + "Your profile record is:\n%s\n" % pformat( request.META['profile'])
+    return HttpResponse(res)

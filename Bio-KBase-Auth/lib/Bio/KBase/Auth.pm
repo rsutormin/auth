@@ -6,10 +6,10 @@ package Bio::KBase::Auth;
 use strict;
 
 $Bio::KBase::Auth::AuthSvcHost = "https://nexus.api.globusonline.org/";
-$Bio::KBase::Auth::AuthorizePath = "/goauth/authorize";
+$Bio::KBase::Auth::AuthorizePath = "/goauth/token";
 $Bio::KBase::Auth::ProfilePath = "users";
 
-our $VERSION = 0.3;
+our $VERSION = '0.3.1';
 
 1;
 
