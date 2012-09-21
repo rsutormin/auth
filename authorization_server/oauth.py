@@ -125,6 +125,8 @@ class OAuth2Middleware(AuthenticationMiddleware):
                 " 'django.contrib.auth.middleware.AuthenticationMiddleware'"
                 " before the RemoteUserMiddleware class.")
         try:
+            if (request.user.is_authenticated()):
+                return
             if 'HTTP_AUTHORIZATION' in request.META:
                 auth_header = request.META.get('HTTP_AUTHORIZATION')
             else:
@@ -153,16 +155,15 @@ class OAuth2Middleware(AuthenticationMiddleware):
             if (profile == None):
                 logging.error("Token validated, but could not retrieve user profile")
                 return None
+            # Push the token into the META for future reference
+            request.META['KBASEtoken'] = token
             # For now, compute a sessionid based on hashing the
             # the signature with the salt
             request.META['KBASEsessid'] = hashlib.sha256(token_map['sig']+OAuth2Middleware.salt).hexdigest()
             # Add in some useful details that came in from the token validation
-            request.META['profile'] = profile
+            request.META['KBASEprofile'] = profile
             # See if the username is already associated with any currently logged
             # in user, if so just pass over the rest
-            if (request.user.is_authenticated()):
-                if request.user.username == profile['username']:
-                    return
             # Raises exception if it doesn't pass 
             user = authenticate(remote_user=profile['username'])
             if user:
@@ -205,14 +206,9 @@ class OAuth2Middleware(AuthenticationMiddleware):
 def AuthStatus(request):
     res = "request.user.is_authenticated = %s \n" % request.user.is_authenticated()
     if request.user.is_authenticated():
-        try:
-            res = res + "request.user.username = %s and your KBase SessionID is %s\n" % (request.user.username,request.META['KBASEsessid'])
-        except KeyError, e:
-            request.META['KBASEsessid'] = None
-            res = res + "request.user.username = %s and your KBase SessionID is %s\n" % (request.user.username,request.META['KBASEsessid'])
-        try:
-            res = res + "Your profile record is:\n%s\n" % pformat( request.META['profile'])
-        except KeyError, e:
-            request.META['profile'] = None
+        res = res + "request.user.username = %s\n" % request.user.username
+        if 'KBASEsessid' in request.META:
+            res = res + "Your KBase SessionID is %s\n" % request.META['KBASEsessid']
+        if 'profile' in request.META:
             res = res + "Your profile record is:\n%s\n" % pformat( request.META['profile'])
     return HttpResponse(res)
