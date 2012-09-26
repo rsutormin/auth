@@ -96,7 +96,6 @@ class OAuth2Middleware(AuthenticationMiddleware):
 
     try:
         authsvc = "https://%s/" % client.config['server']
-#        authsvc = settings.AUTHSVC
     except:
         authsvc = 'https://nexus.api.globusonline.org/'
 
@@ -108,7 +107,8 @@ class OAuth2Middleware(AuthenticationMiddleware):
         self.realm = realm
         self.user = None
         self.http = httplib2.Http(disable_ssl_certificate_validation=True)
-
+        # The shortcut option will bypass token validation if we already have a django session
+        self.shortcut = False
 
     def process_request(self, request):
         """
@@ -125,12 +125,10 @@ class OAuth2Middleware(AuthenticationMiddleware):
                 " 'django.contrib.auth.middleware.AuthenticationMiddleware'"
                 " before the RemoteUserMiddleware class.")
         try:
-            if (request.user.is_authenticated()):
-                return
             if 'HTTP_AUTHORIZATION' in request.META:
                 auth_header = request.META.get('HTTP_AUTHORIZATION')
             else:
-                logging.info("No authorization header found.")
+                logging.debug("No authorization header found.")
                 return None
             # Extract the token based on whether it is an OAuth or Bearer
             # token
@@ -139,8 +137,13 @@ class OAuth2Middleware(AuthenticationMiddleware):
             elif auth_header[:7] == 'Bearer ':
                 token = auth_header[7:]
             else:
-                logging.error("Authorization header did not contain OAuth or Bearer type token")
+                logging.info("Authorization header did not contain OAuth or Bearer type token")
                 return None
+            # Push the token into the META for future reference
+            request.META['KBASEtoken'] = token
+            if (request.user.is_authenticated() and self.shortcut):
+                return
+
             user_id = OAuth2Middleware.client.authenticate_user( token)
             if not user_id:
                 logging.error("Authentication token failed validation")
@@ -155,8 +158,6 @@ class OAuth2Middleware(AuthenticationMiddleware):
             if (profile == None):
                 logging.error("Token validated, but could not retrieve user profile")
                 return None
-            # Push the token into the META for future reference
-            request.META['KBASEtoken'] = token
             # For now, compute a sessionid based on hashing the
             # the signature with the salt
             request.META['KBASEsessid'] = hashlib.sha256(token_map['sig']+OAuth2Middleware.salt).hexdigest()
@@ -173,12 +174,12 @@ class OAuth2Middleware(AuthenticationMiddleware):
                 request.META['KBASEsessid'] = hashlib.sha256(token_map['sig']+OAuth2Middleware.salt).hexdigest()
                 print pformat( request.META['KBASEsessid'])
                 # Add in some useful details that came in from the token validation
-                request.META['profile'] = profile
+                request.META['KBASEprofile'] = profile
                 login(request,user)
             else:
                 logging.error( "Failed to return user from call to authenticate() with username " + profile['username'])
         except KeyError, e:
-            logging.exception("Error in TwoLeggedOAuthMiddleware.")
+            logging.exception("KeyError in TwoLeggedOAuthMiddleware: %s" % e)
             request.user = AnonymousUser()
         except Exception, e:
             logging.exception("Error in TwoLeggedOAuthMiddleware: %s" % e)
@@ -209,6 +210,8 @@ def AuthStatus(request):
         res = res + "request.user.username = %s\n" % request.user.username
         if 'KBASEsessid' in request.META:
             res = res + "Your KBase SessionID is %s\n" % request.META['KBASEsessid']
-        if 'profile' in request.META:
-            res = res + "Your profile record is:\n%s\n" % pformat( request.META['profile'])
+        if 'KBASEprofile' in request.META:
+            res = res + "Your profile record is:\n%s\n" % pformat( request.META['KBASEprofile'])
+        if 'KBASEtoken' in request.META:
+            res = res + "Your OAuth token is:\n%s\n" % pformat( request.META['KBASEtoken'])
     return HttpResponse(res)
