@@ -5,6 +5,7 @@ import datetime
 import json
 from pymongo import Connection
 from piston.resource import Resource
+from django.conf import settings
 
 
 pp = pprint.PrettyPrinter(indent=4)
@@ -19,10 +20,18 @@ def dictify(objs,key):
 
 class RoleHandler( BaseHandler):
     allowed_methods = ('GET','POST','PUT','DELETE')
-    fields = ('role_id','description','read','modify','delete','impersonate','grant','create')
+    fields = ('role_id','description','members','read','modify','delete','impersonate','grant','create')
     exclude = ( '_id', )
 
-    conn = Connection()
+    # We need to define the appropriate settings and set them here
+    try:
+        conn = Connection(settings.MONGODB_CONN)
+    except AttributeError as e:
+        print "No connection settings specified: %s\n" % e
+        conn = Connection()
+    except Exception as e:
+        print "Generic exception %s: %s\n" % (type(e),e)
+        conn = Connection()
     db = conn.authorization
     roles = db.roles
 
@@ -31,11 +40,13 @@ class RoleHandler( BaseHandler):
             if role_id == None and 'role_id' in request.GET:
                 role_id = request.GET.get('role_id')
             filter = request.GET.get('filter', None)
+            fields = request.GET.get('fields', None)
             if role_id == None and filter == None:
                 res = { 'id' : 'KBase Authorization',
                         'documentation' : 'https://docs.google.com/document/d/1CTkthDUPwNzMF22maLyNIktI1sHdWPwtd3lJk0aFb20/edit',
                         'resources' : { 'role_id' : 'Unique human readable identifer for role (required)',
                                         'description' : 'Description of the role (required)',
+                                        'members' : 'A list of the user_ids who are members of this group',
                                         'read' : 'List of kbase object ids (strings) that this role allows read privs',
                                         'modify' : 'List of kbase object ids (strings) that this role allows modify privs',
                                         'delete' : 'List of kbase object ids (strings) that this role allows delete privs',
@@ -54,7 +65,11 @@ class RoleHandler( BaseHandler):
             else:
 #                print "Filter = %s\n" % pp.pformat(filter)
                 filter = json.loads(filter)
-                match = self.roles.find( filter )
+                if fields:
+                    fields = json.loads(fields)
+                    match = self.roles.find(filter, fields)
+                else:
+                    match = self.roles.find( filter )
                 res = [ match[x] for x in range( match.count())]
                 for x in res:
                     for excl in self.exclude:

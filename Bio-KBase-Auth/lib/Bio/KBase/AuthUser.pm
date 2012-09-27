@@ -149,7 +149,7 @@ sub get {
 	unless ($user_id) {
 	    die "Failed to parse username from un= clause in token. Is the token legit?";
 	}
-	$path = sprintf('%s/%s?custom_fields=*',$path,$user_id);
+	$path = sprintf('%s/%s?custom_fields=*&fields=groups,username,email_validated,fullname,email',$path,$user_id);
 
 	# go_request will throw an error if it chokes and exit this eval block
 	my $nuser = $self->go_request( 'path' => $path, 'token' => $token);
@@ -164,6 +164,10 @@ sub get {
 	foreach my $x (keys %{$nuser->{'custom_fields'}}) {
 	    $self->{$x} = $nuser->{'custom_fields'}->{$x};
 	}
+
+	my @groups = map { $_->{'name'}; } @{$nuser->{'groups'}};
+	$self->{'groups'} = \@groups;
+
     };
     if ($@) {
 	$self->error_message("Failed to get profile: $@");
