@@ -42,12 +42,26 @@ class RoleHandler( BaseHandler):
     except AttributeError as e:
         kbase_users = 'kbase_users'
 
+    # Check mongodb to see if the user is in kbase_user role, necessary
+    # before they can perform any kinds of updates
+    # Note that possessing a Globus Online ID is not sufficient
     def check_user(self, user_id):
         try:
             return self.roles.find_one( { 'role_id' : self.kbase_users,
                                           'members' : user_id }) is not None
         except:
             return False
+
+    # Get all role_ids associated with a user_id, returns a
+    # an array of role_ids (strings)
+    def get_user_roles(self, user_id):
+        try:
+            roles= self.roles.find( { 'members' : user_id },
+                                    { 'role_id' : '1' })
+            return [ roles[x]['role_id'] for x in range( roles.count())]
+        except Exception as e:
+            print "Error while fetching roles for user %s: %s" % ( user_id, e)
+            return []
 
     def read(self, request, role_id=None):
         try:
@@ -71,7 +85,13 @@ class RoleHandler( BaseHandler):
                                         'create' : 'Boolean value - does this role provide the create privilege'
                                         },
                         'contact' : { 'email' : 'sychan@lbl.gov'},
-                        'usage'   : 'This is a standard REST service. Note that read handler takes MongoDB filtering and JSON field selection options passed as URL parameters \'filter\' and \'fields\' respectively. Please look at MongoDB documentation. Reading is currently open to all, but create, update and delete will require membership in the internal KBase User role (role_id == kbase_users)',
+                        'usage'   : 'This is a standard REST service. Note that read handler takes\n' + 
+                                    'MongoDB filtering and JSON field selection options passed as\n' +
+                                    'URL parameters \'filter\' and \'fields\' respectively.\n' +
+                                    'Please look at MongoDB documentation for details.\n' +
+                                    'Reading is currently open to all authenticated users, but\n' +
+                                    'create, update and delete will require membership in the\n' +
+                                    'internal KBase User role (role_id == \'%s\')' % self.kbase_users,
                         }
             elif role_id != None:
                 res = self.roles.find_one( { 'role_id': role_id })
