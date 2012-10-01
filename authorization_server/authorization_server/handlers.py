@@ -20,8 +20,10 @@ def dictify(objs,key):
 
 class RoleHandler( BaseHandler):
     allowed_methods = ('GET','POST','PUT','DELETE')
-    fields = ('role_id','description','members','read','modify','delete','impersonate','grant','create')
+    fields = ('role_id','description','members','read','modify','delete',
+              'impersonate','grant','create','role_owner','role_updater')
     exclude = ( '_id', )
+    kbase_users = 'kbase_users'
 
     # We need to define the appropriate settings and set them here
     try:
@@ -34,6 +36,18 @@ class RoleHandler( BaseHandler):
         conn = Connection()
     db = conn.authorization
     roles = db.roles
+    # Set the role_id to require for updates to the roles db
+    try:
+        kbase_users = settings.kbase_users
+    except AttributeError as e:
+        kbase_users = 'kbase_users'
+
+    def check_user(self, user_id):
+        try:
+            return self.roles.find_one( { 'role_id' : self.kbase_users,
+                                          'members' : user_id }) is not None
+        except:
+            return False
 
     def read(self, request, role_id=None):
         try:
@@ -46,6 +60,8 @@ class RoleHandler( BaseHandler):
                         'documentation' : 'https://docs.google.com/document/d/1CTkthDUPwNzMF22maLyNIktI1sHdWPwtd3lJk0aFb20/edit',
                         'resources' : { 'role_id' : 'Unique human readable identifer for role (required)',
                                         'description' : 'Description of the role (required)',
+                                        'role_owner' : 'Owner(creator) of this role',
+                                        'role_updater' : 'User_ids that can update this role',
                                         'members' : 'A list of the user_ids who are members of this group',
                                         'read' : 'List of kbase object ids (strings) that this role allows read privs',
                                         'modify' : 'List of kbase object ids (strings) that this role allows modify privs',
@@ -54,7 +70,8 @@ class RoleHandler( BaseHandler):
                                         'grant' : 'List of kbase authz role_ids (strings) that this role allows grant privs',
                                         'create' : 'Boolean value - does this role provide the create privilege'
                                         },
-                        'contact' : { 'email' : 'sychan@lbl.gov' }
+                        'contact' : { 'email' : 'sychan@lbl.gov'},
+                        'usage'   : 'This is a standard REST service. Note that read handler takes MongoDB filtering and JSON field selection options passed as URL parameters \'filter\' and \'fields\' respectively. Please look at MongoDB documentation. Reading is currently open to all, but create, update and delete will require membership in the internal KBase User role (role_id == kbase_users)',
                         }
             elif role_id != None:
                 res = self.roles.find_one( { 'role_id': role_id })
@@ -83,21 +100,27 @@ class RoleHandler( BaseHandler):
     def create(self, request):
         r = request.data
 #        print pp.pformat( r)
-        try:
-            if self.roles.find( { 'role_id': r['role_id'] }).count() == 0:
-                new = { x : r.get(x, []) for x in ('read','modify','delete','impersonate','grant','create') }
-                new['role_id'] = r['role_id']
-                new['description'] = r['description']
-                self.roles.insert( new)
-                res = rc.CREATED
-            else:
-                res = rc.DUPLICATE_ENTRY
-        except KeyError as e:
-            res = rc.BAD_REQUEST
-            res.write(' required fields: %s' % e )
-        except Exception as e:
-            res = rc.BAD_REQUEST
-            res.write('Error: %s' % e )
+        if not request.user.is_authenticated:
+            res = rc.forbidden
+            res.write("Must be authenticated")
+        else:
+            try:
+                if self.roles.find( { 'role_id': r['role_id'] }).count() == 0:
+                    new = { x : r.get(x, []) for x in ('read','modify','delete','impersonate','grant','create') }
+                    new['role_id'] = r['role_id']
+                    new['description'] = r['description']
+                    new['role_owner'] = request.user.username
+                    new['role_updater'] = [request.user.username]
+                    self.roles.insert( new)
+                    res = rc.CREATED
+                else:
+                    res = rc.DUPLICATE_ENTRY
+            except KeyError as e:
+                res = rc.BAD_REQUEST
+                res.write(' required fields: %s' % e )
+            except Exception as e:
+                res = rc.BAD_REQUEST
+                res.write('Error: %s' % e )
         return(res)
     def update(self, request, role_id=None):
         r = request.data

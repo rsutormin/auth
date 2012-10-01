@@ -244,6 +244,55 @@ sub go_request {
 
 }
 
+#
+# Submit a request to the Roles service defined in
+# Bio::KBase::Auth::RolesSvcURL to fetch the roles that
+# a user is a member of
+#
+sub roles_request {
+    my $self = shift @_;
+    my %p = @_;
+
+    my $json;
+    eval {
+	my $baseurl = $Bio::KBase::Auth::RolesSvcURL;
+	my %headers;
+	unless ($p{'token'}) {
+	        $p{'token'} = $self->oauth_creds->{'auth_token'};
+	}
+	unless ($p{'token'}) {
+	    die "No authentication token";
+	}
+	$headers{'Authorization'} = 'OAuth ' . $p{'token'};
+	$headers{'Content-Type'} = 'application/json';
+	if (defined($p{'headers'})) {
+	    %headers = (%headers, %{$p{'headers'}});
+	}
+	my $headers = HTTP::Headers->new( %headers);
+    
+	my $client = LWP::UserAgent->new(default_headers => $headers);
+	$client->timeout(5);
+	$client->ssl_opts(verify_hostname => 0);
+	# URL params to return only the role_id's for this current user
+	%params = { filter => '{ "members" : "'.$self->user_id.'"}',
+		    fields => '{ "role_id" : "1" }';
+	};
+
+	my $response = $client->get( $baseurl, %params);
+	unless ($response->is_success) {
+	    die $response->status_line;
+	}
+	$json = decode_json( $response->content());
+	$json = $self->_SquashJSONBool( $json);
+    };
+    if ($@) {
+	die "Failed to query Globus Online: $@";
+    } else {
+	return( $json);
+    }
+
+}
+
 sub _SquashJSONBool {
     # Walk an object ref returned by from_json() and squash references
     # to JSON::XS::Boolean into a simple 0 or 1
