@@ -15,7 +15,7 @@ NGINX_CONF = /etc/nginx/conf.d/
 
 all:
 
-deploy: install-libs
+deploy: install-libs deploy-services deploy-nginx
 
 install-libs:
 	cd Bio-KBase-Auth; \
@@ -29,12 +29,11 @@ test-libs: install-libs
 	cd Bio-KBase-Auth; /kb/runtime/bin/perl ./Build test;
 
 deploy-nginx:
-	cp nginx.conf $(NGINX_CONF)/$(SERVICE).conf
+	cp nginx.conf $(NGINX_CONF)/$(SERVICE).conf ; \
 	service nginx restart || echo "Already Up"
 
 deploy-services:
-	mkdir -p $(SERVICE_DIR)
-	rsync -avz --exclude .git *.py start_service stop_service test_service job_service $(SERVICE_DIR)
-	cat config.ini.sample |sed "s/XXXXXX/$(RMQ_PASS)/" > $(SERVICE_DIR)/config.ini
-	cd $(SERVICE_DIR);echo no|python ./manage.py syncdb
+	mkdir -p $(SERVICE_DIR) ; \
+	rsync -avz --exclude .git *.py start_service stop_service test_service job_service $(SERVICE_DIR) ; \
+	cd $(SERVICE_DIR)/$(SERVICE);echo no|python ./manage.py syncdb
 
