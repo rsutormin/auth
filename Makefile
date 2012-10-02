@@ -38,4 +38,4 @@ deploy-services: deploy-nginx
 	cd $(SERVICE_DIR)/$(SERVICE);echo no|python ./manage.py syncdb
 
 load-mongodb:
-	mongorestore -h mongodb.kbase.us --db authorization Roles-bootstrap/authorization
+	mongorestore -h mongodb.kbase.us --db authorization data/Roles-bootstrap/authorization
