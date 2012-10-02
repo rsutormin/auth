@@ -169,8 +169,8 @@ sub get {
 	# The GO groups are not working yet, use internal groups 
 	#my @groups = map { $_->{'name'}; } @{$nuser->{'groups'}};
 	# $self->{'groups'} = \@groups;
-	my @groups = $self->roles_request();
-	$self->{'groups'} = \@groups;
+	my %groups = $self->roles_request();
+	$self->{'groups'} = \%groups;
 
 
 
@@ -253,14 +253,14 @@ sub go_request {
 #
 # Submit a request to the Roles service defined in
 # Bio::KBase::Auth::RolesSvcURL to fetch the roles that
-# a user is a member of. Returns a list of role_ids for
-# the user
+# a user is a member of. Returns a hash keyed on
+# role_id with values as simply 1
 #
 sub roles_request {
     my $self = shift @_;
     my %p = @_;
 
-    my @groups;
+    my %groups;
     my $json;
     eval {
 	my $baseurl = $Bio::KBase::Auth::RoleSvcURL;
@@ -291,12 +291,12 @@ sub roles_request {
 	    die $response->status_line;
 	}
 	$json = decode_json( $response->content());
-	@groups = map { $_->{'role_id'} } @$json;
+	%groups = map { $_->{'role_id'} => 1 } @$json;
     };
     if ($@) {
 	die "Failed to query Globus Online: $@";
     } else {
-	return( @groups);
+	return( %groups);
     }
 
 }
@@ -352,9 +352,9 @@ REQUIRED Identifier for the End-User at the Issuer.
 
 contains error messages, if any, from most recent method call
 
-=item B<groups> (string array)
+=item B<groups> (hashref)
 
-An array of strings for storing Unix style groups that the user is a member of
+A hash reference keyed on group names (value is simple 1) for storing Unix style groups that the user is a member of
 
 =item B<oauth_creds> (hash)
 
