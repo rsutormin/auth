@@ -5,6 +5,7 @@ use warnings;
 use JSON;
 use Bio::KBase::Auth;
 use LWP::UserAgent;
+use URI::URL;
 
 # We use Object::Tiny::RW to generate getters/setters for the attributes
 # and save ourselves some tedium
@@ -165,8 +166,13 @@ sub get {
 	    $self->{$x} = $nuser->{'custom_fields'}->{$x};
 	}
 
-	my @groups = map { $_->{'name'}; } @{$nuser->{'groups'}};
+	# The GO groups are not working yet, use internal groups 
+	#my @groups = map { $_->{'name'}; } @{$nuser->{'groups'}};
+	# $self->{'groups'} = \@groups;
+	my @groups = $self->roles_request();
 	$self->{'groups'} = \@groups;
+
+
 
     };
     if ($@) {
@@ -247,15 +253,17 @@ sub go_request {
 #
 # Submit a request to the Roles service defined in
 # Bio::KBase::Auth::RolesSvcURL to fetch the roles that
-# a user is a member of
+# a user is a member of. Returns a list of role_ids for
+# the user
 #
 sub roles_request {
     my $self = shift @_;
     my %p = @_;
 
+    my @groups;
     my $json;
     eval {
-	my $baseurl = $Bio::KBase::Auth::RolesSvcURL;
+	my $baseurl = $Bio::KBase::Auth::RoleSvcURL;
 	my %headers;
 	unless ($p{'token'}) {
 	        $p{'token'} = $self->oauth_creds->{'auth_token'};
@@ -274,21 +282,21 @@ sub roles_request {
 	$client->timeout(5);
 	$client->ssl_opts(verify_hostname => 0);
 	# URL params to return only the role_id's for this current user
-	%params = { filter => '{ "members" : "'.$self->user_id.'"}',
-		    fields => '{ "role_id" : "1" }';
-	};
+	my $url = url( $baseurl);
+	$url->query_form( filter => '{ "members" : "'.$self->user_id.'"}',
+			  fields => '{ "role_id" : "1" }');
 
-	my $response = $client->get( $baseurl, %params);
+	my $response = $client->get( $url->as_string);
 	unless ($response->is_success) {
 	    die $response->status_line;
 	}
 	$json = decode_json( $response->content());
-	$json = $self->_SquashJSONBool( $json);
+	@groups = map { $_->{'role_id'} } @$json;
     };
     if ($@) {
 	die "Failed to query Globus Online: $@";
     } else {
-	return( $json);
+	return( @groups);
     }
 
 }
