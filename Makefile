@@ -34,7 +34,7 @@ deploy-nginx:
 
 deploy-services: deploy-nginx
 	mkdir -p $(SERVICE_DIR) ; \
-	rsync -avz --exclude .git --cvs-exclude authorization_server *.py start_service stop_service django.conf var $(SERVICE_DIR) ; \
+	rsync -avz --exclude .git --cvs-exclude authorization_server start_service stop_service django.conf var $(SERVICE_DIR) ; \
 	cd $(SERVICE_DIR)/$(SERVICE);echo no|python ./manage.py syncdb
 
 load-mongodb:
