@@ -9,7 +9,7 @@ DEPLOY_PERL = $(addprefix $(TARGET)/bin/,$(basename $(notdir $(SRC_PERL))))
 TARGET ?= /kb/deployment
 KB_PERL_PATH = $(TARGET)/lib
 
-SERVICE = authorization_service
+SERVICE = authorization_server
 SERVICE_DIR = $(TARGET)/services/$(SERVICE)
 NGINX_CONF = /etc/nginx/conf.d/
 
@@ -34,6 +34,6 @@ deploy-nginx:
 
 deploy-services:
 	mkdir -p $(SERVICE_DIR) ; \
-	rsync -avz --exclude .git *.py start_service stop_service test_service job_service $(SERVICE_DIR) ; \
+	rsync -avz --exclude .git --cvs-exclude authorization_server *.py start_service stop_service django.conf var $(SERVICE_DIR) ; \
 	cd $(SERVICE_DIR)/$(SERVICE);echo no|python ./manage.py syncdb
 
