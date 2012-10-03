@@ -61,6 +61,8 @@ https://docs.google.com/document/d/1CTkthDUPwNzMF22maLyNIktI1sHdWPwtd3lJk0aFb20/
 
    Going to http://{authorization.host}/Roles will being up a JSON document that
 gives a description of the service.
+   The file authorization_service/authorization_service/handlers.py implements the
+REST service, and had a largish comment at the top explaining how it works.
 
 ### Setup using the kbase VMs
 =======

@@ -100,7 +100,7 @@ class RoleHandler( BaseHandler):
         conn = Connection(settings.MONGODB_CONN)
     except AttributeError as e:
         print "No connection settings specified: %s\n" % e
-        conn = Connection()
+        conn = Connection(['mongodb.kbase.us'])
     except Exception as e:
         print "Generic exception %s: %s\n" % (type(e),e)
         conn = Connection()
