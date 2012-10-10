@@ -178,7 +178,6 @@ class RoleHandler( BaseHandler):
                             if excl in res:
                                 del res[excl]
                 else:
-#                       print "Filter = %s\n" % pp.pformat(filter)
                     filter = json.loads(filter)
                     if fields:
                         fields = json.loads(fields)
@@ -223,7 +222,6 @@ class RoleHandler( BaseHandler):
         return(res)
     def update(self, request, role_id=None):
         r = request.data
-#        print pp.pformat( r)
         try:
             if not request.user.username:
                 res = rc.FORBIDDEN
