@@ -134,7 +134,7 @@ ok (ref $struct , "Returned reference to Role hash") ;
 #
 my $filter="filter={ \"members\" : \"sychan\"}" ;
 #my $filter='filter={ "members" :{ "$regex" : ".*test.*" }';
-my $res = $ua->get( $server. "Roles?$filter" );
+my $res = $ua->get( $server. "?$filter" );
 
 ok( $res->code , "Request returns error code");
 ok( ($res->code == 200) , "Request is valid");
