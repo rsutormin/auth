@@ -1,6 +1,6 @@
 use strict;
 use warnings;
-use Test::More tests => 10 ;
+use Test::More tests => 26 ;
 use LWP::UserAgent ;
 use JSON;
 
@@ -80,6 +80,11 @@ ok( $object->validate() , "Valid token");
 # 
 
 my $ua     = LWP::UserAgent->new();
+
+#
+# Testing existing roles for kbasetest user
+# 
+
 $ua->default_header( "Authorization" => "OAuth " . $object->token);
 
 #
@@ -87,23 +92,45 @@ $ua->default_header( "Authorization" => "OAuth " . $object->token);
 #
 
 my $res = $ua->get( $server. "Roles" );
-ok( $res->code , "Request returns error code");
+ok( $res->code , "Request for Roles with valid token returns error code");
 
 #
 # Test 10 Test valid response
 #
 
-ok( ($res->code == 200) , "Request is valid");
+ok( ($res->code == 200) , "Request is successfull");
 
 
 #
-# Test 11 Check content
+# Test 11 Check content type
 #
-ok( $res->content , 'Received data' );
+
+ok( ($res->header('Content-Type') =~ /application\/json/ ) , "Returning content Type is JSON : " . $res->header('Content-Type') );
 
 
 #
-# Test 12 - 15 Check query filter
+# Test 12 Check content
+#
+ok( $res->content , 'Received data ' .  $res->content  );
+
+
+#
+# Test 13 Check content , expecting json
+#
+
+my $struct = undef ;
+eval{ $struct = $json->decode( $res->content ) ; };
+ok( !($@)  , "Is content valid json (perl json parser is not picky)");
+
+#
+# Test 14 Check content , for role data struct
+#
+
+ok (ref $struct , "Returned reference to Role hash") ;
+
+
+#
+# Test 15 - 18 Check query filter
 #
 my $filter="filter={ \"members\" : \"sychan\"}" ;
 #my $filter='filter={ "members" :{ "$regex" : ".*test.*" }';
@@ -112,7 +139,7 @@ my $res = $ua->get( $server. "Roles?$filter" );
 ok( $res->code , "Request returns error code");
 ok( ($res->code == 200) , "Request is valid");
 ok( $res->content , 'Received data' );
-ok( ($res->header('Content-Type') eq "application/json") , "Content Type is JSON"); 
+ok( ($res->header('Content-Type') =~ /application\/json/ ) , "Content Type is JSON : " . $res->header('Content-Type') ); 
     
 
 
@@ -123,13 +150,71 @@ ok( ($res->header('Content-Type') eq "application/json") , "Content Type is JSON
 #
 
 
+my $role = {
+    "role_owner" => "kbasetest",
+    "role_id"=> "kbase_test_users",
+    "description"=> "List of user ids who are considered KBase users",
+    "members"=> [
+	"kbasetest",
+	],
+	"role_updater"=> [
+	    "kbtest",
+	],
+	"read"=> [],
+	"create"=> [],
+	"modify"=> [],
+	"impersonate"=> [],
+	"delete"=> [],
+} ;
+
+
+
 #
-# Test create role
+# Test 19 - 22 create role
 # 
+
+my $jtext = $json->encode($role);
+my $res   = $ua->post($jtext);
+
+ok( $res->code          , "Request returns error code");
+ok( ($res->code == 200) , "Request is valid (".$res->code.")");
+ok( $res->content       , 'Received data: ' .  $res->content );
+ok( ($res->header('Content-Type') =~ /application\/json/ ) , "Content Type is JSON : " . $res->header('Content-Type') ); 
+
+
 
 #
 # Test add user
 # 
+
+
+my $role = {
+    "role_owner" => "kbasetest",
+    "role_id"=> "kbase_test_users",
+    "description"=> "List of user ids who are considered KBase users",
+    "members"=> [
+	"kbasetest",
+	"papa",
+	],
+	"role_updater"=> [
+	    "kbtest",
+	],
+	"read"=> [],
+	"create"=> [],
+	"modify"=> [],
+	"impersonate"=> [],
+	"delete"=> [],
+} ;
+
+my $jtext = $json->encode($role);
+my $res   = $ua->put($jtext);
+
+ok( $res->code          , "Request returns error code");
+ok( $res->content       , 'Received data: ' .  $res->content );
+ok( ($res->code == 200) , "Request is valid (".$res->code.")");
+ok( ($res->header('Content-Type') =~ /application\/json/ ) , "Content Type is JSON : " . $res->header('Content-Type') ); 
+
+
 
 #
 # Test retrive role for user
@@ -144,25 +229,25 @@ ok( ($res->header('Content-Type') eq "application/json") , "Content Type is JSON
 # Test data structure if json
 # 
 
-if ($res->header('Content-Type') eq "application/json") {
-    my $data = $json->decode( $res->decoded_content ); 
-}
+# if ($res->header('Content-Type') eq "application/json") {
+#     my $data = $json->decode( $res->decoded_content ); 
+# }
 
 
-my $res = $ua->get( $server. "Roles?$filter" );
+# my $res = $ua->get( $server. "Roles?$filter" );
 
 
 
 
-printf "Client: Recieved a response: %d %s\n", $res->code, $res->content;
+# printf "Client: Recieved a response: %d %s\n", $res->code, $res->content;
 
-    # ^Roles/(?P<role_id>[^/]+)$
-    # ^Roles/?$
-    # ^admin/
-    # ^authstatus/?$
+#     # ^Roles/(?P<role_id>[^/]+)$
+#     # ^Roles/?$
+#     # ^admin/
+#     # ^authstatus/?$
 
-$res = $ua->get( $server. "Roles" );
-$res = $ua->get( $server. "Roles" );
-$res = $ua->get( $server. "authstatus" );
-$res = $ua->get( $server. "admin" );
+# $res = $ua->get( $server. "Roles" );
+# $res = $ua->get( $server. "Roles" );
+# $res = $ua->get( $server. "authstatus" );
+# $res = $ua->get( $server. "admin" );
 
