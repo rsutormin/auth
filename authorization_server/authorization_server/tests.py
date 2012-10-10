@@ -94,13 +94,14 @@ class RoleHandlerTest(TestCase):
 
         data = json.dumps(testdata )
 
-        resp = h.post(url, testdata )
+        resp = h.post(url, data, content_type="application/json" )
+
         self.assertEqual(resp.status_code, 401, "Should reject create without auth token")
 
-        resp = h.post(url, testdata, HTTP_AUTHORIZATION="OAuth %s" % papatoken )
+        resp = h.post(url, data, HTTP_AUTHORIZATION="OAuth %s" % papatoken, content_type="application/json" )
         self.assertEqual(resp.status_code, 401, "Should reject create without KBase membership")
 
-        resp = h.post(url, testdata, HTTP_AUTHORIZATION="OAuth %s" % kbusertoken )
+        resp = h.post(url, data, HTTP_AUTHORIZATION="OAuth %s" % kbusertoken, content_type="application/json" )
         self.assertEqual(resp.status_code, 201, "Should accept creation from legit kbase test user")
         # verify that object was inserted into database properly
         dbobj = self.roles.find( { 'role_id' : testdata['role_id'] } );
@@ -110,8 +111,8 @@ class RoleHandlerTest(TestCase):
         # Now we have to convert this to unicode by doing a JSON conversion and then back
         testdata = json.loads(json.dumps( testdata))
         self.assertTrue( testdata == testdatadb,"Data in mongodb should equal source testdata - minus _id field")
-
-        resp = h.post(url, testdata, HTTP_AUTHORIZATION="OAuth %s" % kbusertoken )
+        data = json.dumps(testdata )
+        resp = h.post(url, data, HTTP_AUTHORIZATION="OAuth %s" % kbusertoken, content_type="application/json" )
         self.assertEqual(resp.status_code, 409, "Should reject creation of duplicate role_id")
 
         # Remove the database record directly

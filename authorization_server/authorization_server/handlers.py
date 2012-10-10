@@ -78,7 +78,8 @@ import json
 from pymongo import Connection
 from piston.resource import Resource
 from django.conf import settings
-
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 
 pp = pprint.PrettyPrinter(indent=4)
 
@@ -194,9 +195,11 @@ class RoleHandler( BaseHandler):
             res.write(' error: %s' % e )
         return(res)
 
+    
+    @method_decorator(csrf_exempt)
     def create(self, request):
-        r = request.data
         try:
+            r = request.data
             if not request.user.username:
                 res = rc.FORBIDDEN
                 res.write(' request does not have username ')
@@ -204,7 +207,7 @@ class RoleHandler( BaseHandler):
                 res = rc.FORBIDDEN
                 res.write(' request not from a member of %s' % self.kbase_users)
             elif self.roles.find( { 'role_id': r['role_id'] }).count() == 0:
-                new = { x : r.getlist(x) for x in ('read','modify','delete',
+                new = { x : r.get(x,[]) for x in ('read','modify','delete',
                                                    'impersonate','grant','create','members','role_updater') }
                 new['role_id'] = r['role_id']
                 new['description'] = r['description']
@@ -220,6 +223,9 @@ class RoleHandler( BaseHandler):
             res = rc.BAD_REQUEST
             res.write(' error: %s' % e )
         return(res)
+
+
+    @method_decorator(csrf_exempt)
     def update(self, request, role_id=None):
         r = request.data
         try:
@@ -250,6 +256,7 @@ class RoleHandler( BaseHandler):
             res = rc.BAD_REQUEST
             res.write(' error: %s' % e )
         return(res)
+
     def delete(self, request, role_id = None):
         try:
             if not request.user.username:
