@@ -4,7 +4,7 @@ use Test::More tests => 26 ;
 use LWP::UserAgent ;
 use JSON;
 
-use lib "/Users/Andi/Development/kbase/auth/Bio-KBase-Auth/lib" ;
+#use lib "/Users/Andi/Development/kbase/auth/Bio-KBase-Auth/lib" ;
 use Bio::KBase::AuthToken ;
 
 
@@ -91,7 +91,7 @@ $ua->default_header( "Authorization" => "OAuth " . $object->token);
 # Test 9 Test authorization error code
 #
 
-my $res = $ua->get( $server. "Roles" );
+my $res = $ua->get( $server );
 ok( $res->code , "Request for Roles with valid token returns error code");
 
 #
