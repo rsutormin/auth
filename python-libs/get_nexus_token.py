@@ -2,6 +2,11 @@
 
 # get_nexus_token.py
 #
+# Installation requirements:
+#     1. Globus Online account - register at globusonline.org with
+#        a username and password
+#     2. httplib2 - run `easy_install httplib2`
+# 
 # usage: get_nexus_token.py [-h] [-u USERNAME] [-p PASSWORD] [-s URL]
 # 
 # Get Nexus Token with GO username/password. 
@@ -14,6 +19,8 @@
 #                         GO Password
 #   -s URL, --url URL     Nexus URL (defaults to production GO instance)
 #
+
+
 
 
 import httplib2
