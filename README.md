@@ -61,6 +61,8 @@ https://docs.google.com/document/d/1CTkthDUPwNzMF22maLyNIktI1sHdWPwtd3lJk0aFb20/
 
    Going to http://{authorization.host}/Roles will being up a JSON document that
 gives a description of the service.
+   The file authorization_service/authorization_service/handlers.py implements the
+REST service, and had a largish comment at the top explaining how it works.
 
 ### Setup using the kbase VMs
 =======
@@ -83,23 +85,24 @@ gives a description of the service.
 4. To configure the mongodb instance used to back the authorization service, create a
 file authorization_server/authorization_server/local_settings.py that declares which
 mongodb service to use. If there is no local_settings file the service will default to
-a localhost instance on the default port. In production you should have something like
-this example:
-cat /kb/deployment/services/authorization_server/authorization_server/authorization_server/local_settings.py
-import os
+the instance on mongodb.kbase.us
+   If you need to set it to be something else, put something like this in your
+local_settings.py
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3', # Add 'postgresql_psycopg2', 'postgresql', 'mysql', 'sqlite3' or 'oracle'.
-        'NAME': os.path.join(os.path.dirname(__file__), 'dbfiles/authdb.db'), # Or path to database file if using sqlite3.
-        'USER': '',                      # Not used with sqlite3.
-        'PASSWORD': '',                  # Not used with sqlite3.
-        'HOST': '',                      # Set to empty string for localhost. Not used with sqlite3.
-        'PORT': '',                      # Set to empty string for default. Not used with sqlite3.
-    }
-}
-
-MONGODB_CONN = ['mongodb.kbase.us']
+MONGODB_CONN = ['127.0.0.1']
 
 5. If necessary, you can load the base/bootstrap authorization roles by using the "load-mongodb" target to initialize the mongodb service with a bare minimum set of roles. This is not necessary when working with the mongodb.kbase.us service.
    sudo make load-mongodb
+
+6. The django server is started/stopped by using the start_service and stop_service
+scripts in /kb/deployment/services/authorization. Once you start the service, there
+will be a listener at http://hostname:7039/ with the authorization service responding
+under the /Roles/ url. You will need to access it with a KBase token to get any
+real data back:
+
+root@sychan-temp2:/kb/deployment/services/authorization_server# ./start_service 
+root@sychan-temp2:/kb/deployment/services/authorization_server# curl http://localhost:7039/Roles
+Forbidden request not from a member of kbase_users
+
+   See the file README_authenticated_requests.txt for an example of querying the
+service from the command line using a test account

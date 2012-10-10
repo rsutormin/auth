@@ -144,7 +144,6 @@ class RoleHandler( BaseHandler):
         try:
             res = self.roles.find_one( { 'role_id' : self.kbase_users,
                                           'members' : user_id })
-            print "Results are %s" % pp.pformat( res)
             return res is not None
         except:
             return False
@@ -198,7 +197,6 @@ class RoleHandler( BaseHandler):
 
     def create(self, request):
         r = request.data
-#        print pp.pformat( r)
         try:
             if not request.user.username:
                 res = rc.FORBIDDEN
@@ -207,11 +205,11 @@ class RoleHandler( BaseHandler):
                 res = rc.FORBIDDEN
                 res.write(' request not from a member of %s' % self.kbase_users)
             elif self.roles.find( { 'role_id': r['role_id'] }).count() == 0:
-                new = { x : r.get(x, []) for x in ('read','modify','delete','impersonate','grant','create') }
+                new = { x : r.getlist(x) for x in ('read','modify','delete',
+                                                   'impersonate','grant','create','members','role_updater') }
                 new['role_id'] = r['role_id']
                 new['description'] = r['description']
                 new['role_owner'] = request.user.username
-                new['role_updater'] = [request.user.username]
                 self.roles.insert( new)
                 res = rc.CREATED
             else:
@@ -267,7 +265,7 @@ class RoleHandler( BaseHandler):
             old = self.roles.find_one( { 'role_id': role_id })
             if old != None:
                 if request.user.username == old['role_owner']:
-                    self.roles.remove( { '_id' : r['_id'] }, safe=True)
+                    self.roles.remove( { '_id' : old['_id'] }, safe=True)
                     res = rc.DELETED
                 else:
                     res = rc.FORBIDDEN
