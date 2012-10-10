@@ -1,3 +1,75 @@
+"""
+
+Handlers for the Roles service.
+
+This is a set of mongodb backed handlers for a REST based authorization
+service. The authorization service simply serves up JSON docs that specify
+a set of permissions, and the users who have that set of permissions. Here
+is a sample JSON object:
+
+{
+    "role_owner": "sychan",
+    "role_id": "kbase_users",
+    "description": "List of user ids who are considered KBase users",
+    "members": [
+        "sychan",
+        "kbasetest",
+        "kbauthorz"
+    ],
+    "role_updater": [
+        "sychan",
+        "kbauthorz"
+    ],
+    "read": [],
+    "create": [],
+    "modify": [],
+    "impersonate": [],
+    "delete": []
+}
+
+   Here are the semantics of the fields:
+
+   'role_id' : 'Unique human readable identifer for role (required)',
+   'description' : 'Description of the role (required)',
+   'role_owner' : 'Owner(creator) of this role',
+   'role_updater' : 'User_ids that can update this role',
+   'members' : 'A list of the user_ids who are members of this group',
+   'read' : 'List of kbase object ids (strings) that this role allows read privs',
+   'modify' : 'List of kbase object ids (strings) that this role allows modify privs',
+   'delete' : 'List of kbase object ids (strings) that this role allows delete privs',
+   'impersonate' : 'List of kbase user_ids (strings) that this role allows impersonate privs',
+   'grant' : 'List of kbase authz role_ids (strings) that this role allows grant privs',
+   'create' : 'Boolean value - does this role provide the create privilege'
+
+   The service is typically mounted under /Roles. Here are the authentication requirements
+for each HTTP method:
+
+   GET : requires valid token and membership in role_id in settings.kbase_users
+   PUT : requires valid token and user in role_owner, or in the role_updater field for object
+   POST : requires valid token and membership in role_id in settings.kbase_users
+   DELETE : requires valid token and request must come from role_owner of target object
+
+   The GET method supports the MongoDB options for filter and fields. For queries and filter
+parameters the filter parameter is passed as the first parameter and the fields parameter is
+the second parameter passed into the pymongo collection.find() method, see:
+
+http://api.mongodb.org/python/current/api/pymongo/collection.html
+
+   As an example, the following query returns all role objects that have sychan as a member:
+http://authorization_host/Roles?filter={ "members" : "sychan"}
+
+   To pull up only the role_id fields:
+
+http://authorization_host/Roles?filter={ "members" : "sychan"}&fields={"role_id" : "1"}
+
+   To pull up the role_id fields for roles with "test" as part of their name (PCRE regex):
+
+http://authorization_host/Roles?filter={ "role_id" : { "$regex" : ".*test.*" }}&fields={ "role_id" : "1" }
+
+
+"""
+
+
 from piston.handler import BaseHandler
 from piston.utils import rc
 import pprint
@@ -23,13 +95,12 @@ class RoleHandler( BaseHandler):
     fields = ('role_id','description','members','read','modify','delete',
               'impersonate','grant','create','role_owner','role_updater')
     exclude = ( '_id', )
-
     # We need to define the appropriate settings and set them here
     try:
         conn = Connection(settings.MONGODB_CONN)
     except AttributeError as e:
         print "No connection settings specified: %s\n" % e
-        conn = Connection()
+        conn = Connection(['mongodb.kbase.us'])
     except Exception as e:
         print "Generic exception %s: %s\n" % (type(e),e)
         conn = Connection()
@@ -40,6 +111,31 @@ class RoleHandler( BaseHandler):
         kbase_users = settings.kbase_users
     except AttributeError as e:
         kbase_users = 'kbase_users'
+    # Help object when queries go to the top level with no search specification
+    help_json = { 'id' : 'KBase Authorization',
+                  'documentation' : 'https://docs.google.com/document/d/1CTkthDUPwNzMF22maLyNIktI1sHdWPwtd3lJk0aFb20/edit',
+                  'resources' : { 'role_id' : 'Unique human readable identifer for role (required)',
+                                  'description' : 'Description of the role (required)',
+                                  'role_owner' : 'Owner(creator) of this role',
+                                  'role_updater' : 'User_ids that can update this role',
+                                  'members' : 'A list of the user_ids who are members of this group',
+                                  'read' : 'List of kbase object ids (strings) that this role allows read privs',
+                                  'modify' : 'List of kbase object ids (strings) that this role allows modify privs',
+                                  'delete' : 'List of kbase object ids (strings) that this role allows delete privs',
+                                  'impersonate' : 'List of kbase user_ids (strings) that this role allows impersonate privs',
+                                  'grant' : 'List of kbase authz role_ids (strings) that this role allows grant privs',
+                                  'create' : 'Boolean value - does this role provide the create privilege'
+                                  },
+                  'contact' : { 'email' : 'sychan@lbl.gov'},
+                  'usage'   : 'This is a standard REST service. Note that read handler takes\n' + 
+                  'MongoDB filtering and JSON field selection options passed as\n' +
+                  'URL parameters \'filter\' and \'fields\' respectively.\n' +
+                  'Please look at MongoDB pymongo collection documentation for details.\n' +
+                  'Read and Create are currently open to all authenticated users in role "%s", but\n' % kbase_users +
+                  'delete requires ownership of the document (in field role_owner),\n' + 
+                  'update requires ownership or membership in the target document\'s role_updaters list\n'
+                  }
+
 
     # Check mongodb to see if the user is in kbase_user role, necessary
     # before they can perform any kinds of updates
@@ -75,29 +171,7 @@ class RoleHandler( BaseHandler):
                 filter = request.GET.get('filter', None)
                 fields = request.GET.get('fields', None)
                 if role_id == None and filter == None:
-                    res = { 'id' : 'KBase Authorization',
-                            'documentation' : 'https://docs.google.com/document/d/1CTkthDUPwNzMF22maLyNIktI1sHdWPwtd3lJk0aFb20/edit',
-                            'resources' : { 'role_id' : 'Unique human readable identifer for role (required)',
-                                            'description' : 'Description of the role (required)',
-                                            'role_owner' : 'Owner(creator) of this role',
-                                            'role_updater' : 'User_ids that can update this role',
-                                            'members' : 'A list of the user_ids who are members of this group',
-                                            'read' : 'List of kbase object ids (strings) that this role allows read privs',
-                                            'modify' : 'List of kbase object ids (strings) that this role allows modify privs',
-                                            'delete' : 'List of kbase object ids (strings) that this role allows delete privs',
-                                            'impersonate' : 'List of kbase user_ids (strings) that this role allows impersonate privs',
-                                            'grant' : 'List of kbase authz role_ids (strings) that this role allows grant privs',
-                                            'create' : 'Boolean value - does this role provide the create privilege'
-                                            },
-                            'contact' : { 'email' : 'sychan@lbl.gov'},
-                            'usage'   : 'This is a standard REST service. Note that read handler takes\n' + 
-                            'MongoDB filtering and JSON field selection options passed as\n' +
-                            'URL parameters \'filter\' and \'fields\' respectively.\n' +
-                            'Please look at MongoDB documentation for details.\n' +
-                            'Reading is currently open to all authenticated users, but\n' +
-                            'create, update and delete will require membership in the\n' +
-                            'internal KBase User role (role_id == \'%s\')' % self.kbase_users,
-                            }
+                    res = self.help_json
                 elif role_id != None:
                     res = self.roles.find_one( { 'role_id': role_id })
                     if res != None:
