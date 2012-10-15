@@ -15,7 +15,7 @@ deploy: install-libs
 
 install-libs:
 	cd Bio-KBase-Auth; \
-	mkdir -l $(KB_PERL_PATH); \
+	mkdir -p $(KB_PERL_PATH); \
 	/kb/runtime/bin/perl ./Build.PL ; \
 	/kb/runtime/bin/perl ./Build installdeps --install_path lib=$(KB_PERL_PATH); \
 	/kb/runtime/bin/perl ./Build install --install_path lib=$(KB_PERL_PATH) ;
