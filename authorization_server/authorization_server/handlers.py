@@ -222,9 +222,8 @@ class RoleHandler( BaseHandler):
             res.write(' error: %s' % e )
         return(res)
     def update(self, request, role_id=None):
-        r = request.data
-#        print pp.pformat( r)
         try:
+            r = request.data
             if not request.user.username:
                 res = rc.FORBIDDEN
                 res.write(' request does not have username ')
