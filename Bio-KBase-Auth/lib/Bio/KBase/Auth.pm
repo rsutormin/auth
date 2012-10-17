@@ -10,11 +10,7 @@ $Bio::KBase::Auth::AuthorizePath = "/goauth/token";
 $Bio::KBase::Auth::ProfilePath = "users";
 $Bio::KBase::Auth::RoleSvcURL = "http://127.0.0.1:8000/Roles";
 
-<<<<<<< HEAD
 our $VERSION = '0.4.0';
-=======
-our $VERSION = '0.3.1';
->>>>>>> f3aaaded98fc4cf032a525c973e0c5f1998d0e54
 
 1;
 

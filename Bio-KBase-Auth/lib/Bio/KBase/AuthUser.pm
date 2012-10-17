@@ -167,10 +167,10 @@ sub get {
 	}
 
 	# The GO groups are not working yet, use internal groups 
-	#my @groups = map { $_->{'name'}; } @{$nuser->{'groups'}};
-	# $self->{'groups'} = \@groups;
-	my %groups = $self->roles_request();
-	$self->{'groups'} = \%groups;
+	my @groups = map { $_->{'name'}; } @{$nuser->{'groups'}};
+	 $self->{'groups'} = \@groups;
+	#my %groups = $self->roles_request();
+	#$self->{'groups'} = \%groups;
 
 
 
