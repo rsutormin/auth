@@ -172,8 +172,21 @@ class RoleHandlerTest(TestCase):
     def testUpdate(self):
         h = self.client
         url = "/Roles/"
-        data = json.dumps(self.testdata)
 
+        # Push a record into the mongodb directly so that we can modify it
+        testdata = self.testdata
+        testdata['role_id'] += "".join(random.sample(charset,10))
+        try:
+            self.roles.insert(testdata)
+            testdata2 = testdata
+            # try without auth, should fail
+
+            resp = h.put(url, testdata, content-type="application/json")
+            self.assertEqual(resp.status_code, 401, "Should reject create without auth token")
+
+
+            # try an error condition where we leave out the role_id
+            del testdata2['role_id']
         #resp = h.post(url, {'data' : data})
 
         #self.assertEqual(resp.status_code, 200)

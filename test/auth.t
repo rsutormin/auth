@@ -85,6 +85,7 @@ my $ua     = LWP::UserAgent->new();
 # 
 
 $ua->default_header( "Authorization" => "OAuth " . $object->token);
+$ua->default_header( "Content-Type" => "application/json");
 
 #
 # Test 9 Test authorization error code
