@@ -78,7 +78,8 @@ import json
 from pymongo import Connection
 from piston.resource import Resource
 from django.conf import settings
-
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 
 pp = pprint.PrettyPrinter(indent=4)
 
@@ -100,7 +101,7 @@ class RoleHandler( BaseHandler):
         conn = Connection(settings.MONGODB_CONN)
     except AttributeError as e:
         print "No connection settings specified: %s\n" % e
-        conn = Connection()
+        conn = Connection(['mongodb.kbase.us'])
     except Exception as e:
         print "Generic exception %s: %s\n" % (type(e),e)
         conn = Connection()
@@ -178,7 +179,6 @@ class RoleHandler( BaseHandler):
                             if excl in res:
                                 del res[excl]
                 else:
-#                       print "Filter = %s\n" % pp.pformat(filter)
                     filter = json.loads(filter)
                     if fields:
                         fields = json.loads(fields)
@@ -195,9 +195,11 @@ class RoleHandler( BaseHandler):
             res.write(' error: %s' % e )
         return(res)
 
+    
+    @method_decorator(csrf_exempt)
     def create(self, request):
-        r = request.data
         try:
+            r = request.data
             if not request.user.username:
                 res = rc.FORBIDDEN
                 res.write(' request does not have username ')
@@ -205,7 +207,7 @@ class RoleHandler( BaseHandler):
                 res = rc.FORBIDDEN
                 res.write(' request not from a member of %s' % self.kbase_users)
             elif self.roles.find( { 'role_id': r['role_id'] }).count() == 0:
-                new = { x : r.getlist(x) for x in ('read','modify','delete',
+                new = { x : r.get(x,[]) for x in ('read','modify','delete',
                                                    'impersonate','grant','create','members','role_updater') }
                 new['role_id'] = r['role_id']
                 new['description'] = r['description']
@@ -221,6 +223,9 @@ class RoleHandler( BaseHandler):
             res = rc.BAD_REQUEST
             res.write(' error: %s' % e )
         return(res)
+
+
+    @method_decorator(csrf_exempt)
     def update(self, request, role_id=None):
         try:
             r = request.data
@@ -231,7 +236,7 @@ class RoleHandler( BaseHandler):
                 res = rc.FORBIDDEN
                 res.write(' request not from a member of %s' % self.kbase_users)
             elif role_id == None:
-                role_id = request.data['role_id']
+                role_id = r['role_id']
             old = self.roles.find_one( { 'role_id': role_id })
             if old != None:
                 if request.user.username == old['role_owner'] or request.user.username in old['role_updater'] :
@@ -251,6 +256,7 @@ class RoleHandler( BaseHandler):
             res = rc.BAD_REQUEST
             res.write(' error: %s' % e )
         return(res)
+
     def delete(self, request, role_id = None):
         try:
             if not request.user.username:

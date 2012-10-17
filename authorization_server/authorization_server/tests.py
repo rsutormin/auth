@@ -94,13 +94,14 @@ class RoleHandlerTest(TestCase):
 
         data = json.dumps(testdata )
 
-        resp = h.post(url, testdata )
+        resp = h.post(url, data, content_type="application/json" )
+
         self.assertEqual(resp.status_code, 401, "Should reject create without auth token")
 
-        resp = h.post(url, testdata, HTTP_AUTHORIZATION="OAuth %s" % papatoken )
+        resp = h.post(url, data, HTTP_AUTHORIZATION="OAuth %s" % papatoken, content_type="application/json" )
         self.assertEqual(resp.status_code, 401, "Should reject create without KBase membership")
 
-        resp = h.post(url, testdata, HTTP_AUTHORIZATION="OAuth %s" % kbusertoken )
+        resp = h.post(url, data, HTTP_AUTHORIZATION="OAuth %s" % kbusertoken, content_type="application/json" )
         self.assertEqual(resp.status_code, 201, "Should accept creation from legit kbase test user")
         # verify that object was inserted into database properly
         dbobj = self.roles.find( { 'role_id' : testdata['role_id'] } );
@@ -110,8 +111,8 @@ class RoleHandlerTest(TestCase):
         # Now we have to convert this to unicode by doing a JSON conversion and then back
         testdata = json.loads(json.dumps( testdata))
         self.assertTrue( testdata == testdatadb,"Data in mongodb should equal source testdata - minus _id field")
-
-        resp = h.post(url, testdata, HTTP_AUTHORIZATION="OAuth %s" % kbusertoken )
+        data = json.dumps(testdata )
+        resp = h.post(url, data, HTTP_AUTHORIZATION="OAuth %s" % kbusertoken, content_type="application/json" )
         self.assertEqual(resp.status_code, 409, "Should reject creation of duplicate role_id")
 
         # Remove the database record directly
@@ -176,39 +177,51 @@ class RoleHandlerTest(TestCase):
         # Push a record into the mongodb directly so that we can modify it
         testdata = self.testdata
         testdata['role_id'] += "".join(random.sample(charset,10))
-        try:
-            self.roles.insert(testdata)
-            testdata2 = testdata
-            # try without auth, should fail
+        testdata['role_owner'] = "sychan"
+        self.roles.insert(testdata)
+        # create a copy of the testdata
+        testdata2 = dict(testdata)
+        id = testdata2['_id']
+        del testdata2['_id']
+        jdata = json.dumps( testdata2)
 
-            resp = h.put(url, testdata, content-type="application/json")
-            self.assertEqual(resp.status_code, 401, "Should reject create without auth token")
+        url_roleid = "%s%s" % (url,testdata2['role_id'])
 
+        # try without auth, should fail
+        resp = h.put( url_roleid, jdata, content_type="application/json")
+        self.assertEqual(resp.status_code, 401, "Should reject update without auth token")
 
-            # try an error condition where we leave out the role_id
-            del testdata2['role_id']
-        #resp = h.post(url, {'data' : data})
+        # try with kbasetest user, should fail because not in updaters
+        resp = h.put( url_roleid, jdata, content_type="application/json",
+                     HTTP_AUTHORIZATION = "OAuth %s" % kbusertoken )
+        self.assertEqual(resp.status_code, 401, "Should reject update from wrong user")
 
-        #self.assertEqual(resp.status_code, 200)
+        # add kbasetest to the updaters so that we can change things
+        testdata['role_updater'].append("kbasetest");
+        testdata['_id'] = id
+        self.roles.save( testdata)
+        testdata2 = dict(testdata)
+        del testdata2['_id']
+        testdata2['description'] = "New test role description"
+        testdata2['create'] = ['bugsbunny','roadrunner']
+        jdata = json.dumps( testdata2)
 
-        #job_info = json.loads(resp.content)
-        #id = job_info['id']
-        #url = "/job/%s/" % id
+        # try again, should allow update
+        resp = h.put( url_roleid, jdata, content_type="application/json",
+                     HTTP_AUTHORIZATION = "OAuth %s" % kbusertoken )
+        self.assertEqual(resp.status_code, 201, "Should accept update")
 
-        #state = JobState.completed
-        #job_id = "cvr.66"
-
-        #data = json.dumps({'state': state, 'job_id': job_id})
-
-        #resp = h.put(url, {'data' : data})
-
-        #self.assertEqual(resp.status_code, 200)
-
-        #j=Job.objects.get(id=id)
-        #self.assertEqual(j.state, state)
-        #self.assertEqual(j.job_id, job_id)
-        self.assertEqual(0,0)
-
+        # pull record from the DB and make sure it is identical to what
+        # we sent
+        dbobj = self.roles.find( { 'role_id' : testdata2['role_id'] })
+        self.assertEqual( dbobj.count(), 1, "Should be only a single instance of %s role" % testdata2['role_id'])
+        testdatadb = dbobj[0];
+        del testdatadb['_id']
+        # Now we have to convert this to unicode by doing a JSON conversion and then back
+        testdata2 = json.loads(json.dumps( testdata2))
+        self.assertTrue( testdata2 == testdatadb,"Data in mongodb should equal source testdata - minus _id field")
+        self.roles.remove( { '_id' : id }, safe=True)
+        
     def testDelete(self):
         h = self.client
         url = "/Roles/"
