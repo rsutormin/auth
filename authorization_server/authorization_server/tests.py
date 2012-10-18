@@ -85,7 +85,7 @@ class RoleHandlerTest(TestCase):
         h = self.client
         url = "/Roles/"
         authstatus = "/authstatus/"
-        testdata = self.testdata
+        testdata = dict(self.testdata)
         testdata['role_id'] += "".join(random.sample(charset,10))
 
         dbobj = self.roles.find( { 'role_id' : testdata['role_id'] } );
@@ -115,6 +115,22 @@ class RoleHandlerTest(TestCase):
         resp = h.post(url, data, HTTP_AUTHORIZATION="OAuth %s" % kbusertoken, content_type="application/json" )
         self.assertEqual(resp.status_code, 409, "Should reject creation of duplicate role_id")
 
+        # strip out the role_id field to to force validation error
+        del testdata['role_id']
+        data = json.dumps(testdata )
+        resp = h.post(url, data, HTTP_AUTHORIZATION="OAuth %s" % kbusertoken, content_type="application/json" )
+        self.assertEqual(resp.status_code, 400, "Should refuse creation")
+        self.assertTrue(resp.content.count('role_id') >= 1, "Should call out role_id as missing field")
+
+        # strip out the role_id field to to force validation error
+        testdata['role_id'] = self.testdata['role_id']
+        del testdata['description']
+        data = json.dumps(testdata )
+        resp = h.post(url, data, HTTP_AUTHORIZATION="OAuth %s" % kbusertoken, content_type="application/json" )
+        self.assertEqual(resp.status_code, 400, "Should refuse creation")
+        self.assertTrue(resp.content.count('description') >= 1, "Should call out description as missing field")
+        
+
         # Remove the database record directly
         self.roles.remove( { 'role_id' : testdata['role_id'] } )
 
@@ -128,15 +144,27 @@ class RoleHandlerTest(TestCase):
         resp = h.get(url, {}, HTTP_AUTHORIZATION="OAuth %s" % papatoken)
         self.assertEqual(resp.status_code, 401, "Should reject queries without KBase membership")
 
-        resp = h.get(url, {}, HTTP_AUTHORIZATION="OAuth %s" % kbusertoken)
+        resp = h.get(url+"?about", {}, HTTP_AUTHORIZATION="OAuth %s" % kbusertoken)
         self.assertEqual(resp.status_code, 200, "Should accept queries from legit kbase test user")
         respjson = json.loads(resp.content)
         usage = respjson.get('usage')
         self.assertIsNotNone(usage, "Expecting usage message")
 
+        resp = h.get(url, {}, HTTP_AUTHORIZATION="OAuth %s" % kbusertoken)
+        self.assertEqual(resp.status_code, 200, "Should accept queries from legit kbase test user")
+        respjson = json.loads(resp.content)
+        self.assertIn("kbase_users",respjson, "Expecting usage message")
+
         url2 = "%skbase_users" % url
         resp = h.get(url2, {}, HTTP_AUTHORIZATION="OAuth %s" % kbusertoken)
         self.assertEqual(resp.status_code, 200, "Querying for kbase_user role from legit kbase test user")
+        respjson = json.loads(resp.content)
+        members = respjson.get('members')
+        self.assertIsNotNone(members, "Expecting members field")
+
+        url2 = "%s?role_id=kbase_users" % url
+        resp = h.get(url2, {}, HTTP_AUTHORIZATION="OAuth %s" % kbusertoken)
+        self.assertEqual(resp.status_code, 200, "Querying for kbase_user role from legit kbase test user using GET param")
         respjson = json.loads(resp.content)
         members = respjson.get('members')
         self.assertIsNotNone(members, "Expecting members field")
@@ -148,6 +176,18 @@ class RoleHandlerTest(TestCase):
         self.assertEqual(resp.status_code, 200, "Querying for nonexistent role using kbase test user")
         respjson = json.loads(resp.content)
         self.assertIsNone(respjson, "Expecting no response")
+
+
+        # try a regex filter search for all possible role_ids
+        filter = { "role_id" : { "$regex" : ".*" }}
+        filterjs = json.dumps( filter )
+        url2 = "%s?filter=%s" % (url,filterjs)
+        resp = h.get(url2, {}, HTTP_AUTHORIZATION="OAuth %s" % kbusertoken)
+        self.assertEqual(resp.status_code, 200, "Querying using regex filter")
+        respjson = json.loads(resp.content)
+        self.assertTrue(len(respjson) > 0, "Expecting multiple responses")
+        fields = list(set(reduce( operator.add,[x.keys() for x in respjson],[] )))
+        self.assertTrue( len(fields) > 1, "Expecting a multiple fields in results set")
 
         # try a regex filter search for all possible role_ids, but returning only one field
         filter = { "role_id" : { "$regex" : ".*" }}
@@ -175,7 +215,7 @@ class RoleHandlerTest(TestCase):
         url = "/Roles/"
 
         # Push a record into the mongodb directly so that we can modify it
-        testdata = self.testdata
+        testdata = dict(self.testdata)
         testdata['role_id'] += "".join(random.sample(charset,10))
         testdata['role_owner'] = "sychan"
         self.roles.insert(testdata)
@@ -191,10 +231,21 @@ class RoleHandlerTest(TestCase):
         resp = h.put( url_roleid, jdata, content_type="application/json")
         self.assertEqual(resp.status_code, 401, "Should reject update without auth token")
 
+        # try with non kbase auth, should fail
+        resp = h.put( url_roleid, jdata, content_type="application/json",
+                      HTTP_AUTHORIZATION = "OAuth %s" % papatoken )
+        self.assertEqual(resp.status_code, 401, "Should reject update with non kbase user")
+
         # try with kbasetest user, should fail because not in updaters
         resp = h.put( url_roleid, jdata, content_type="application/json",
                      HTTP_AUTHORIZATION = "OAuth %s" % kbusertoken )
         self.assertEqual(resp.status_code, 401, "Should reject update from wrong user")
+
+
+        # try with kbasetest user, but bogus role_id, should fail
+        resp = h.put( url_roleid + "_blabla", jdata, content_type="application/json",
+                     HTTP_AUTHORIZATION = "OAuth %s" % kbusertoken )
+        self.assertEqual(resp.status_code, 410, "Should reject update to bogus role_id")
 
         # add kbasetest to the updaters so that we can change things
         testdata['role_updater'].append("kbasetest");
@@ -220,22 +271,45 @@ class RoleHandlerTest(TestCase):
         # Now we have to convert this to unicode by doing a JSON conversion and then back
         testdata2 = json.loads(json.dumps( testdata2))
         self.assertTrue( testdata2 == testdatadb,"Data in mongodb should equal source testdata - minus _id field")
+
+        # try one more no op update, but the role_id is from the message bodt
+        resp = h.put( url, jdata, content_type="application/json",
+                     HTTP_AUTHORIZATION = "OAuth %s" % kbusertoken )
+        self.assertEqual(resp.status_code, 201, "Should accept update")
+
+        # try one more no op update, but with no role_id specified
+        del testdata2['role_id']
+        jdata = json.dumps( testdata2)
+        resp = h.put( url, jdata, content_type="application/json",
+                     HTTP_AUTHORIZATION = "OAuth %s" % kbusertoken )
+        self.assertEqual(resp.status_code, 400, "Should decline update without role_id")
+
+
         self.roles.remove( { '_id' : id }, safe=True)
         
     def testDelete(self):
         h = self.client
         url = "/Roles/"
-        testdata = self.testdata
+        testdata = dict(self.testdata)
         testdata['role_id'] += "".join(random.sample(charset,10))
-
+        # insert the testdata
         self.roles.insert( testdata)
+
         url = "%s%s" % (url, testdata['role_id'])
         resp = h.delete( url)
         self.assertEqual(resp.status_code, 401, "Should reject delete without auth token")
 
+        resp = h.delete( url,{},HTTP_AUTHORIZATION="OAuth %s" % papatoken )
+        self.assertEqual(resp.status_code, 401, "Should reject for non kbase user")
+
+        resp = h.delete( '/Roles/',{},HTTP_AUTHORIZATION="OAuth %s" % kbusertoken )
+        self.assertEqual(resp.status_code, 400, "Should reject delete without role_id")
+
+        resp = h.delete( "%s%s" % (url,"_blahblah"),{},HTTP_AUTHORIZATION="OAuth %s" % kbusertoken )
+        self.assertEqual(resp.status_code, 410, "Should reject delete for nonexistent role_id")
+
         resp = h.delete( url,{},HTTP_AUTHORIZATION="OAuth %s" % kbusertoken )
         self.assertEqual(resp.status_code, 204, "Should allow delete with kbasetest auth token")
-
         testdata['role_owner'] = "elmerfudd"
         self.roles.insert( testdata)
         resp = h.delete( url,{},HTTP_AUTHORIZATION="OAuth %s" % kbusertoken )

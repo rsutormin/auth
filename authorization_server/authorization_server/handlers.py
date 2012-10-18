@@ -83,14 +83,6 @@ from django.utils.decorators import method_decorator
 
 pp = pprint.PrettyPrinter(indent=4)
 
-# Convert QuerySet into a dictionary keyed on the field named in 2nd parameter
-def dictify(objs,key):
-    results = {}
-    for x in range(len(objs)):
-        results[objs[x][key]] = objs[x]
-        
-    return results
-
 class RoleHandler( BaseHandler):
     allowed_methods = ('GET','POST','PUT','DELETE')
     fields = ('role_id','description','members','read','modify','delete',
@@ -128,13 +120,15 @@ class RoleHandler( BaseHandler):
                                   'create' : 'Boolean value - does this role provide the create privilege'
                                   },
                   'contact' : { 'email' : 'sychan@lbl.gov'},
-                  'usage'   : 'This is a standard REST service. Note that read handler takes\n' + 
-                  'MongoDB filtering and JSON field selection options passed as\n' +
-                  'URL parameters \'filter\' and \'fields\' respectively.\n' +
-                  'Please look at MongoDB pymongo collection documentation for details.\n' +
-                  'Read and Create are currently open to all authenticated users in role "%s", but\n' % kbase_users +
-                  'delete requires ownership of the document (in field role_owner),\n' + 
-                  'update requires ownership or membership in the target document\'s role_updaters list\n'
+                  'usage'   : 'This is a standard REST service. Note that read handler takes ' + 
+                  'MongoDB filtering and JSON field selection options passed as ' +
+                  'URL parameters \'filter\' and \'fields\' respectively. ' +
+                  'For example, to get a list of all role_id\'s use: ' + 
+                  '/Roles/?filter={ "role_id" : { "$regex" : ".*" }}&fields={ "role_id" : "1"} ' + 
+                  'Please look at MongoDB pymongo collection documentation for details. ' +
+                  'Read and Create are currently open to all authenticated users in role "%s", but' % kbase_users +
+                  'delete requires ownership of the document (in field role_owner), ' + 
+                  'update requires ownership or membership in the target document\'s role_updaters list.'
                   }
 
 
@@ -149,17 +143,6 @@ class RoleHandler( BaseHandler):
         except:
             return False
 
-    # Get all role_ids associated with a user_id, returns a
-    # an array of role_ids (strings)
-    def get_user_roles(self, user_id):
-        try:
-            roles= self.roles.find( { 'members' : user_id },
-                                    { 'role_id' : '1' })
-            return [ roles[x]['role_id'] for x in range( roles.count())]
-        except Exception as e:
-            print "Error while fetching roles for user %s: %s" % ( user_id, e)
-            return []
-
     def read(self, request, role_id=None):
         try:
             if not request.user.username or not self.check_kbase_user( request.user.username):
@@ -170,8 +153,12 @@ class RoleHandler( BaseHandler):
                     role_id = request.GET.get('role_id')
                 filter = request.GET.get('filter', None)
                 fields = request.GET.get('fields', None)
-                if role_id == None and filter == None:
+                if 'about' in request.GET:
                     res = self.help_json
+                elif role_id == None and filter == None:
+                    # list all role_ids
+                    all=self.roles.find()
+                    res = [ all[x]['role_id'] for x in range( all.count())]
                 elif role_id != None:
                     res = self.roles.find_one( { 'role_id': role_id })
                     if res != None:
@@ -200,9 +187,9 @@ class RoleHandler( BaseHandler):
     def create(self, request):
         try:
             r = request.data
-            if not request.user.username:
+            if not request.user.is_authenticated():
                 res = rc.FORBIDDEN
-                res.write(' request does not have username ')
+                res.write(' request is not authenticated ')
             elif not self.check_kbase_user( request.user.username):
                 res = rc.FORBIDDEN
                 res.write(' request not from a member of %s' % self.kbase_users)
@@ -229,9 +216,9 @@ class RoleHandler( BaseHandler):
     def update(self, request, role_id=None):
         try:
             r = request.data
-            if not request.user.username:
+            if not request.user.is_authenticated():
                 res = rc.FORBIDDEN
-                res.write(' request does not have username ')
+                res.write(' request is not authenticated')
             elif not self.check_kbase_user( request.user.username):
                 res = rc.FORBIDDEN
                 res.write(' request not from a member of %s' % self.kbase_users)
@@ -259,9 +246,9 @@ class RoleHandler( BaseHandler):
 
     def delete(self, request, role_id = None):
         try:
-            if not request.user.username:
+            if not request.user.is_authenticated():
                 res = rc.FORBIDDEN
-                res.write(' request does not have username ')
+                res.write(' request is not authenticated')
             elif not self.check_kbase_user( request.user.username):
                 res = rc.FORBIDDEN
                 res.write(' request not from a member of %s' % self.kbase_users)
