@@ -87,6 +87,7 @@ class RoleHandlerTest(TestCase):
         authstatus = "/authstatus/"
         testdata = dict(self.testdata)
         testdata['role_id'] += "".join(random.sample(charset,10))
+        id = testdata['role_id']
 
         dbobj = self.roles.find( { 'role_id' : testdata['role_id'] } );
         if dbobj.count() != 0:
@@ -122,8 +123,14 @@ class RoleHandlerTest(TestCase):
         self.assertEqual(resp.status_code, 400, "Should refuse creation")
         self.assertTrue(resp.content.count('role_id') >= 1, "Should call out role_id as missing field")
 
-        # strip out the role_id field to to force validation error
-        testdata['role_id'] = self.testdata['role_id']
+        # try a duplicate role_id to force error
+        testdata['role_id'] = id
+        data = json.dumps(testdata )
+        resp = h.post(url, data, HTTP_AUTHORIZATION="OAuth %s" % kbusertoken, content_type="application/json" )
+        self.assertEqual(resp.status_code, 409, "Should refuse creation")
+
+        # strip out the description field to to force validation error
+        testdata['role_id'] += "".join(random.sample(charset,10))
         del testdata['description']
         data = json.dumps(testdata )
         resp = h.post(url, data, HTTP_AUTHORIZATION="OAuth %s" % kbusertoken, content_type="application/json" )
@@ -132,7 +139,7 @@ class RoleHandlerTest(TestCase):
         
 
         # Remove the database record directly
-        self.roles.remove( { 'role_id' : testdata['role_id'] } )
+        self.roles.remove( { 'role_id' : id } )
 
     def testRead(self):
         h = self.client
@@ -293,6 +300,7 @@ class RoleHandlerTest(TestCase):
         testdata = dict(self.testdata)
         testdata['role_id'] += "".join(random.sample(charset,10))
         # insert the testdata
+        testdata['role_owner'] = "kbasetest"
         self.roles.insert( testdata)
 
         url = "%s%s" % (url, testdata['role_id'])
@@ -309,7 +317,9 @@ class RoleHandlerTest(TestCase):
         self.assertEqual(resp.status_code, 410, "Should reject delete for nonexistent role_id")
 
         resp = h.delete( url,{},HTTP_AUTHORIZATION="OAuth %s" % kbusertoken )
+        print "%d %s" % (resp.status_code,resp.content)
         self.assertEqual(resp.status_code, 204, "Should allow delete with kbasetest auth token")
+
         testdata['role_owner'] = "elmerfudd"
         self.roles.insert( testdata)
         resp = h.delete( url,{},HTTP_AUTHORIZATION="OAuth %s" % kbusertoken )
