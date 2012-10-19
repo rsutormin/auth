@@ -4,7 +4,7 @@ use Test::More tests => 26 ;
 use LWP::UserAgent ;
 use JSON;
 
-use lib "/Users/Andi/Development/kbase/auth/Bio-KBase-Auth/lib" ;
+use lib "../Bio-KBase-Auth/lib" ;
 use Bio::KBase::AuthToken ;
 
 
