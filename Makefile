@@ -12,9 +12,8 @@ KB_PERL_PATH = $(DEPLOY_RUNTIME)/perl5/site_perl
 
 SERVICE = authorization_server
 SERVICE_DIR = $(TARGET)/services/$(SERVICE)
-NGINX_CONF = /etc/nginx/conf.d/
 
-all: deploy deploy-services
+all: deploy
 
 deploy: install-libs
 
