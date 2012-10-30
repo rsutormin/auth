@@ -8,7 +8,8 @@ DEPLOY_RUNTIME ?= /kb/runtime
 TARGET ?= /kb/deployment
 DEPLOY_PERL = $(addprefix $(TARGET)/bin/,$(basename $(notdir $(SRC_PERL))))
 
-KB_PERL_PATH = $(DEPLOY_RUNTIME)/perl5/site_perl
+#KB_PERL_PATH = $(DEPLOY_RUNTIME)/perl5/site_perl
+KB_PERL_PATH = $(TARGET)/lib
 
 SERVICE = authorization_server
 SERVICE_DIR = $(TARGET)/services/$(SERVICE)
