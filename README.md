@@ -37,17 +37,6 @@ https://www.globusonline.org/SignUp
 
 http://www.kbase.us/developer-zone/tutorials/developer-tutorials/kbase-authentication/
 
-   The initial documentation for the authorization service is here:
-
-https://docs.google.com/document/d/1CTkthDUPwNzMF22maLyNIktI1sHdWPwtd3lJk0aFb20/edit
-
-   Going to http://{authorization.host}/Roles?about will being up a JSON document that
-gives a description of the service.
-   The file authorization_service/authorization_service/handlers.py implements the
-REST service, and had a largish comment at the top explaining how it works.
-   Unittests for the authz service have been implemented using the Django unittest
-framework, so they can be run with "manage.py test authorization_server"
-
 ### Setup using the kbase VMs
 =======
 0.  Start the VM and clone the git repo.
@@ -56,9 +45,20 @@ framework, so they can be run with "manage.py test authorization_server"
     git clone ssh://kbase@git.kbase.us/auth
     cd auth
 
+1. Following an updated version of the directions
+   from: https://trac.kbase.us/projects/kbase/wiki/IntegrationTargets
+   sudo bash
+   cd /kb
+   git clone kbase@git.kbase.us:/dev_container.git
+   cd dev_container/modules
+   git clone kbase@git.kbase.us:/auth.git
+   cd ..
+   ./bootstrap /kb/runtime
+   . user-env.sh
+
 1. As root do a make deploy. This will install the perl libraries
-   sudo -s
+   cd modules/auth
    make deploy 
 
 2. Run tests for the perl libraries
-   make test-libs
+   make test
