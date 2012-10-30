@@ -25,6 +25,8 @@ install-libs:
 	/kb/runtime/bin/perl ./Build installdeps --install_path lib=$(KB_PERL_PATH); \
 	/kb/runtime/bin/perl ./Build install --install_path lib=$(KB_PERL_PATH) ;
 
+test: test-libs
+
 test-libs: install-libs
 	export PERL5LIB=$(KB_PERL_PATH) ; \
 	cd Bio-KBase-Auth; /kb/runtime/bin/perl ./Build test;
