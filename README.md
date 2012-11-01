@@ -42,8 +42,6 @@ http://www.kbase.us/developer-zone/tutorials/developer-tutorials/kbase-authentic
 0.  Start the VM and clone the git repo.
     nova boot .... (options will change over time)
     ssh ubuntu@<vm host>
-    git clone ssh://kbase@git.kbase.us/auth
-    cd auth
 
 1. Following an updated version of the directions
    from: https://trac.kbase.us/projects/kbase/wiki/IntegrationTargets
@@ -56,9 +54,9 @@ http://www.kbase.us/developer-zone/tutorials/developer-tutorials/kbase-authentic
    ./bootstrap /kb/runtime
    . user-env.sh
 
-1. As root do a make deploy. This will install the perl libraries
+2. As root do a make deploy. This will install the perl libraries
    cd modules/auth
    make deploy 
 
-2. Run tests for the perl libraries
+3. Run tests for the perl libraries
    make test

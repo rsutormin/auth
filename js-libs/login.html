@@ -136,13 +136,12 @@
                     callback.call(this, status, args);
                 }
 		*/
-                    $.ajax({ type: "GET",
-		             url: "http://140.221.92.45:7039/Sessions/Login",
+                    $.ajax({ type: "POST",
+		             url: "https://www.kbase.us/services/authorization/Sessions/Login",
 			     data : { 'user_id' : username,
 			              'password' : password },
 			     dataType: "json",
 			     crossDomain : true,
-			     xhrFields: { withCredentials: true },
 			     success: function (data,res,jqXHR) {
 			                  var args = {};
 					  if ('token' in data) {
@@ -154,13 +153,14 @@
 					  }
 				      
 				      },
-			     xhrFields: {
-			         withCredentials: true
-				 },
-			     beforeSend : function(xhr){
-			         // make cross-site requests
-			         xhr.withCredentials = true;
-			         },
+			     error: function (jqXHR, textStatus, errorThrown) {
+			                  // If we have a useless error message, replace with
+					  // friendly, but useless error message
+			                  if (textStatus == "error") {
+					      textStatus = "Error connecting to KBase login server";
+					  }
+			                  callback.call(that,0, { 'message' : textStatus })
+			              }
 			     });
 		 }
 	    }
