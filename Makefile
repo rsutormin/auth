@@ -40,7 +40,7 @@ deploy-doc:
 
 	# run each perl module
 	for l in $(LIB_PERL) ; do \
-	name=$$(basename $$l pm) ; \
+	name=$$(basename $$l .pm) ; \
 	echo $$n ; \
 		if [ -f $$l ] ; then \
 			$(DEPLOY_RUNTIME)/bin/pod2html -t $(SERVICE) $$l > docs/$$name.html ; \
