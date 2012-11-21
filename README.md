@@ -39,15 +39,18 @@ http://www.kbase.us/developer-zone/tutorials/developer-tutorials/kbase-authentic
 
 ### Setup using the kbase VMs
 =======
-0.  Start the VM and clone the git repo.
+0.  Start the VM (aka Magellan instance) and get on it as user ubuntu
     nova boot .... (options will change over time)
     ssh ubuntu@<vm host>
 
-1. Following an updated version of the directions
-   from: https://trac.kbase.us/projects/kbase/wiki/IntegrationTargets
+(You will need an account on git.kbase.us--see https://trac.kbase.us/projects/kbase/wiki/SourceCodeVersionControlAndRelatedConfigurationManagement
+for instructions on how to obtain one.)
+
+1. Clone the dev_container repo as root, then cd to dev_container/modules and (still as root) clone the auth repo.
    sudo bash
    cd /kb
    git clone kbase@git.kbase.us:/dev_container.git
+   [Note: when it asks for your passphrase, use your personal kbase passphrase--you don't need to know root's.]
    cd dev_container/modules
    git clone kbase@git.kbase.us:/auth.git
    cd ..
@@ -55,8 +58,6 @@ http://www.kbase.us/developer-zone/tutorials/developer-tutorials/kbase-authentic
    . user-env.sh
 
 2. As root do a make deploy. This will install the perl libraries
-   cd modules/auth
-   make deploy 
 
 3. Run tests for the perl libraries
    make test
