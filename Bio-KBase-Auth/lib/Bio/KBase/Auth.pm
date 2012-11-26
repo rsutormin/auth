@@ -8,9 +8,9 @@ use strict;
 $Bio::KBase::Auth::AuthSvcHost = "https://nexus.api.globusonline.org/";
 $Bio::KBase::Auth::AuthorizePath = "/goauth/token";
 $Bio::KBase::Auth::ProfilePath = "users";
-$Bio::KBase::Auth::RoleSvcURL = "http://127.0.0.1:8000/Roles";
+$Bio::KBase::Auth::RoleSvcURL = "https://kbase.us/services/authorization/Roles";
 
-our $VERSION = '0.4.0';
+our $VERSION = '0.5.0';
 
 1;
 
