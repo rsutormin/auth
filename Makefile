@@ -34,7 +34,7 @@ test-libs: install-libs
 	export PERL5LIB=$(KB_PERL_PATH) ; \
 	cd Bio-KBase-Auth; /kb/runtime/bin/perl ./Build test;
 
-deploy-doc:
+deploy-docs:
 	-mkdir  $(TARGET)/services
 	-mkdir  $(SERVICE_DIR)
 
@@ -49,7 +49,5 @@ deploy-doc:
 			fi \
 		fi \
 	done
-
+	-mkdir $(SERVICE_DIR)/webroot
 	cp docs/*html $(SERVICE_DIR)/webroot/.
-
-	
