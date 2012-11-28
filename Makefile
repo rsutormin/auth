@@ -17,9 +17,9 @@ SERVICE = authorization_server
 SERVICE_DIR = $(TARGET)/services/$(SERVICE)
 
 
-all: deploy
+all:
 
-deploy: install-libs
+deploy: install-libs deploy-docs
 
 install-libs:
 	cd Bio-KBase-Auth; \
