@@ -1,0 +1,3 @@
+To test it correctly, please make sure your HOME envrioment variable is correctly set.
+
+If you're root, then $HOME=/root
