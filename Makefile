@@ -30,7 +30,7 @@ install-libs:
 	mkdir -p $(KB_PERL_PATH)/biokbase/auth; \
 	touch $(KB_PERL_PATH)/biokbase/__init__.py; \
 	touch $(KB_PERL_PATH)/biokbase/auth/__init__.py; \
-	cp python-libs/get_nexus_token.py $(KB_PERL_PATH)/biokbase/auth
+	cp python-libs/auth_token.py $(KB_PERL_PATH)/biokbase/auth
 
 test: test-libs
 
