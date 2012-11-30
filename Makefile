@@ -26,7 +26,11 @@ install-libs:
 	mkdir -p $(KB_PERL_PATH); \
 	/kb/runtime/bin/perl ./Build.PL ; \
 	/kb/runtime/bin/perl ./Build installdeps --install_path lib=$(KB_PERL_PATH); \
-	/kb/runtime/bin/perl ./Build install --install_path lib=$(KB_PERL_PATH) ;
+	/kb/runtime/bin/perl ./Build install --install_path lib=$(KB_PERL_PATH) 
+	mkdir -p $(KB_PERL_PATH)/biokbase/auth; \
+	touch $(KB_PERL_PATH)/biokbase/__init__.py; \
+	touch $(KB_PERL_PATH)/biokbase/auth/__init__.py; \
+	cp python-libs/get_nexus_token.py $(KB_PERL_PATH)/biokbase/auth
 
 test: test-libs
 
@@ -35,8 +39,8 @@ test-libs: install-libs
 	cd Bio-KBase-Auth; /kb/runtime/bin/perl ./Build test;
 
 deploy-docs:
-	-mkdir  $(TARGET)/services
-	-mkdir  $(SERVICE_DIR)
+	-mkdir $(TARGET)/services
+	-mkdir $(SERVICE_DIR)
 
 	# run each perl module
 	for l in $(LIB_PERL) ; do \
