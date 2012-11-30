@@ -33,7 +33,6 @@ import base64
 def get_token(auth_svc, username, password):
     h = httplib2.Http()
     
-    h = httplib2.Http()
     auth = base64.encodestring( username + ':' + password )
     headers = { 'Authorization' : 'Basic ' + auth }
     
