@@ -1,6 +1,7 @@
 
 import httplib2
 import json
+import base64
 
 NEXUS_URL="https://nexus.api.globusonline.org/goauth/token?grant_type=client_credentials"
 
@@ -21,4 +22,4 @@ def get_token(username, password, auth_svc=NEXUS_URL):
     else: 
         raise Exception(str(resp))
         
-    return tok['access_token']
+    return tok
