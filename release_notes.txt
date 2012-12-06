@@ -1,0 +1,28 @@
+OVERVIEW
+-----------------------------------------
+This is a set of KBase client libraries that provides basic authentication objects: authentication tokens and user profiles
+
+These libraries do not directly access any KBase web service APIs, but they are used to acquire/validate tokens
+and fetch user profile objects whenever authenticated access is needed. These libraries are called by the main
+KBase web service APIs, and can also be used when making requests against KBase services that support OAuth
+tokens.
+Technical documentation is in the form of perldocs embedded in the Bio::KBase::AuthToken and Bio::KBase::AuthUser
+modules - sample code is included in the docs. A "make deploy-docs" should install the docs in the appropriate
+directories.
+
+
+VERSION: 0.5.0 (Released 11/20/2012)
+------------------------------------------
+NEW FEATURES:
+-This is the first public release of the Bio::KBase::AuthToken and Bio::KBase::AuthUser libraries
+-Support for querying the group membership service within the KBase.us domain. Results are returned
+ as an array in the groups field of the AuthUser object
+
+UPDATED FEATURES / MAJOR BUG FIXES:
+-none.
+
+ANTICIPATED FUTURE DEVELOPMENTS:
+-command line scripts to support .authrc files
+-possible namechange on .authrc files
+
+
