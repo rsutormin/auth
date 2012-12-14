@@ -10,7 +10,7 @@ use Crypt::OpenSSL::RSA;
 use Convert::PEM;
 use MIME::Base64;
 use URI;
-use URI::QueryParam;
+#use URI::QueryParam;
 use POSIX;
 
 # We use Object::Tiny::RW to generate getters/setters for the attributes

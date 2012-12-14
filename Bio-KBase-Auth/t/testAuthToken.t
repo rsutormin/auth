@@ -7,16 +7,12 @@
 
 use lib "../lib/";
 use lib "lib";
-use Data::Dumper;
 use HTTP::Daemon;
 use HTTP::Request;
 use LWP::UserAgent;
 use JSON;
 use Digest::MD5 qw( md5_base64);
 use Test::More tests => 46;
-use Storable qw(dclone);
-use Test::Deep::NoTest qw(eq_deeply);
-use Data::Dumper;
 
 
 BEGIN {
@@ -43,7 +39,7 @@ sub testServer {
 	    } else {
 		$at->{'token'} = undef;
 	    }
-	    note( "Server received request with token: ".$token);
+	    note( "Server received request with token: ". ($token ? $token : "NULL"));
 	    note( sprintf("Validation result on server side: %s", $at->validate() ? $at->validate() : 0 ));
 	    if ($at->validate()) {
 		$res->code(200);

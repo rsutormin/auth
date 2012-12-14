@@ -7,15 +7,11 @@
 
 use lib "../lib/";
 use lib "lib";
-use Data::Dumper;
 use HTTP::Daemon;
 use HTTP::Request;
 use LWP::UserAgent;
 use JSON;
 use Test::More tests => 25;
-use Storable qw(dclone);
-use Test::Deep::NoTest qw(eq_deeply);
-use Data::Dumper;
 
 
 BEGIN {
@@ -30,7 +26,6 @@ ok($au = Bio::KBase::AuthUser->new(), "Creating a new AuthUser object with no cr
 ok(!($au->get()), "Trying to fetch user profile without credentials, should fail.");
 note( $au->error_message());
 ok($au->get($at->token), "Trying to fetch user profile using legitimate token for kbasetest, should succeed.");
-note( Dumper( $au));
 is($au->user_id(), "kbasetest", "Verifying that the user record acquired is for the kbasetest user");
 is($au->email(), 'sychan@lbl.gov', "Verifying that email address is sychan\@lbl.gov");
 ok($au2 = Bio::KBase::AuthUser->new( 'token' => $at->token), "Creating a new AuthUser object initialized with token");

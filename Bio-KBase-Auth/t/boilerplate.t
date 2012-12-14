@@ -3,7 +3,7 @@
 use 5.006;
 use strict;
 use warnings;
-use Test::More tests => 6;
+use Test::More tests => 5;
 
 sub not_in_file_ok {
     my ($filename, %regex) = @_;
@@ -52,8 +52,6 @@ TODO: {
   module_boilerplate_ok('lib/Bio/KBase/Auth.pm');
   module_boilerplate_ok('lib/Bio/KBase/AuthToken.pm');
   module_boilerplate_ok('lib/Bio/KBase/AuthUser.pm');
-  module_boilerplate_ok('lib/Bio/KBase/AuthClient.pm');
-
 
 }
 
