@@ -14,8 +14,9 @@ Module::Build->new(
 		  'HTTP::Daemon' => 6.00,
 		  'LWP::UserAgent' => 6.02,
 		  'URI' => 1.37,
+		  'URI::URL' => 1.0,
 		  'Test::More' => 0.94,
-		  'Test::Deep' => 0.109,
+		  'POSIX' => 1.0,
     },
     dist_abstract => 'Classes to support OAuth based authentication for the Bio::KBase::* libraries',
     )->create_build_script;

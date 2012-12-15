@@ -10,7 +10,7 @@ $Bio::KBase::Auth::AuthorizePath = "/goauth/token";
 $Bio::KBase::Auth::ProfilePath = "users";
 $Bio::KBase::Auth::RoleSvcURL = "https://kbase.us/services/authorization/Roles";
 
-our $VERSION = '0.5.0';
+our $VERSION = '0.5.1';
 
 1;
 
