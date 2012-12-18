@@ -24,9 +24,9 @@ deploy: install-libs deploy-docs
 install-libs:
 	cd Bio-KBase-Auth; \
 	mkdir -p $(KB_PERL_PATH); \
-	/kb/runtime/bin/perl ./Build.PL ; \
-	/kb/runtime/bin/perl ./Build installdeps --install_path lib=$(KB_PERL_PATH); \
-	/kb/runtime/bin/perl ./Build install --install_path lib=$(KB_PERL_PATH) 
+	$(DEPLOY_RUNTIME)/bin/perl ./Build.PL ; \
+	$(DEPLOY_RUNTIME)/bin/perl ./Build installdeps --install_path lib=$(KB_PERL_PATH); \
+	$(DEPLOY_RUNTIME)/bin/perl ./Build install --install_path lib=$(KB_PERL_PATH) 
 	mkdir -p $(KB_PERL_PATH)/biokbase/auth; \
 	touch $(KB_PERL_PATH)/biokbase/__init__.py; \
 	touch $(KB_PERL_PATH)/biokbase/auth/__init__.py; \
@@ -36,7 +36,7 @@ test: test-libs
 
 test-libs: install-libs
 	export PERL5LIB=$(KB_PERL_PATH) ; \
-	cd Bio-KBase-Auth; /kb/runtime/bin/perl ./Build test;
+	cd Bio-KBase-Auth; $(DEPLOY_RUNTIME)/bin/perl ./Build test;
 
 deploy-docs:
 	-mkdir $(TARGET)/services

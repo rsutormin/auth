@@ -13,6 +13,7 @@ Module::Build->new(
 		  'HTTP::Request' => 6.00,
 		  'HTTP::Daemon' => 6.00,
 		  'LWP::UserAgent' => 6.02,
+		  'LWP::Protocol::https' => 1.0,
 		  'URI' => 1.37,
 		  'URI::URL' => 1.0,
 		  'Test::More' => 0.94,
