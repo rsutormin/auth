@@ -4,13 +4,45 @@ package Bio::KBase::Auth;
 #
 # sychan 4/24/2012
 use strict;
+use Config::Simple;
 
-$Bio::KBase::Auth::AuthSvcHost = "https://nexus.api.globusonline.org/";
-$Bio::KBase::Auth::AuthorizePath = "/goauth/token";
-$Bio::KBase::Auth::ProfilePath = "users";
-$Bio::KBase::Auth::RoleSvcURL = "https://kbase.us/services/authorization/Roles";
+our $ConfPath = glob "~/.kbase_config";
 
-our $VERSION = '0.5.1';
+my $c = Config::Simple->new( $ConfPath);
+our %Conf = $c ? $c->vars() : {};
+our $AuthSvcHost = $Conf{'authentication.servicehost'} ?
+    $Conf{'authentication.servicehost'} : "https://nexus.api.globusonline.org/";
+
+our $AuthorizePath = $Conf{'authentication.authpath'} ?
+    $Conf{'authentication.authpath'} : "/goauth/token";
+
+our $ProfilePath = $Conf{'authentication.profilepath'} ?
+    $Conf{'authentication.profilepath'} : "users";
+
+our $RoleSvcURL = $Conf{'authentication.rolesvcurl'} ?
+    $Conf{'authentication.rolesvcurl'} : "https://kbase.us/services/authorization/Roles";
+
+our $VERSION = '0.6.0';
+
+# Load a new config file to override the default settings
+sub LoadConfig {
+    my( $ConfPath) = shift;
+
+    my $c = Config::Simple->new( $ConfPath);
+    my %Conf = $c ? $c->vars() : {};
+    $AuthSvcHost = $Conf{'authentication.servicehost'} ?
+	$Conf{'authentication.servicehost'} : $AuthSvcHost;
+    
+    $AuthorizePath = $Conf{'authentication.authpath'} ?
+	$Conf{'authentication.authpath'} : $AuthSvcHost;
+    
+    $ProfilePath = $Conf{'authentication.profilepath'} ?
+	$Conf{'authentication.profilepath'} : $ProfilePath;
+    
+    $RoleSvcURL = $Conf{'authentication.rolesvcurl'} ?
+	$Conf{'authentication.rolesvcurl'} : $RoleSvcURL;
+    
+}
 
 1;
 

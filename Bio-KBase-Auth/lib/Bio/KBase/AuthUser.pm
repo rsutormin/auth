@@ -31,6 +31,11 @@ our %top_attrs = ( "user_id" => "username",
 		   "email" => "email",
 		   "system_admin" => "system_admin");
 
+
+# Hash for caching the user profiles
+my @UserProfiles;
+my $UserProfileSize=53;
+
 sub new() {
     my $class = shift;
 
