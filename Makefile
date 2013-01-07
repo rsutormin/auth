@@ -48,13 +48,15 @@ deploy-docs:
 	echo $$n ; \
 		if [ -f $$l ] ; then \
 			$(DEPLOY_RUNTIME)/bin/pod2html -t $(SERVICE) $$l > docs/$$name.html ; \
+			$(DEPLOY_RUNTIME)/bin/pod2man -t $(SERVICE) $$l > docs/$$name.3 ; \
 			if [ $$? -ne 0 ] ; then \
 				exit 1 ; \
 			fi \
 		fi \
 	done
-	-mkdir $(SERVICE_DIR)/webroot
-	cp docs/*html $(SERVICE_DIR)/webroot/.
+#	-mkdir $(SERVICE_DIR)/webroot
+#	cp docs/*html $(SERVICE_DIR)/webroot/.
+	cp docs/*.3 $(DEPLOY_RUNTIME)/man/man3.
 
 test: test-libs test-client test-scripts test-service
 	@echo "running library, client and script tests"
