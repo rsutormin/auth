@@ -10,8 +10,8 @@ use Crypt::OpenSSL::RSA;
 use Convert::PEM;
 use MIME::Base64;
 use URI;
-#use URI::QueryParam;
 use POSIX;
+#use IPC::Shareable;
 
 # We use Object::Tiny::RW to generate getters/setters for the attributes
 # and save ourselves some tedium
@@ -30,6 +30,25 @@ our $token_lifetime = 0;
 our $authrc = glob "~/.authrc";
 our @attrs = ( 'user_id', 'auth_token','client_secret', 'keyfile',
 	       'keyfile_passphrase','password');
+
+# Some hashes to cache tokens and Token Signers we have seen before
+our %SignerCache;
+# For long running processes, like a server, we use a hash bucket
+# to limit the number of entries we cache. The token cache is
+# also only keyed on the SHA1 hash of the token, instead of the
+# actual token contents
+our %TokenCache;
+our $TokenCacheSize = 53;
+
+# If enabled, create some shared memory hashes for our cache.
+# Make them only readable/writeable by ourselves
+if ($Bio::KBase::Auth::AuthConf{'authentication.shm_cache'}) {
+    my %SHMemOpts = { 'create' => 1,
+		      'mode' => 600,
+		      'destroy' => 1};
+    tie %SignerCache, 'IPC::Shareable', 'KB8z', %SHMemOpts;
+    tie %TokenCache, 'IPC::Shareable', 'KB8s', %SHMemOpts;
+}
 
 # Your typical constructor - takes a hash that specifies the initial values to
 # plug into the object.
@@ -290,11 +309,16 @@ sub validate {
     my $self = shift;
     my %p = @_;
     my $verify;
+    my $tok_sha1;
 
     eval {
 	unless ($self->{'token'}) {
 	    die "No token.";
 	}
+
+	# Check the token cache first
+	$tok_sha1 = sha1_base64( $self->{'token'});
+	
 	my ($sig_data) = $self->{'token'} =~ /^(.*)\|sig=/;
 	unless ($sig_data) {
 	    die "Token lacks signature fields";
