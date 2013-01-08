@@ -47,6 +47,12 @@ sub new {
     );
 
     eval {
+	# make ignore_kbase_config an alias for ignore_authrc if it isn't specified
+	if ( !exists( $self->{'ignore_kbase_config'}) &&
+	     exists( $self->{'ignore_authrc'})) {
+	    $self->{'ignore_kbase_config'} = $self->{'ignore_authrc'};
+	}
+
 	# If we were given a token, try set that using the formal setter
 	# elsif we have appropriate login credentials, try to get a
 	# token
@@ -55,6 +61,21 @@ sub new {
 	} elsif ($self->{'user_id'} && 
 		 ($self->{'password'} || $self->{'client_secret'} || $self->{'keyfile'})) {
 	    $self->get();
+	} elsif (! $self->{'ignore_kbase_config'} && keys(%Bio::KBase::Auth::AuthConf) ) {
+	    my %c = %Bio::KBase::Auth::AuthConf;
+	    # If we get a token, use that immediately and ignore the rest,
+	    # otherwise set the other attributes and fetch the token
+	    if (exists( $c{ 'authentication.auth_token'})) {
+		$self->token( $c{'authentication.auth_token'});
+		$self->validate();
+	    } else {
+		foreach my $attr ( @attrs) {
+		    if (exists( $c{ 'authentication.'.$attr })) {
+			$self->{ $attr } = $c{ 'authentication.'.$attr };
+		    }
+		}
+		$self->get();
+	    }
 	} elsif ( -e $authrc && ! $self->{'ignore_authrc'}) {
 	    my %creds = read_authrc( $authrc);
 	    $self->get( %creds );
@@ -487,21 +508,35 @@ http://globusonline.github.com/nexus-docs/api.html
    my $token3 = Bio::KBase::AuthToken->new( 'user_id' => 'mrbig', 'keyfile' => $keyfile,
                                             'keyfile_passphrase' => 'testing');
 
-   # any parameters got credentials/login that can be passed in to the new() method can
-   # be a JSON formatted declaration in the authrc file ( typically in ~/.authrc
-   # see ~Bio::KBase::AuthToken::authrc )
+   # any parameters for a credential/login that can be passed in to the new() method can
+   # be put in the [authentication] section of the INI file specified in
+   # $Bio::KBase::Auth::ConfPath ( defaults to ~/.kbase_config ) will be used to
+   # initialize the object unless the ignore_kbase_config is set to a true value in the
+   # call to new()
+   # 
    # This is triggered by not providing any parameters to the new() method
-   # if ~/.authrc contains {"keyfile":"/Users/sychan/.ssh/id_rsa",","user_id":"kbasetest"} you
-   # can simply use:
+   # if ~/.kbase_config contains:
+   # [authentication]
+   # user_id=figaro
+   # password=mamamia_mamamia
+   #
+   # Then the constructor will try to acquire a token with the user_id and password
+   # settings provided.
+   # Currently this library recognizes user_id, auth_token,client_secret,keyfile,
+   #	       keyfile_passphrase,password
+   #
+   # To login as jqpublic with an ssh key in ~jqpublic/.ssh/id_kbase that has the passphrase
+   # "MostlySecret" you can set this in the .kbase_config file:
+   # [authentication]
+   # user_id=jqpublic
+   # keyfile=/Users/jqpublic/.ssh/id_kbase
+   # keyfile_passphrase=MostlySecret
+   # 
+   # and then execute the following
    my $token4 = Bio::KBase::AuthToken->new();
 
-   # instead of
-   my $token4 = Bio::KBase::AuthToken->new( "keyfile" => "/Users/sychan/.ssh/id_rsa",
-                                            "user_id" => "kbasetest");
-
-   # It is possible to ignore the authrc file by setting ignore_authrc as an arg to new.
-   # This will ignore the authrc file even if it contains valid contents
-   my $token5 = Bio::KBase::AuthToken->new( ignore_authrc => 1 );
+   # To disable this and just return an empty token object user
+   my $token5 = Bio::KBase::AuthToken->new( ignore_kbase_config => 1 );
 
    # If you have a token in $tok, and wish to check if it is valid
    my $token3 = Bio::KBase::AuthToken->new( 'token' => $tok);
