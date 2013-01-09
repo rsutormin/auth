@@ -24,6 +24,8 @@ use Object::Tiny::RW qw {
 # Pull the INI files based configs in
 our %Conf = %Bio::KBase::Auth::AuthConf;
 
+our $VERSION = $Bio::KBase::Auth::VERSION;
+
 our @trust_token_signers = ( 'https://graph.api.go.sandbox.globuscs.info/goauth/keys/');
 # Tokens (last time we checked) had a 24 hour lifetime, this value can be
 # used to add extra time to the lifetime of tokens. The unit is seconds.

@@ -20,6 +20,11 @@ use Object::Tiny::RW qw {
     verified
 };
 
+# Pull the INI files based configs in
+our %Conf = %Bio::KBase::Auth::AuthConf;
+
+our $VERSION = $Bio::KBase::Auth::VERSION;
+
 # Mapping of internal user attribute names to
 # top level Globus Online profile attributes.
 # Attributes not in this list go into the

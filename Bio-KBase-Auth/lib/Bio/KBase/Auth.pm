@@ -6,6 +6,8 @@ package Bio::KBase::Auth;
 use strict;
 use Config::Simple;
 
+our $VERSION = '0.6.0';
+
 our $ConfPath = glob "~/.kbase_config";
 
 my $c = Config::Simple->new( $ConfPath);
@@ -23,7 +25,6 @@ our $ProfilePath = $Conf{'authentication.profilepath'} ?
 our $RoleSvcURL = $Conf{'authentication.rolesvcurl'} ?
     $Conf{'authentication.rolesvcurl'} : "https://kbase.us/services/authorization/Roles";
 
-our $VERSION = '0.6.0';
 
 # Load a new config file to override the default settings
 sub LoadConfig {
