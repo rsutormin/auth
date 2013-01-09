@@ -11,7 +11,7 @@ use Convert::PEM;
 use MIME::Base64;
 use URI;
 use POSIX;
-#use IPC::Shareable;
+use IPC::Shareable;
 
 # We use Object::Tiny::RW to generate getters/setters for the attributes
 # and save ourselves some tedium
@@ -32,23 +32,28 @@ our @attrs = ( 'user_id', 'auth_token','client_secret', 'keyfile',
 	       'keyfile_passphrase','password');
 
 # Some hashes to cache tokens and Token Signers we have seen before
-our %SignerCache;
-# For long running processes, like a server, we use a hash bucket
-# to limit the number of entries we cache. The token cache is
-# also only keyed on the SHA1 hash of the token, instead of the
-# actual token contents
-our %TokenCache;
-our $TokenCacheSize = 53;
+our $SignerCache;
+our $SignerCacheSize = 5;
+# For long running processes, like a server, we use a fixed length cache
+# to limit the number of entries we cache. The token cache only stores
+# the user_id and sha1 of the token, and not the actual token
+our $TokenCache;
+our $TokenCacheSize = 50;
 
 # If enabled, create some shared memory hashes for our cache.
 # Make them only readable/writeable by ourselves
 if ($Bio::KBase::Auth::AuthConf{'authentication.shm_cache'}) {
     my %SHMemOpts = { 'create' => 1,
 		      'mode' => 600,
-		      'destroy' => 1};
-    tie %SignerCache, 'IPC::Shareable', 'KB8z', %SHMemOpts;
-    tie %TokenCache, 'IPC::Shareable', 'KB8s', %SHMemOpts;
+		      'destroy' => 1,
+		      'size' => 500 * $SignerCacheSize};
+    tie $SignerCache, 'IPC::Shareable', 'KB8z', %SHMemOpts;
+    $SHMemOpts{ 'size' } = 100 * $TokenCacheSize;
+    tie $TokenCache, 'IPC::Shareable', 'KB8s', %SHMemOpts;
 }
+
+$TokenCache = "";
+$SignerCache = "";
 
 # Your typical constructor - takes a hash that specifies the initial values to
 # plug into the object.
@@ -104,6 +109,56 @@ sub new {
 	$self->error_message("Failed to acquire token: $@");
     }
     return($self);
+}
+
+# Caches are implemented as a largish string structures in CSV
+# format with the following entries per line:
+# last_seen,key:lookup_key,value:cached_value
+# This is to simplify storage in memory for a shared memory
+# segment, and also to allow the use of fast regex functions
+# to manage the cache
+
+# fetch something from the cache
+# cache_get( cache, key)
+# cache is a reference to the string used to store the cache
+# key is the value of the object to compare to see if there is
+#  a cache hit
+# returns true or false for if the key is found
+sub cache_get {
+    my($cache, $key) = @_;
+
+    my $key2 = quotemeta( $key);
+    if ($$cache =~ m/^(\d+),key:($key2),value:(.+)$/m ) {
+	my $last = $1;
+	$key = $2;
+	my $value = $3;
+	# Update last seen time
+	my $now = time();
+	$$cache =~ s/^$last,key:$key2/$now,key:$key/m;
+	return($value);
+    } else {
+	return( undef );
+    }
+}
+
+# cache_set( cache, maxrows, key, value)
+# cache is a reference to the string used for the cache
+# maxrows is the maximum number of rows that can be in the cache
+# key is the value of the object to use for future comparison
+# value is the value to be stored there - it is expected to be a scalar
+# The cache is ordered by last seen time and anything more than the
+# maxrows is dropped
+# returns the value stored if successful
+sub cache_set {
+    my($cache, $maxrows, $key, $value) = @_;
+    my(@cache) = split /\n/, $$cache;
+    push @cache, sprintf("%d,key:%s,value:%s",time(),$key,$value);
+    my(@new) = sort {$b cmp $a} @cache;
+    if ($#new >= $maxrows) {
+	@new = @new[0..($maxrows-1)];
+    }
+    $$cache = join "\n", @new;
+    return $value;
 }
 
 # getter/setter for token, if we are given a token, parse it out
@@ -316,9 +371,6 @@ sub validate {
 	    die "No token.";
 	}
 
-	# Check the token cache first
-	$tok_sha1 = sha1_base64( $self->{'token'});
-	
 	my ($sig_data) = $self->{'token'} =~ /^(.*)\|sig=/;
 	unless ($sig_data) {
 	    die "Token lacks signature fields";
@@ -337,23 +389,36 @@ sub validate {
 	unless ( $vars{'SigningSubject'} =~ /^\Q$Bio::KBase::Auth::AuthSvcHost\E/) {
 	    die "Token signed by unrecognized source: ".$vars{'SigningSubject'};
 	}
-	my $binary_sig = pack('H*',$vars{'sig'});
+	# Check the token cache first
+	my $tok_sha1 = sha1_base64( $self->{'token'});
+	# compute a simple checksum for comparison
+	my $cached = cache_get( \$TokenCache, $tok_sha1);
+	if ( $cached && $cached eq $vars{'un'} ) {
+	    $verify = 1;
+	} else {
+	    my $binary_sig = pack('H*',$vars{'sig'});
+	    
+	    my $client = LWP::UserAgent->new();
+	    $client->ssl_opts(verify_hostname => 0);
+	    $client->timeout(5);
+	    my $response = $client->get( $vars{'SigningSubject'});
 
-	my $client = LWP::UserAgent->new();
-	$client->ssl_opts(verify_hostname => 0);
-	$client->timeout(5);
-	my $response = $client->get( $vars{'SigningSubject'});
+	    my $data = from_json( $response->content());
+	    $data = $self->_SquashJSONBool( $data);
+	    unless ($data->{'valid'}) {
+		die "Signing key is not valid:".$response->content();
+	    }
 
-	my $data = from_json( $response->content());
-	$data = $self->_SquashJSONBool( $data);
-	unless ($data->{'valid'}) {
-	    die "Signing key is not valid:".$response->content();
+	    my $rsa = Crypt::OpenSSL::RSA->new_public_key( $data->{'pubkey'});
+	    $rsa->use_sha1_hash();
+
+	    $verify = $rsa->verify($sig_data,$binary_sig);
+	    if ($verify) {
+		# write the sha1 hash of the token into the cache
+		# we don't actually want to store the tokens themselves
+		cache_set( \$TokenCache, $TokenCacheSize, $tok_sha1, $vars{'un'});
+	    }
 	}
-
-	my $rsa = Crypt::OpenSSL::RSA->new_public_key( $data->{'pubkey'});
-	$rsa->use_sha1_hash();
-
-	$verify = $rsa->verify($sig_data,$binary_sig);
     };
     if ($@) {
 	$self->error_message("Failed to verify token: $@");
