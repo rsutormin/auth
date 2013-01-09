@@ -11,7 +11,6 @@ use Convert::PEM;
 use MIME::Base64;
 use URI;
 use POSIX;
-use IPC::Shareable;
 
 # We use Object::Tiny::RW to generate getters/setters for the attributes
 # and save ourselves some tedium
@@ -21,6 +20,9 @@ use Object::Tiny::RW qw {
     password
     client_secret
 };
+
+# Pull the INI files based configs in
+our %Conf = %Bio::KBase::Auth::AuthConf;
 
 our @trust_token_signers = ( 'https://graph.api.go.sandbox.globuscs.info/goauth/keys/');
 # Tokens (last time we checked) had a 24 hour lifetime, this value can be
@@ -33,22 +35,29 @@ our @attrs = ( 'user_id', 'auth_token','client_secret', 'keyfile',
 
 # Some hashes to cache tokens and Token Signers we have seen before
 our $SignerCache;
-our $SignerCacheSize = 5;
+our $SignerCacheSize = exists($Conf{'authentication.signer_cache_size'}) ?
+                              $Conf{'authentication.signer_cache_size'} : 12;
 # For long running processes, like a server, we use a fixed length cache
 # to limit the number of entries we cache. The token cache only stores
 # the user_id and sha1 of the token, and not the actual token
 our $TokenCache;
-our $TokenCacheSize = 50;
+our $TokenCacheSize = exists($Conf{'authentication.token_cache_size'}) ?
+                             $Conf{'authentication.token_cache_size'} : 50;
+
+# Pickup the cache hashing salt from configs
+our $CacheKeySalt = exists($Conf{'authentication.cache_salt'}) ?
+                           $Conf{'Authentication.cache_salt'} : "NaCl";
 
 # If enabled, create some shared memory hashes for our cache.
 # Make them only readable/writeable by ourselves
-if ($Bio::KBase::Auth::AuthConf{'authentication.shm_cache'}) {
+if ($Conf{'authentication.shm_cache'}) {
+    use IPC::Shareable;
     my %SHMemOpts = { 'create' => 1,
 		      'mode' => 600,
 		      'destroy' => 1,
-		      'size' => 500 * $SignerCacheSize};
+		      'size' => 1000 * $SignerCacheSize};
     tie $SignerCache, 'IPC::Shareable', 'KB8z', %SHMemOpts;
-    $SHMemOpts{ 'size' } = 100 * $TokenCacheSize;
+    $SHMemOpts{ 'size' } = 256 * $TokenCacheSize;
     tie $TokenCache, 'IPC::Shareable', 'KB8s', %SHMemOpts;
 }
 
@@ -127,7 +136,9 @@ sub new {
 sub cache_get {
     my($cache, $key) = @_;
 
-    my $key2 = quotemeta( $key);
+    # Convert the key to a salted sha1 hash
+    my $keyhash = sha1_base64( $key.$CacheKeySalt);
+    my $key2 = quotemeta( $keyhash);
     if ($$cache =~ m/^(\d+),key:($key2),value:(.+)$/m ) {
 	my $last = $1;
 	$key = $2;
@@ -151,8 +162,9 @@ sub cache_get {
 # returns the value stored if successful
 sub cache_set {
     my($cache, $maxrows, $key, $value) = @_;
+    my($keyhash) = sha1_base64( $key.$CacheKeySalt);
     my(@cache) = split /\n/, $$cache;
-    push @cache, sprintf("%d,key:%s,value:%s",time(),$key,$value);
+    push @cache, sprintf("%d,key:%s,value:%s",time(),$keyhash,$value);
     my(@new) = sort {$b cmp $a} @cache;
     if ($#new >= $maxrows) {
 	@new = @new[0..($maxrows-1)];
@@ -389,21 +401,28 @@ sub validate {
 	unless ( $vars{'SigningSubject'} =~ /^\Q$Bio::KBase::Auth::AuthSvcHost\E/) {
 	    die "Token signed by unrecognized source: ".$vars{'SigningSubject'};
 	}
+	unless (length($vars{'sig'}) == 256) {
+	    die "Token has malformed signature field";
+	}
 	# Check the token cache first
-	my $tok_sha1 = sha1_base64( $self->{'token'});
-	# compute a simple checksum for comparison
-	my $cached = cache_get( \$TokenCache, $tok_sha1);
+	my $cached = cache_get( \$TokenCache, $self->{'token'});
 	if ( $cached && $cached eq $vars{'un'} ) {
 	    $verify = 1;
 	} else {
-	    my $binary_sig = pack('H*',$vars{'sig'});
-	    
-	    my $client = LWP::UserAgent->new();
-	    $client->ssl_opts(verify_hostname => 0);
-	    $client->timeout(5);
-	    my $response = $client->get( $vars{'SigningSubject'});
-
-	    my $data = from_json( $response->content());
+	    # Check cache for signer public key
+	    my($response, $binary_sig, $client);
+	    my $data = cache_get( \$SignerCache, $vars{'SigningSubject'});
+	    unless ($data) {
+		$binary_sig = pack('H*',$vars{'sig'});
+		$client = LWP::UserAgent->new();
+		$client->ssl_opts(verify_hostname => 0);
+		$client->timeout(5);
+		$response = $client->get( $vars{'SigningSubject'});
+		$data = from_json( $response->content());
+		cache_set( \$SignerCache, $SignerCacheSize, $vars{'SigningSubject'}, encode_base64( $response->content(), ''));
+	    } else {
+		$data = from_json(decode_base64( $data));
+	    }
 	    $data = $self->_SquashJSONBool( $data);
 	    unless ($data->{'valid'}) {
 		die "Signing key is not valid:".$response->content();
@@ -416,7 +435,7 @@ sub validate {
 	    if ($verify) {
 		# write the sha1 hash of the token into the cache
 		# we don't actually want to store the tokens themselves
-		cache_set( \$TokenCache, $TokenCacheSize, $tok_sha1, $vars{'un'});
+		cache_set( \$TokenCache, $TokenCacheSize, $self->{'token'}, $vars{'un'});
 	    }
 	}
     };
