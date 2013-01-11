@@ -25,7 +25,7 @@ ok($at->validate(), "Validating token from kbasetest username/password");
 ok($au = Bio::KBase::AuthUser->new(), "Creating a new AuthUser object with no credentials");
 ok(!($au->get()), "Trying to fetch user profile without credentials, should fail.");
 note( $au->error_message());
-ok($au->get($at->token), "Trying to fetch user profile using legitimate token for kbasetest, should succeed.");
+ok($au->get(token => $at->token), "Trying to fetch user profile using legitimate token for kbasetest, should succeed.");
 is($au->user_id(), "kbasetest", "Verifying that the user record acquired is for the kbasetest user");
 is($au->email(), 'sychan@lbl.gov', "Verifying that email address is sychan\@lbl.gov");
 ok($au2 = Bio::KBase::AuthUser->new( 'token' => $at->token), "Creating a new AuthUser object initialized with token");
@@ -40,7 +40,7 @@ ok($au->update('email' => 'sychan@nersc.gov', "random_numbers" => $random), "Set
 is($au->email(), 'sychan@nersc.gov', "Verifying that new email address has been set in current record");
 is($au->{'random_numbers'},$random, "Verifying that new random number is set in current record");
 ok($au2 = Bio::KBase::AuthUser->new(), "Creating a second AuthUser object to verify changes");
-ok($au2->get($at->token), "Trying to fetch user profile to new object");
+ok($au2->get(token =>$at->token, nocache => 1), "Trying to fetch user profile to new object");
 ok($au2 != $au, "Verifying that second reference doesn't point to the same object as first");
 is($au->{'random_numbers'},$au2->{'random_numbers'}, "Comparing random numbers for equality in newly fetched record.");
 is($au->{'email'},$au2->{'email'}, "Comparing random numbers for equality in newly fetched record.");
