@@ -666,21 +666,53 @@ http://globusonline.github.com/nexus-docs/api.html
 
 =over
 
-=item B<trust_token_signers> list
+=item B<%Conf>
+
+This contains the configuration directives from the user's ~/.kbase_config under the section header "authentication". All the config settings can be accessed via $Bio::KBase::AuthUser::Conf{ 'authentication.SOMETHING'}
+
+
+=item B<@trust_token_signers>
 
 An array that contains prefixes for trusted signing URLs in the SigningSubject field of tokens.
 
-=item B<token_lifetime> numeric
+=item B<$token_lifetime>
 
 Additional seconds to add to the expiration time of tokens. Tokens currently issued with a default 24 hour lifetime, but modifying this value will change when the validate() function will no longer accept the token. The units are in seconds.
 
-=item B<authrc> string
+=item B<$authrc>
 
 This file contains JSON formatted attributes for the AuthToken object related to acquiring credentials. When no parameters are passed into the new() method, it will default to reading in parameters from the authrc file to initialize the token. The default value is glob( "~/.authrc")
 
-=item B<attrs> list
+=item B<@attrs>
 
 List of strings that enumerate the attributes allowed to be read from the B<authrc> file.
+
+=item B<$VERSION>
+
+This is the version string (pulled from the Bio::KBase::Auth module)
+
+
+=item B<$TokenCache,$SignerCache>
+
+These are CSV formatted strings for the Token and TokenSigner caches that contain 3 fields: last seen time, hash key, value
+
+The last seen time is the output from time() when the record was last request or loaded
+
+The hash key is a salted SHA1 hash of the token string (for the TokenCache) or the Signer URL (for the SignerCache)
+
+The value is the username associated with the token (for TokenCache) or the JSON document at the Signer URL (for the SignerCache)
+
+Entries are not expired due to any TTL, but are pushed out based on their last access time.
+
+The cache is searched and timestamps are updated using perl regex functions to achieve good performance. New entries are added and deleted using split(), sort() and join() for performance as well. When the Shared memory caching option is enabled ( with authentication.shm_cache in the config file), this string is tied into an IPC::Shareable memory region.
+
+=item B<$TokenCacheSize,$SignerCacheSize> integer
+
+This is maximum the number of token validations or signer URL JSON docs that are kept in the cache. Each time that a new token/signer is added, the entries are sorted in descending time order, and any entries above this number are dropped. This can be configured via the authentication.token_cache_size and authentication.signer_cache_size directive.
+
+=item B<$CacheKeySalt>
+
+String used to salt the sha1 hash calculated for cache keys. Set using authentication.cache_salt
 
 =back
 
