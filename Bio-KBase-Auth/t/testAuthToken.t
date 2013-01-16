@@ -89,6 +89,11 @@ if ( -e $Bio::KBase::AuthToken::authrc) {
     rename $Bio::KBase::AuthToken::authrc, $Bio::KBase::AuthToken::authrc.$$;
 }
 
+if ( defined $ENV{ $Bio::KBase::AuthToken::TokenEnv }) {
+    undef $ENV{ $Bio::KBase::AuthToken::TokenEnv };
+}
+
+
 ok( $at = Bio::KBase::AuthToken->new('user_id' => 'papa', 'password' => 'papapa'), "Logging in using papa account");
 ok($at->validate(), "Validating token for papa user using username/password");
 

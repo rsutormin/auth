@@ -25,7 +25,6 @@ our $ProfilePath = $Conf{'authentication.profilepath'} ?
 our $RoleSvcURL = $Conf{'authentication.rolesvcurl'} ?
     $Conf{'authentication.rolesvcurl'} : "https://kbase.us/services/authorization/Roles";
 
-
 # Load a new config file to override the default settings
 sub LoadConfig {
     my( $ConfPath) = shift;
@@ -43,7 +42,7 @@ sub LoadConfig {
     
     $RoleSvcURL = $Conf{'authentication.rolesvcurl'} ?
 	$Conf{'authentication.rolesvcurl'} : $RoleSvcURL;
-    
+
 }
 
 1;

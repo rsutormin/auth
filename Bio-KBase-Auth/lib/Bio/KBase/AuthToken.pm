@@ -58,6 +58,11 @@ if ($Conf{'authentication.shm_cache'}) {
 $TokenCache = "";
 $SignerCache = "";
 
+# This is the name of the environment variable that contains a
+# pregenerated token
+our $TokenEnv = exists($Conf{'authentication.tokenvar'}) ?
+    $Conf{'authentication.tokenvar'} : "KB_AUTH_TOKEN";
+
 # Your typical constructor - takes a hash that specifies the initial values to
 # plug into the object.
 # A special attribute is "ignore_authrc", if that it set then we will not bother
@@ -88,6 +93,8 @@ sub new {
 	} elsif ($self->{'user_id'} && 
 		 ($self->{'password'} || $self->{'client_secret'} || $self->{'keyfile'})) {
 	    $self->get();
+	} elsif ( defined( $ENV{$TokenEnv})) {
+	    $self->token($ENV{$TokenEnv});
 	} elsif (! $self->{'ignore_kbase_config'} && keys(%Bio::KBase::Auth::AuthConf) ) {
 	    my %c = %Bio::KBase::Auth::AuthConf;
 	    # If we get a token, use that immediately and ignore the rest,
@@ -610,13 +617,25 @@ http://globusonline.github.com/nexus-docs/api.html
    my $token3 = Bio::KBase::AuthToken->new( 'user_id' => 'mrbig', 'keyfile' => $keyfile,
                                             'keyfile_passphrase' => 'testing');
 
+   # If you have a token in the shell environment variable $KB_AUTH_TOKEN you can
+   # just instantiate an object with no parameters and it will use that as if it
+   # were passed in as a token => %ENV{ KB_AUTH_TOKEN } among the params. This
+   # will also work if there are no legit combinations of credential information
+   # passed in
+   my $tok = Bio::KBase::AuthToken->new( token => 'very long token string');
+   # is the same as
+   $ENV{ 'KB_AUTH_TOKEN'} = 'very long token string';
+   my $tok = Bio::KBase::AuthToken->new()
+   
    # any parameters for a credential/login that can be passed in to the new() method can
    # be put in the [authentication] section of the INI file specified in
    # $Bio::KBase::Auth::ConfPath ( defaults to ~/.kbase_config ) will be used to
    # initialize the object unless the ignore_kbase_config is set to a true value in the
    # call to new()
    # 
-   # This is triggered by not providing any parameters to the new() method
+   # This is triggered by not providing any parameters to the new() method and not
+   # having a $ENV{ KB_AUTH_TOKEN } defined.
+   #
    # if ~/.kbase_config contains:
    # [authentication]
    # user_id=figaro
@@ -683,7 +702,6 @@ List of strings that enumerate the attributes allowed to be read from the B<auth
 
 This is the version string (pulled from the Bio::KBase::Auth module)
 
-
 =item B<$TokenCache,$SignerCache>
 
 These are CSV formatted strings for the Token and TokenSigner caches that contain 3 fields: last seen time, hash key, value
@@ -705,6 +723,10 @@ This is maximum the number of token validations or signer URL JSON docs that are
 =item B<$CacheKeySalt>
 
 String used to salt the sha1 hash calculated for cache keys. Set using authentication.cache_salt
+
+=item B<$TokenVar>
+
+Shell environment variable that may contain a token to be used as a default token value, defaults to "KB_AUTH_TOKEN". This environment variable can be overridden by authentication.tokenvar in the .kbase_config file
 
 =back
 
