@@ -18,7 +18,6 @@ Module::Build->new(
 		  'URI::URL' => 1.0,
 		  'Test::More' => 0.94,
 		  'POSIX' => 1.0,
-		  'IPC::Shareable' => 0.61,
     },
     dist_abstract => 'Classes to support OAuth based authentication for the Bio::KBase::* libraries',
     )->create_build_script;

@@ -53,14 +53,6 @@ our $CacheKeySalt = exists($Conf{'authentication.cache_salt'}) ?
 # If enabled, create some shared memory hashes for our cache.
 # Make them only readable/writeable by ourselves
 if ($Conf{'authentication.shm_cache'}) {
-    use IPC::Shareable;
-    my %SHMemOpts = { 'create' => 1,
-		      'mode' => 600,
-		      'destroy' => 1,
-		      'size' => 1000 * $SignerCacheSize};
-    tie $SignerCache, 'IPC::Shareable', 'KB8z', %SHMemOpts;
-    $SHMemOpts{ 'size' } = 256 * $TokenCacheSize;
-    tie $TokenCache, 'IPC::Shareable', 'KB8s', %SHMemOpts;
 }
 
 $TokenCache = "";
