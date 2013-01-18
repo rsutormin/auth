@@ -10,6 +10,23 @@ Technical documentation is in the form of perldocs embedded in the Bio::KBase::A
 modules - sample code is included in the docs. A "make deploy-docs" should install the docs in the appropriate
 directories.
 
+VERSION: 0.6.0 (Released 1/21/2013)
+------------------------------------------
+NEW FEATURES:
+- Caching for token validation, and user profiles
+- Support for defaults/configuration in ~/.kbase_config ($ENV{KB_DEPLOYMENT_CONFIG} overrides)
+- Support for environment variable $KB_AUTH_TOKEN containing a Globus Token
+- Support for KBase Session ID's as a token proxy using MongoDB session store
+
+UPDATED FEATURES / MAJOR BUG FIXES:
+- ~/.authrc file deprecated in favor of ~/.kbase_config
+- fixed perl path used for makefile deployment
+- fixed target directory for perl2man docs
+
+ANTICIPATED FUTURE DEVELOPMENTS:
+- Shared memory support or MongoDB service for scaling cache
+
+
 
 VERSION: 0.5.0 (Released 11/20/2012)
 ------------------------------------------

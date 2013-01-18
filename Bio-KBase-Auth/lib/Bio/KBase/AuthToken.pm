@@ -11,6 +11,8 @@ use Convert::PEM;
 use MIME::Base64;
 use URI;
 use POSIX;
+use MongoDB;
+use DateTime;
 
 # We use Object::Tiny::RW to generate getters/setters for the attributes
 # and save ourselves some tedium
@@ -63,6 +65,28 @@ $SignerCache = "";
 our $TokenEnv = exists($Conf{'authentication.tokenvar'}) ?
     $Conf{'authentication.tokenvar'} : "KB_AUTH_TOKEN";
 
+# If we have a MongDB connection in the configs, bind $authz_db to it to , otherwise
+# leave it undef. 
+our $AuthzDB = undef;
+if (defined $Conf{'authentication.authzdb'}) {
+
+    eval {
+	my $db = quotemeta( $Conf{'authentication.authzdb'} );
+	if ( grep { /$db/ } $Bio::KBase::Auth::MongoDB->database_names() ) {
+	    $AuthzDB = $Bio::KBase::Auth::MongoDB->get_database($Conf{'authentication.authzdb'});
+	} else {
+	    die "Database $db not found on ".$Conf{'authentication.mongodb'};
+	}
+    };
+    if ($@) {
+	printf STDERR "Error connecting to MongoDB database %s on %s: %s/nSessionID lookups are *not* enabled\n",
+	$Conf{'authentication.authzdb'}, $Bio::KBase::Auth::MongoDB,
+	$@;
+	$AuthzDB = undef; # Should be undef already, just being paranoid
+    }
+}
+    
+
 # Your typical constructor - takes a hash that specifies the initial values to
 # plug into the object.
 # A special attribute is "ignore_authrc", if that it set then we will not bother
@@ -85,6 +109,11 @@ sub new {
 	    $self->{'ignore_kbase_config'} = $self->{'ignore_authrc'};
 	}
 
+	# Do we have any default attributes from the $Conf hash?
+	my %c = %Bio::KBase::Auth::AuthConf;
+	my $def_attr = scalar( grep { exists( $c{ 'authentication.'.$_}) } @attrs);
+			    
+
 	# If we were given a token, try set that using the formal setter
 	# elsif we have appropriate login credentials, try to get a
 	# token
@@ -95,8 +124,7 @@ sub new {
 	    $self->get();
 	} elsif ( defined( $ENV{$TokenEnv})) {
 	    $self->token($ENV{$TokenEnv});
-	} elsif (! $self->{'ignore_kbase_config'} && keys(%Bio::KBase::Auth::AuthConf) ) {
-	    my %c = %Bio::KBase::Auth::AuthConf;
+	} elsif (! $self->{'ignore_kbase_config'} && $def_attr ) {
 	    # If we get a token, use that immediately and ignore the rest,
 	    # otherwise set the other attributes and fetch the token
 	    if (exists( $c{ 'authentication.auth_token'})) {
@@ -189,7 +217,10 @@ sub token {
 	$self->{'token'} = $token;
 	($self->{'user_id'}) = $token =~ /un=(\w+)/;
 	unless ($self->{'user_id'}) {
-	    die "Cannot parse user_id from token - illegal token";
+	    # Could this be a sessionid hash?
+	    unless ( $self->{token} =~ m/^[0-9a-fA-F]{64}$/) {
+		die "Cannot parse user_id from token - illegal token";
+	    }
 	}
     };
     if ($@) {
@@ -370,6 +401,11 @@ sub canonical_time {
 
 # Function that returns if the token is valid or not
 # optionally accepts hash as parameters
+# If the token is a 64 byte hex string, then it treats it as
+# a kbase_sessionid and will attempt to retrieve the actual token
+# from a mongodb session collection. This only works if the
+# sessiondb is enabled
+#
 # lifetime => seconds The number of seconds to use for token
 #                     lifetime, overrides the class variable
 #                     $token_lifetime 
@@ -384,6 +420,14 @@ sub validate {
 	    die "No token.";
 	}
 
+	# Check for kbase session id, if found, fetch it and replace
+	# the token with that value
+	if ( $self->{token} =~ m/^[0-9a-fA-F]{64}$/ && $AuthzDB) {
+	    my $token = get_sessDB_token( $self->{token});
+	    unless ($token) {
+		die "Session ID does not refer to a legitimate session";
+	    }
+	}
 	my ($sig_data) = $self->{'token'} =~ /^(.*)\|sig=/;
 	unless ($sig_data) {
 	    die "Token lacks signature fields";
@@ -589,6 +633,24 @@ sub decryptPEM {
   }
 }
 
+# Try to fetch the globus token associated with the session id passed
+# in as the only param. If the session is expired, or the lookup fails,
+# return undef
+
+sub get_sessDB_token {
+    my( $ssid) = shift @_;
+    my( $session) = undef;
+
+    my $token = undef;
+
+    if ( $AuthzDB ) {
+	$session = $AuthzDB->sessions->find_one( { kbase_sessionid => $ssid } );
+	if ($session && DateTime->compare($session->{expiration}, DateTime->now()) <= 0) {
+	    $token = $session->{token};
+	}
+    }
+    return( $token);
+}
 
 1;
 
@@ -679,8 +741,7 @@ http://globusonline.github.com/nexus-docs/api.html
 
 =item B<%Conf>
 
-This contains the configuration directives from the user's ~/.kbase_config under the section header "authentication". All the config settings can be accessed via $Bio::KBase::AuthUser::Conf{ 'authentication.SOMETHING'}
-
+This contains the configuration directives from the user's ~/.kbase_config under the section header "authentication". All the config settings can be accessed via $Bio::KBase::AuthUser::Conf{ 'authentication.NAME'}, where NAME is found in the config file under the section heading "authentication".
 
 =item B<@trust_token_signers>
 
@@ -727,6 +788,10 @@ String used to salt the sha1 hash calculated for cache keys. Set using authentic
 =item B<$TokenVar>
 
 Shell environment variable that may contain a token to be used as a default token value, defaults to "KB_AUTH_TOKEN". This environment variable can be overridden by authentication.tokenvar in the .kbase_config file
+
+=item B<$AuthzDB>
+
+MongoDB::Database reference that is initialized by the authentication.authzdb value from the kbase_config file. The value in the configuration must refer to an existing database in the MongoDB instance referenced by $Bio::KBase::Auth::MongoDB. If authentication.authzdb is declared but the authentication.mongodb setting is invalid, or if the database does not exist, then an exception will be thrown at module load time. Do not set this unless you really know what you are doing.
 
 =back
 
@@ -805,7 +870,8 @@ returns the user_id associated with the token, if any. If a single string value 
 
 =item B<validate>()
 
-attempts to verify the signature on the token, and returns a boolean value signifying whether the token is legit
+attempts to verify the signature on the token, and returns a boolean value signifying whether the token is legit. If the value in the token attribute is a legitimate kbase session ID hash and a session database has been enabled (by the $AuthzDB database handle), the session ID will be replaced by the associated token, and then validated - this is only relevant for installations where the session service has been enabled.
+
 
 =back
 

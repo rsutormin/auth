@@ -12,7 +12,8 @@ use HTTP::Request;
 use LWP::UserAgent;
 use JSON;
 use Digest::MD5 qw( md5_base64);
-use Test::More tests => 46;
+use Test::More tests => 47;
+use Time::HiRes qw( gettimeofday tv_interval);
 
 
 BEGIN {
@@ -147,7 +148,19 @@ open(TMP, ">$keyfile");
 print TMP $rsakey;
 close(TMP);
 ok( $at = Bio::KBase::AuthToken->new('user_id' => 'kbasetest', 'keyfile' => $keyfile), "Logging in using kbasetest account using username/rsa_key with rsa_key specified in keyfile parameter");
-ok($at->validate(), "Validating RSA kbasetest login with keyfile only");
+
+my @t1 = gettimeofday();
+my $val = $at->validate();
+my $tdelta = tv_interval( \@t1);
+
+ok($val, "Validating RSA kbasetest login with keyfile only");
+
+@t1 = gettimeofday();
+$val = $at->validate();
+my $tdelta2 = tv_interval( \@t1);
+
+note( "Elapsed time for first validation ".$tdelta." seconds, for second validation ".$tdelta2);
+ok( $tdelta2 < ($tdelta/2), "Checking for cached validation");
 
 # Test the same token, but encrypted with the passphrase "testing"
 $rsa2 = <<EOT3;

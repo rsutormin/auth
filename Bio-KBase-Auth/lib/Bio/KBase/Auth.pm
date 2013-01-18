@@ -5,10 +5,19 @@ package Bio::KBase::Auth;
 # sychan 4/24/2012
 use strict;
 use Config::Simple;
+use MongoDB;
 
 our $VERSION = '0.6.0';
 
 our $ConfPath = glob "~/.kbase_config";
+
+if (defined($ENV{ KB_DEPLOYMENT_CONFIG })) {
+    if ( -r $ENV{ KB_DEPLOYMENT_CONFIG }) {
+	$ConfPath = $ENV{ KB_DEPLOYMENT_CONFIG };
+    } else {
+	die "\$ENV{KB_DEPLOYMENT_CONFIG} points to an unreadable file: ".$ENV{ KB_DEPLOYMENT_CONFIG };
+    }
+}
 
 my $c = Config::Simple->new( $ConfPath);
 our %Conf = $c ? $c->vars() : {};
@@ -24,6 +33,20 @@ our $ProfilePath = $Conf{'authentication.profilepath'} ?
 
 our $RoleSvcURL = $Conf{'authentication.rolesvcurl'} ?
     $Conf{'authentication.rolesvcurl'} : "https://kbase.us/services/authorization/Roles";
+
+# handle to a MongoDB Connection
+our $MongoDB = undef;
+
+eval {
+    if ($Conf{'authentication.mongodb'} ) {
+	$MongoDB = MongoDB::Connection->new( host => $Conf{'authentication.mongodb'});
+    }
+};
+
+if ($@) {
+    die "Invalid MongoDB connection declared in ".$ConfPath." authentication.mongodb = ".
+	$Conf{'authentication.mongodb'};
+}
 
 # Load a new config file to override the default settings
 sub LoadConfig {
@@ -42,6 +65,9 @@ sub LoadConfig {
     
     $RoleSvcURL = $Conf{'authentication.rolesvcurl'} ?
 	$Conf{'authentication.rolesvcurl'} : $RoleSvcURL;
+
+    $MongoDB = $Conf{'authentication.sessiondb'} ?
+	$Conf{'authentication.sessiondb'} : $MongoDB;
 
 }
 
@@ -62,7 +88,7 @@ This is a helper class that stores shared configuration information.
 
 =item B<$ConfPath>
 
-   The path to the INI formatted configuration file. Defaults to ~/.kbase_config. Configuration directives for the Bio::KBase::Auth, Bio::KBase::AuthToken and Bio::KBase::AuthUser classes are loaded from the "authentication" section of the INI file.
+   The path to the INI formatted configuration file. Defaults to ~/.kbase_config, can be overriden by the shell environment variable $KB_DEPLOYMENT_CONFIG. Configuration directives for the Bio::KBase::Auth, Bio::KBase::AuthToken and Bio::KBase::AuthUser classes are loaded from the "authentication" section of the INI file.
 
 =item B<%Conf>
 
@@ -91,6 +117,10 @@ This is a helper class that stores shared configuration information.
 =item B<$RoleSvcURL>
 
    The URL used to query for roles/groups information, defaults to "https://kbase.us/services/authorization/Roles". Set by 'authentication.rolesvcurl' in .kbase_config
+
+=item B<$MongoDB>
+
+   A MongoDB::Connection reference that can be activated by defining authentication.mongodb in the configuration file. The value of authentication.mongodb is passed in as the value of the host parameter in the MongoDB::Connection->new() call. The MongoDB connection is used for access to server-side caching features and is not needed for normal operation.
 
 =back
 
