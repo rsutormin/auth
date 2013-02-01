@@ -61,8 +61,8 @@ deploy-docs:
 test: test-libs test-client test-scripts test-service
 	@echo "running library, client and script tests"
 
-test-libs: deploy-libs
-	export PERL5LIB=$(KB_PERL_PATH) ; \
+test-libs: 
+	export PERL5LIB=$(shell pwd)/Bio-KBase-Auth/lib ; \
 	cd Bio-KBase-Auth; $(DEPLOY_RUNTIME)/bin/perl ./Build test;
 
 # test-all is deprecated. 
