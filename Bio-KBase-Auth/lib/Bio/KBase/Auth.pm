@@ -107,6 +107,7 @@ sub SetConfigs {
 	    }
 	}
 	$c->save();
+	chmod 0600, $ConfPath;
 	LoadConfig();
     };
     if ($@) {
