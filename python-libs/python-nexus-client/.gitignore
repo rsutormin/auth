@@ -29,7 +29,6 @@ pip-log.txt
 #Virtualenv
 vendor/virtualenv.py
 vendor/python
-vendor/cache/*
 foo*
 bar*
 baz*
