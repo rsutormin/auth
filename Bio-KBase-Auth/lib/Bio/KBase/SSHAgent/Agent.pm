@@ -110,7 +110,8 @@ sub keys {
     my $keys = {};
     # check to make sure we have some identities to load, exit otherwise
     if ( my $num = $agent->num_identities()) {
-	while (my $key = $agent->{'identities'}->get_str()) {
+	foreach my $i (1 .. $num) {
+	    my $key = $agent->{'identities'}->get_str();
 	    my $comment = $agent->{'identities'}->get_str();
 	    $keys->{$comment} = $key;
 	}

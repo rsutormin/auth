@@ -20,7 +20,7 @@ if (defined($ENV{ KB_DEPLOYMENT_CONFIG })) {
 }
 
 my $c = Config::Simple->new( $ConfPath);
-our %Conf = $c ? $c->vars() : {};
+our %Conf = $c ? $c->vars() : ();
 our %AuthConf = map { $_, $Conf{ $_} } grep /^authentication\./, keys( %Conf);
 our $AuthSvcHost = $Conf{'authentication.servicehost'} ?
     $Conf{'authentication.servicehost'} : "https://nexus.api.globusonline.org/";

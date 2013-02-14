@@ -15,7 +15,6 @@ use Digest::MD5 qw( md5_base64);
 use Test::More tests => 47;
 use Time::HiRes qw( gettimeofday tv_interval);
 
-
 BEGIN {
     use_ok( Bio::KBase::AuthToken);
 }
