@@ -13,6 +13,7 @@ use URI;
 use POSIX;
 use MongoDB;
 use DateTime;
+use Bio::KBase::SSHAgent::Agent;
 
 # We use Object::Tiny::RW to generate getters/setters for the attributes
 # and save ourselves some tedium
@@ -21,6 +22,8 @@ use Object::Tiny::RW qw {
     user_id
     password
     client_secret
+    sshagent_keys
+    sshagent_keyname
 };
 
 # Pull the INI files based configs in
@@ -35,7 +38,8 @@ our @trust_token_signers = ( 'https://graph.api.go.sandbox.globuscs.info/goauth/
 our $token_lifetime = 0;
 our $authrc = glob "~/.authrc";
 our @attrs = ( 'user_id', 'auth_token','client_secret', 'keyfile',
-	       'keyfile_passphrase','password');
+	       'keyfile_passphrase','password','sshagent_keys',
+	       'sshagent_keyname');
 
 # Some hashes to cache tokens and Token Signers we have seen before
 our $SignerCache;
@@ -113,6 +117,8 @@ sub new {
 	my %c = %Bio::KBase::Auth::AuthConf;
 	my $def_attr = scalar( grep { exists( $c{ 'authentication.'.$_}) } @attrs);
 			    
+	# Load any available ssh-agent keys into the sshagent_keys hash
+	$self->get_agent_rsakeys();
 
 	# If we were given a token, try set that using the formal setter
 	# elsif we have appropriate login credentials, try to get a
@@ -120,7 +126,7 @@ sub new {
 	if ($self->{'token'}) {
 	    $self->token( $self->{'token'});
 	} elsif ($self->{'user_id'} && 
-		 ($self->{'password'} || $self->{'client_secret'} || $self->{'keyfile'})) {
+		 ($self->{'password'} || $self->{'client_secret'} || $self->{'keyfile'} || $self->{sshagent_keyname})) {
 	    $self->get();
 	} elsif ( defined( $ENV{$TokenEnv})) {
 	    $self->token($ENV{$TokenEnv});
@@ -239,6 +245,10 @@ sub token {
 # client_id => user name recognized on globus online for login
 # client_secret => the RSA private key used for signing
 # password => Globus online password
+# sshagent_name => the comment associated with the key in the ssh-agent to use for
+#           authentication. Typically this is the path to the private key
+# sshagent_name => the keyname associated with an ssh-agent loaded key. Must be a
+#           a key in the $self->ssh_keys hash
 # Throws an exception if either invalid set of creds or failed login
 
 sub get {
@@ -282,15 +292,18 @@ sub get {
 	if ($p{'client_secret'}) {
 	    $self->client_secret($p{'client_secret'});
 	}
+	if ($p{sshagent_keyname}) {
+	    $self->{sshagent_keyname} = $p{sshagent_keyname};
+	}
 	if ($p{'password'}) {
 	    $self->password($p{'password'});
 	}
 
 	# Make sure we have the right combo of creds
-	if ($self->{'user_id'} && ($self->{'client_secret'} || $self->{'password'})) {
+	if ($self->{'user_id'} && ($self->{'client_secret'} || $self->{'password'} || $self->{sshagent_keyname})) {
 	    # no op
 	} else {
-	    die("Need either (user_id, client_secret || password) or (client_id, client_secret) to be defined.");
+	    die("Need either (user_id, client_secret || password || sshagent_keyname)  to be defined.");
 	}
 	
 	my $u = URI->new($url);
@@ -308,12 +321,17 @@ sub get {
 	    $headers->authorization_basic( $self->{'user_id'}, $self->{'password'});
 	    $headers{'Authorization'} = $headers->header('Authorization');
 	} else {
-	    my %p2 = ( rsakey => $self->{'client_secret'},
-		       path => $path,
+	    my %p2 = ( path => $path,
 		       method => $method,
 		       user_id => $self->{'user_id'},
 		       query => $query,
 		       body => $self->{'body'} );
+	    if ( $self->{client_secret}) {
+		$p2{rsakey} = $self->{client_secret};
+	    } else {
+		$p2{agent} = $self->{sshagent};
+		$p2{sshagent_keyname} = $self->{sshagent_keyname};
+	    }
 	    
 	    %headers = sign_with_rsa( %p2);
 	}
@@ -374,9 +392,23 @@ sub sign_with_rsa {
 			    sha1_base64_padded($p{query}),
 			    $timestamp,
 			    $headers{'X-Globus-UserId'});
-	my $pkey = Crypt::OpenSSL::RSA->new_private_key($p{rsakey});
-	$pkey->use_sha1_hash();
-	my $sig = $pkey->sign($to_sign);
+	# We can sign either with sshagent_keyname or with an explicit rsakey
+	my $sig;
+	my $key;
+	if ( $p{rsakey} ) {
+	    my $pkey = Crypt::OpenSSL::RSA->new_private_key($p{rsakey});
+	    $pkey->use_sha1_hash();
+	    $sig = $pkey->sign($to_sign);
+	} elsif ( $p{sshagent_keyname} && $p{agent}) {
+	    my $keys = $p{agent}->keys();
+	    unless ($key = $keys->{$p{sshagent_keyname}}) {
+		die( sprintf "Key %s was not found among ssh-agent keys.", $p{sshagent_keyname});
+	    }
+	    $sig = $p{agent}->sign_with_keyblob( $key, $to_sign);
+	} else {
+	    die "No RSA key specified";
+	}
+
 	my $sig_base64 = encode_base64( $sig);
 	my @sig_base64 = split( '\n', $sig_base64);
 	foreach my $x (0..$#sig_base64) {
@@ -651,6 +683,42 @@ sub get_sessDB_token {
     }
     return( $token);
 }
+
+# Check to see if we have an active ssh-agent session, and if so, examine the keys
+# that are being stored, and return a hashref containing only the RSA keys. The hash
+# is keyed on the comment for the key (ssh-agent seems to use the key's path as the
+# comment) and the value is the 'key' handle that is returned. Note that the key handle
+# is not actually the private key, but just a handle that can be passed back to ssh-agent
+# when requesting that a private key operation be performed. Assumes that SSH_AUTH_SOCK and
+# all that stuff is properly configured
+sub get_agent_rsakeys {
+    my( $self ) = shift;
+    my( %p) = @_;
+    my( $keys ) = {};
+
+    unless ($self->{sshagent}) {
+	$self->{sshagent} = Bio::KBase::SSHAgent::Agent->new(2);
+    }
+    
+    # If the agent wasn't there, or there are no keys, just bail
+    return $keys unless ($self->{sshagent} && $self->{sshagent}->num_identities()); 
+    $keys = $self->{sshagent}->keys();
+    # Walk through keys and delete any that aren't of type "ssh-rsa"
+    foreach my $name ( keys %$keys) {
+	my $key = $keys->{ $name };
+	unless (substr($key,4,7) eq 'ssh-rsa') {
+	    delete $keys->{$name};
+	}
+    }
+    # if there is only a single RSA key, then make that the default
+    # sshagent_keyname
+    if (length(keys %$keys) == 1) {
+	my @keys = keys %$keys;
+	$self->{sshagent_keyname} = $keys[0];
+    }
+    return ($self->{sshagent_keys} = $keys);
+}
+
 
 1;
 

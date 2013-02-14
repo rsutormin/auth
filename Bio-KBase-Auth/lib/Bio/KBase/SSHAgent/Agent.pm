@@ -1,7 +1,11 @@
 # $Id: Agent.pm,v 1.6 2009/01/26 01:09:40 turnstep Exp $
 
 # This is the Net::SSH::Perl::Agent module extracted from the original
-# 1.35 release on CPAN.
+# 1.35 release on CPAN. It is stripped down to remove extraneous
+# dependencies not required to implement ssh-agent RSA signatures
+#
+# Steve Chan <sychan@lbl.gov>
+#
 # Original Authors:
 # Current maintainer is David Robins, dbrobins@cpan.org.
 #
@@ -97,44 +101,22 @@ sub num_identities {
     $agent->{num};
 }
 
+# Return a hashref keyed on key comments, with the value set to the
+# "key" that ssh-agent returns. The key can be passed into the
+# sign_with_keyblob for signatures
 sub keys {
     my $agent = shift;
 
-    if (exists $agent->{keys}) {
-	return( $agent->{keys});
-    } else {
-	$agent->{keys} = {};
+    my $keys = {};
+    # check to make sure we have some identities to load, exit otherwise
+    if ( my $num = $agent->num_identities()) {
 	while (my $key = $agent->{'identities'}->get_str()) {
 	    my $comment = $agent->{'identities'}->get_str();
-	    $agent->{keys}->{$comment} = $key;
+	    $keys->{$comment} = $key;
 	}
     }
-    return( $agent->{keys});
+    return( $keys);
 }
-
-sub sign {
-    my $agent = shift;
-    my($key, $data) = @_;
-    my $blob = $key->as_blob;
-    my $r = Bio::KBase::SSHAgent::Buffer->new( MP => "SSH$agent->{version}" );
-    $r->put_int8(SSH2_AGENTC_SIGN_REQUEST);
-    $r->put_str($blob);
-    $r->put_str($data);
-    $r->put_int32(0);
-
-    my $reply = $agent->request($r);
-    my $type = $reply->get_int8;
-    if ($type == SSH_AGENT_FAILURE || $type == SSH_COM_AGENT2_FAILURE) {
-        return;
-    }
-    elsif ($type != SSH2_AGENT_SIGN_RESPONSE) {
-        croak "Bad auth response: $type != ",  SSH2_AGENT_SIGN_RESPONSE;
-    }
-    else {
-        return $reply->get_str;
-    }
-}
-
 
 sub sign_with_keyblob {
     my $agent = shift;
@@ -147,42 +129,18 @@ sub sign_with_keyblob {
 
     my $reply = $agent->request($r);
     my $type = $reply->get_int8;
+    my $rawreply;
     if ($type == SSH_AGENT_FAILURE || $type == SSH_COM_AGENT2_FAILURE) {
         return;
     }
     elsif ($type != SSH2_AGENT_SIGN_RESPONSE) {
         croak "Bad auth response: $type != ",  SSH2_AGENT_SIGN_RESPONSE;
     }
-    else {
-        return $reply->get_str;
-    }
-}
-
-sub decrypt {
-    my $agent = shift;
-    my($key, $data, $session_id) = @_;
-    my $r = Bio::KBase::SSHAgent::Buffer->new( MP => "SSH$agent->{version}" );
-    $r->put_int8(SSH_AGENTC_RSA_CHALLENGE);
-    $r->put_int32($key->{rsa}{bits});
-    $r->put_mp_int($key->{rsa}{e});
-    $r->put_mp_int($key->{rsa}{n});
-    $r->put_mp_int($data);
-    $r->put_chars($session_id);
-    $r->put_int32(1);
-
-    my $reply = $agent->request($r);
-    my $type = $reply->get_int8;
-    my $response = '';
-    if ($type == SSH_AGENT_FAILURE || $type == SSH_COM_AGENT2_FAILURE) {
-        return;
-    }
-    elsif ($type != SSH_AGENT_RSA_RESPONSE) {
-        croak "Bad auth response: $type";
-    }
-    else {
-        $response .= $reply->get_char for 1..16;
-    }
-    $response;
+    my $rawsig = $reply->get_str;
+    my $plen = unpack "N", substr( $rawsig, 0, 4);
+    my $proto = substr($rawsig,4,$plen);
+    my $slen = unpack "N", substr( $rawsig, 4 + $plen, 4);
+    return( substr( $rawsig, 4 + $plen + 4, $slen));
 }
 
 sub close_socket {
