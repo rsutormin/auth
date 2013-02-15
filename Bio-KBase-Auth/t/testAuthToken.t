@@ -93,6 +93,9 @@ if ( defined $ENV{ $Bio::KBase::AuthToken::TokenEnv }) {
     undef $ENV{ $Bio::KBase::AuthToken::TokenEnv };
 }
 
+if ( -e $Bio::KBase::Auth::ConfPath) {
+    rename $Bio::KBase::Auth::ConfPath, $Bio::KBase::Auth::ConfPath.$$;
+}
 
 ok( $at = Bio::KBase::AuthToken->new('user_id' => 'papa', 'password' => 'papapa'), "Logging in using papa account");
 ok($at->validate(), "Validating token for papa user using username/password");
@@ -243,6 +246,11 @@ unlink($Bio::KBase::AuthToken::authrc);
 if ( -e $Bio::KBase::AuthToken::authrc.$$) {
     rename $Bio::KBase::AuthToken::authrc.$$, $Bio::KBase::AuthToken::authrc;
 }
+
+if ( -e $Bio::KBase::Auth::ConfPath.$$) {
+    rename $Bio::KBase::Auth::ConfPath.$$, $Bio::KBase::Auth::ConfPath;
+}
+
 unlink( $keyfile);
 
 ok( $d = HTTP::Daemon->new( LocalAddr => '127.0.0.1'), "Creating a HTTP::Daemon object for handling AuthServer") || die "Could not create HTTP::Daemon";

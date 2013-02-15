@@ -19,7 +19,7 @@ if (defined($ENV{ KB_DEPLOYMENT_CONFIG })) {
     }
 }
 
-my $c = Config::Simple->new( $ConfPath);
+my $c = Config::Simple->new( filename => $ConfPath);
 our %Conf = $c ? $c->vars() : ();
 our %AuthConf = map { $_, $Conf{ $_} } grep /^authentication\./, keys( %Conf);
 our $AuthSvcHost = $Conf{'authentication.servicehost'} ?
@@ -87,7 +87,15 @@ sub SetConfigs {
     my $c;
 
     eval {
-	$c = Config::Simple->new( $ConfPath);
+	$c = Config::Simple->new( filename => $ConfPath);
+	unless ( $c ) {
+	    # Config::Simple is a little too simple, it won't create the
+	    # file on the fly if you reference it using normal constructor
+	    $c = Config::Simple->new( syntax => 'ini');
+	    $c->set_block('authentication', {});
+	    $c->write( $ConfPath);
+	    $c = Config::Simple->new( filename => $ConfPath);
+	}
 	$c->autosave( 0 ); # disable autosaving so that update is "atomic"
 	for my $key (keys %params) {
 	    unless ($key =~ /^[a-zA-Z]\w*$/) {
@@ -106,7 +114,7 @@ sub SetConfigs {
 		$c->param($fullkey, $params{$key});
 	    }
 	}
-	$c->save();
+	$c->save($ConfPath);
 	chmod 0600, $ConfPath;
 	LoadConfig();
     };
