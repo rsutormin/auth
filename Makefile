@@ -25,7 +25,7 @@ SERVICE_DIR = $(TARGET)/services/$(SERVICE)
 
 all:
 
-deploy: deploy-libs deploy-docs
+deploy: deploy-libs deploy-docs deploy-scripts
 
 deploy-libs:
 	cd Bio-KBase-Auth; \
@@ -57,6 +57,33 @@ deploy-docs:
 	-mkdir $(SERVICE_DIR)/webroot
 	cp docs/*html $(SERVICE_DIR)/webroot/.
 	cp docs/*.3 $(DEPLOY_RUNTIME)/man/man3
+
+deploy-scripts: deploy-perl-scripts deploy-python-scripts
+
+deploy-perl-scripts:
+	export KB_TOP=$(TARGET); \
+	export KB_RUNTIME=$(DEPLOY_RUNTIME); \
+	export KB_PERL_PATH=$(TARGET)/lib ; \
+	for src in $(SRC_PERL) ; do \
+		basefile=`basename $$src`; \
+		base=`basename $$src .pl`; \
+		echo install $$src $$base ; \
+		cp $$src $(TARGET)/plbin ; \
+		$(WRAP_PERL_SCRIPT) "$(TARGET)/plbin/$$basefile" $(TARGET)/bin/$$base ; \
+	done 
+
+deploy-python-scripts:
+	export KB_TOP=$(TARGET); \
+	export KB_RUNTIME=$(DEPLOY_RUNTIME); \
+	export KB_PYTHON_PATH=$(TARGET)/lib ; \
+	for src in $(SRC_PYTHON) ; do \
+		basefile=`basename $$src`; \
+		base=`basename $$src .py`; \
+		echo install $$src $$base ; \
+		cp $$src $(TARGET)/pybin ; \
+		$(WRAP_PYTHON_SCRIPT) "$(TARGET)/pybin/$$basefile" $(TARGET)/bin/$$base ; \
+	done 
+
 
 test: test-libs test-client test-scripts test-service
 	@echo "running library, client and script tests"
