@@ -183,7 +183,7 @@ class Token:
         self.token = res['access_token']
         return self
 
-    def get_defaultcreds():
+    def get_sessDB_token():
         pass
 
 class User:
