@@ -35,6 +35,12 @@ class AuthCredentialsNeeded( Exception ):
     """
     pass
 
+class AuthFail( Exception ):
+    """
+    Simple wrapper around Exception class that flags our credentials are bad or bogus
+    """
+    pass
+
 class Token:
     """
     Class that handles token requests and validation. This is basically a wrapper
@@ -168,6 +174,8 @@ class Token:
         for attr in attrs:
             if attr in kwargs:
                 setattr( self, attr, kwargs[attr])
+        # override the user_key_file default in the nclient object
+        self.nclient.user_key_file = self.keyfile
         if not (self.user_id and ( self.password or self.sshagent_keyname or self.keyfile)):
             raise AuthCredentialsNeeded( "Need either (user_id, client_secret || password || sshagent_keyname)  to be defined.")
         if self.keyfile:
@@ -180,7 +188,10 @@ class Token:
             res = self.nclient.request_client_credential_sshagent( self.user_id, self.sshagent_keyname)
         else:
             raise AuthCredentialsNeeded("Authentication with explicit client_secret not supported - please put key in file or sshagent")
-        self.token = res['access_token']
+        if 'access_token' in res:
+            self.token = res['access_token']
+        else:
+            raise AuthFail()
         return self
 
     def get_sessDB_token():
