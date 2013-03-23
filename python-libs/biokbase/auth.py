@@ -5,27 +5,112 @@ and the python version
 
 In this module, we follow standard Python idioms of raising exceptions for
 various failure states ( Perl modules returned error states in error_msg field)
-
 """
-
 from biokbase.nexus.client import NexusClient
 from ConfigParser import ConfigParser
 import os
 from urlparse import urlparse
 
+"""
+Package "globals"
+    kb_config
+    trust_token_signers
+    attrs
+    authdata
+    config
+    tokenend
+    AuthSvcHost
+    RoleSvcURL
+    nexusconfig
+
+"""
 kb_config = os.environ.get('KB_DEPLOYMENT_CONFIG',os.environ['HOME']+"/.kbase_config")
+
+trust_token_signers = [ 'https://nexus.api.globusonline.org/goauth/keys' ]
+attrs = [ 'user_id', 'auth_token','client_secret', 'keyfile',
+          'keyfile_passphrase','password','sshagent_keys',
+          'sshagent_keyname']
+authdata = dict()
+if os.path.exists( kb_config):
+    try:
+        conf = ConfigParser()
+        conf.read(kb_config)
+        # strip down whatever we read to only what is legit
+        for x in attrs:
+            authdata[x] = conf.get('authentication',x) if conf.has_option('authentication',x) else None 
+    except Exception, e:
+        print "Error while reading INI file %s: %s" % (kb_config, e)
+tokenenv = authdata.get( 'tokenvar', 'KB_AUTH_TOKEN')
+# Yes, some variables are camel cased and others are all lower. Trying to maintain
+# the attributes names from the perl version which was a mishmash too. regret.
+AuthSvcHost = authdata.get( 'servicehost', "https://nexus.api.globusonline.org/")
+# Copied from perl libs for reference, not used here
+#ProfilePath = authdata.get( 'authpath', "/goauth/token")
+RoleSvcURL = authdata.get( 'rolesvcurl', "https://kbase.us/services/authorization/Roles")
+nexusconfig = { 'cache' : { 'class': 'nexus.token_utils.InMemoryCache',
+                            'args': [],
+                            },
+                'server' : urlparse(AuthSvcHost).netloc,
+                'verify_ssl' : False,
+                'client' : None,
+                'client_secret' : None}
 
 def LoadConfig():
     """
     Method to load configuration from INI style files from the file in kb_config
     """
-    pass
+    global kb_config,authdata,tokenenv,AuthSvcHost,RolesSvcHost
+    global RoleSvcURL,nexusconfig,conf
 
-def SetConfigs():
+    kb_config = os.environ.get('KB_DEPLOYMENT_CONFIG',os.environ['HOME']+"/.kbase_config")
+
+    if os.path.exists( kb_config):
+        try:
+            conf = ConfigParser()
+            conf.read(kb_config)
+            # strip down whatever we read to only what is legit
+            for x in attrs:
+                authdata[x] = conf.get('authentication',x) if conf.has_option('authentication',x) else None 
+        except Exception, e:
+            print "Error while reading INI file %s: %s" % (kb_config, e)
+    tokenenv = authdata.get( 'tokenvar', 'KB_AUTH_TOKEN')
+    # Yes, some variables are camel cased and others are all lower. Trying to maintain
+    # the attributes names from the perl version which was a mishmash too. regret.
+    AuthSvcHost = authdata.get( 'servicehost', "https://nexus.api.globusonline.org/")
+    # Copied from perl libs for reference, not used here
+    #ProfilePath = authdata.get( 'authpath', "/goauth/token")
+    RoleSvcURL = authdata.get( 'rolesvcurl', "https://kbase.us/services/authorization/Roles")
+    nexusconfig = { 'cache' : { 'class': 'nexus.token_utils.InMemoryCache',
+                                'args': [],
+                                },
+                    'server' : urlparse(AuthSvcHost).netloc,
+                    'verify_ssl' : False,
+                    'client' : None,
+                    'client_secret' : None}
+
+def SetConfigs( configs):
     """
     Method used to set configuration directives in INI file kb_config
+    Takes as a parameter a dictionary of config directives within the authentication section
+    that need to be set/unset. If there is a dictionary entry where the value is None
+    then the config setting will be deleted
     """
-    pass
+    global kb_config,authdata,tokenenv,AuthSvcHost,RolesSvcHost
+    global RoleSvcURL,nexusconfig,conf
+
+    conf = ConfigParser()
+    if os.path.exists( kb_config):
+        conf.read(kb_config)
+    if not conf.has_section('authentication'):
+        conf.add_section('authentication')
+    for key in configs.keys():
+        if configs[key] is not None:
+            conf.set('authentication',key, configs[key])
+        else:
+            conf.remove_option('authentication',key)
+    with open(kb_config, 'wb') as configfile:
+        conf.write(configfile)
+    LoadConfig()
 
 class AuthCredentialsNeeded( Exception ):
     """
@@ -51,16 +136,6 @@ class Token:
 
     In memory caching is provided by the underlying nexus.client implementation.
 
-    Class Attributes:
-    trust_token_signers
-    attrs
-    authdata
-    config
-    tokenend
-    AuthSvcHost
-    RoleSvcURL
-    nexusconfig
-
     Instance Attributes:
     user_id 
     password 
@@ -71,38 +146,7 @@ class Token:
     sshagent_keyname 
     """
 
-    trust_token_signers = [ 'https://nexus.api.globusonline.org/goauth/keys' ]
-    attrs = [ 'user_id', 'auth_token','client_secret', 'keyfile',
-              'keyfile_passphrase','password','sshagent_keys',
-              'sshagent_keyname']
-    authdata = dict()
-    if os.path.exists( kb_config):
-        try:
-            config = ConfigParser()
-            config.read(file)
-            # strip down whatever we read to only what is legit
-            authdata = { x : config.get('authentication',x) if config.has_option('authentication',x) else None for x in
-                         attrs }
-        except Exception, e:
-            print "Error while reading INI file %s: %s" % (file, e)
-    tokenenv = authdata.get( 'tokenvar', 'KB_AUTH_TOKEN')
-    # Yes, some variables are camel cased and others are all lower. Trying to maintain
-    # the attributes names from the perl version which was a mishmash too. regret.
-    AuthSvcHost = authdata.get( 'servicehost', "https://nexus.api.globusonline.org/")
-    # Copied from perl libs for reference, not used here
-    #ProfilePath = authdata.get( 'authpath', "/goauth/token")
-    RoleSvcURL = authdata.get( 'rolesvcurl', "https://kbase.us/services/authorization/Roles")
-    nexusconfig = { 'cache' : { 'class': 'nexus.token_utils.InMemoryCache',
-                                'args': [],
-                                },
-                    'server' : urlparse(AuthSvcHost).netloc,
-                    'verify_ssl' : False,
-                    'client' : None,
-                    'client_secret' : None}
-
-    def __init__(self, user_id = None, password = None, token = None,
-                 keyfile = None, client_secret = None, keyfile_passphrase = None,
-                 sshagent_keyname = None):
+    def __init__(self, **kwargs):
         """
         Constructor for Token class will accept these optional parameters attributes in
         order to initialize the object:
@@ -115,14 +159,12 @@ class Token:
         exception. However if there are enough credentials and they fail to authenticate,
         the exception will be reraised.
         """
-        self.token = None
-        self.user_id = user_id if user_id else None
-        self.password = password if password else None
-        self.keyfile = keyfile if keyfile else None
-        self.client_secret = client_secret if client_secret else None
-        self.keyfile_passphrase = keyfile_passphrase if keyfile_passphrase else None
-        self.sshagent_keyname = sshagent_keyname if sshagent_keyname else None
-        self.nclient = NexusClient(self.nexusconfig)
+        global nexusconfig
+        attrs = [ 'keyfile','keyfile_passphrase','user_id','password','token','client_secret','sshagent_keyname']
+        for attr in attrs:
+            setattr( self, attr, kwargs.get(attr,None))
+        self.nclient = NexusClient(nexusconfig)
+        self.nclient.user_key_file = self.keyfile
         self.sshagent_keys = self.nclient.agent_keys
 
         # if we have a user_id defined, try to get a token with whatever else was given
@@ -165,7 +207,8 @@ class Token:
         If there are not enough credentials, then an AuthCredentialsNeeded exception will be raised
         If the underlying Globus libraries fail to authenticate, the exception will be passed up
 
-        Success returns self, but with the token attribute containing a good token
+        Success returns self, but with the token attribute containing a good token, an AuthFail
+        exception will be thrown if the credentials are rejected by Globus Online
 
         Note: authentication with an explicit RSA client_secret is not currently supported
         """
@@ -181,7 +224,8 @@ class Token:
         if self.keyfile:
             self.nclient.user_key_file = self.keyfile
         if (self.user_id and self.keyfile):
-            res = self.nclient.request_client_credential( self.user_id, kwargs.get("keyfile_passphrase",None))
+            passphrase = kwargs.get("keyfile_passphrase",self.keyfile_passphrase)
+            res = self.nclient.request_client_credential( self.user_id, lambda : passphrase )
         elif (self.user_id and self.password):
             res = self.nclient.request_client_credential( self.user_id, self.password)
         elif (self.user_id and self.sshagent_keyname):
