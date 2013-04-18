@@ -219,6 +219,11 @@ class Token:
                 setattr( self, attr, kwargs[attr])
         # override the user_key_file default in the nclient object
         self.nclient.user_key_file = self.keyfile
+        # in the perl libraries, if we have a user_id, no other credentials, and a single
+        # available sshagent_keyname from ssh_agent, default to using that for auth
+        if (self.user_id and not ( self.password or self.sshagent_keyname or self.keyfile)
+            and (len(self.sshagent_keys.keys()) == 1)):
+            self.sshagent_keyname = self.sshagent_keys.keys()[0]
         if not (self.user_id and ( self.password or self.sshagent_keyname or self.keyfile)):
             raise AuthCredentialsNeeded( "Need either (user_id, client_secret || password || sshagent_keyname)  to be defined.")
         if self.keyfile:
