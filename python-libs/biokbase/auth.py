@@ -10,6 +10,7 @@ from biokbase.nexus.client import NexusClient
 from ConfigParser import ConfigParser
 import os
 from urlparse import urlparse
+from pprint import pformat
 
 """
 Package "globals"
@@ -27,9 +28,11 @@ Package "globals"
 kb_config = os.environ.get('KB_DEPLOYMENT_CONFIG',os.environ['HOME']+"/.kbase_config")
 
 trust_token_signers = [ 'https://nexus.api.globusonline.org/goauth/keys' ]
-attrs = [ 'user_id', 'auth_token','client_secret', 'keyfile',
+attrs = [ 'user_id', 'token','client_secret', 'keyfile',
           'keyfile_passphrase','password','sshagent_keys',
           'sshagent_keyname']
+
+# authdata stores the configuration key/values from any configuration file
 authdata = dict()
 if os.path.exists( kb_config):
     try:
@@ -158,6 +161,10 @@ class Token:
         AuthSvcHost. If there are not enough credentials to authenticate, we ignore the
         exception. However if there are enough credentials and they fail to authenticate,
         the exception will be reraised.
+
+        If there is a ~/kbase_config INI file, it will be used to fill in values when there
+        are no initialization values given - this can be short circuited by setting
+        ignore_kbase_config to true among the initialization params
         """
         global nexusconfig
         attrs = [ 'keyfile','keyfile_passphrase','user_id','password','token','client_secret','sshagent_keyname']
@@ -167,9 +174,23 @@ class Token:
         self.nclient.user_key_file = self.keyfile
         self.sshagent_keys = self.nclient.agent_keys
 
+        # Flag to mark if we got default values from .kbase_config file
+        defattr = reduce( lambda x,y: x or (authconf.get(y, None) is not None), attrs)
         # if we have a user_id defined, try to get a token with whatever else was given
-        # if it fails due to not enough creds, ignore
+        # if it fails due to not enough creds, try any values from ~/.kbase_config
         if (self.user_id):
+            try:
+                self.get()
+            except AuthCredentialsNeeded:
+                pass
+            except Exception, e:
+                raise e
+        elif os.environ.get(tokenenv):
+            self.token = os.environ[tokenenv]
+        elif defattr and not kwargs.get('ignore_kbase_config'):
+            for attr in attrs:
+                if authdata.get(attr) is not None:
+                    setattr(self,attr,authdata[attr])
             try:
                 self.get()
             except AuthCredentialsNeeded:
@@ -240,7 +261,7 @@ class Token:
         if 'access_token' in res:
             self.token = res['access_token']
         else:
-            raise AuthFail()
+            raise AuthFail('Could not authenticate with values: ' + pformat(self.__dict__))
         return self
 
     def get_sessDB_token():
