@@ -25,6 +25,8 @@ Package "globals"
     nexusconfig
 
 """
+__version__ = "0.9"
+
 kb_config = os.environ.get('KB_DEPLOYMENT_CONFIG',os.environ['HOME']+"/.kbase_config")
 
 trust_token_signers = [ 'https://nexus.api.globusonline.org/goauth/keys' ]
@@ -204,14 +206,16 @@ class Token:
         This method caches results, so an initial validation will be high latency due to the
         network round trips, but subsequent validations will return very quickly
 
-        A successfully validated token will return a tuple of (user_id,authentication source)
+        A successfully validated token will return user_id
 
         Invalid tokens will generate a ValueError exception
         """
         if token is not None:
-            return self.nclient.validate_token( token)
+            res = self.nclient.validate_token( token)
         else:
-            return self.nclient.validate_token( self.token)
+            res = self.nclient.validate_token( self.token)
+        self.user_id = res[0]
+        return self.user_id
 
     def get(self, **kwargs):
         """
@@ -268,8 +272,24 @@ class Token:
         pass
 
 class User:
-    def __init__(self):
+    def __init__(self, **kwargs):
+        """
+        Constructor for User class will accept these optional parameters attributes in
+        order to initialize the object:
+
+        user_id, password, token, enabled, groups, name, email, verified
+
+        If a token is provided among the initializers, the get() method will be called at the
+        end of initialization to attempt to fetch the user profile from Globus Online
+
+        The ~/.kbase_config file is only indirectly supported - use it to get a token, and then
+        use that token as an initializer to this function to fetch a profile
+        """
+        global nexusconfig
+        attrs = [ 'user_id', 'password', 'token', 'enabled', 'groups', 'name', 'email', 'verified' ]
+        for attr in attrs:
+            setattr( self, attr, kwargs.get(attr,None))
+
+    def get(self, **kwargs):
         pass
-
-
 

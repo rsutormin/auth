@@ -95,6 +95,7 @@ if ( defined $ENV{ $Bio::KBase::AuthToken::TokenEnv }) {
 
 if ( -e $Bio::KBase::Auth::ConfPath) {
     rename $Bio::KBase::Auth::ConfPath, $Bio::KBase::Auth::ConfPath.$$;
+    Bio::KBase::Auth::LoadConfig();
 }
 
 ok( $at = Bio::KBase::AuthToken->new('user_id' => 'papa', 'password' => 'papapa'), "Logging in using papa account");

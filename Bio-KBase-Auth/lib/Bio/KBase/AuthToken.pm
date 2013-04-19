@@ -38,7 +38,7 @@ our @trust_token_signers = ( 'https://graph.api.go.sandbox.globuscs.info/goauth/
 # This can be be overridden  with a parameter passed into the validate() function.
 our $token_lifetime = 0;
 our $authrc = glob "~/.authrc";
-our @attrs = ( 'user_id', 'auth_token','client_secret', 'keyfile',
+our @attrs = ( 'user_id', 'token','client_secret', 'keyfile',
 	       'keyfile_passphrase','password','sshagent_keys',
 	       'sshagent_keyname');
 
@@ -134,8 +134,8 @@ sub new {
 	} elsif (! $self->{'ignore_kbase_config'} && $def_attr ) {
 	    # If we get a token, use that immediately and ignore the rest,
 	    # otherwise set the other attributes and fetch the token
-	    if (exists( $c{ 'authentication.auth_token'})) {
-		$self->token( $c{'authentication.auth_token'});
+	    if (exists( $c{ 'authentication.token'})) {
+		$self->token( $c{'authentication.token'});
 		$self->validate();
 	    } else {
 		foreach my $attr ( @attrs) {
@@ -774,7 +774,7 @@ http://globusonline.github.com/nexus-docs/api.html
    #
    # Then the constructor will try to acquire a token with the user_id and password
    # settings provided.
-   # Currently this library recognizes user_id, auth_token,client_secret,keyfile,
+   # Currently this library recognizes user_id, token,client_secret,keyfile,
    #	       keyfile_passphrase,password
    #
    # To login as jqpublic with an ssh key in ~jqpublic/.ssh/id_kbase that has the passphrase
