@@ -58,7 +58,7 @@ sub LoadConfig {
 	$Conf{'authentication.servicehost'} : $AuthSvcHost;
     
     $AuthorizePath = $Conf{'authentication.authpath'} ?
-	$Conf{'authentication.authpath'} : $AuthSvcHost;
+	$Conf{'authentication.authpath'} : $AuthorizePath;
     
     $ProfilePath = $Conf{'authentication.profilepath'} ?
 	$Conf{'authentication.profilepath'} : $ProfilePath;
