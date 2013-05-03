@@ -272,6 +272,13 @@ class Token:
         pass
 
 class User:
+    top_attr = { "user_id" : "username",
+                 "verified" : "email_validated",
+                 "opt_in" : "opt_in",
+                 "name" : "fullname",
+                 "email" : "email",
+                 "system_admin" : "system_admin" }
+
     def __init__(self, **kwargs):
         """
         Constructor for User class will accept these optional parameters attributes in
@@ -286,10 +293,29 @@ class User:
         use that token as an initializer to this function to fetch a profile
         """
         global nexusconfig
-        attrs = [ 'user_id', 'password', 'token', 'enabled', 'groups', 'name', 'email', 'verified' ]
+        attrs = [ 'user_id', 'enabled', 'groups', 'name', 'email', 'verified' ]
         for attr in attrs:
             setattr( self, attr, kwargs.get(attr,None))
+        if kwargs['token']:
+            self.authToken = Token( token = kwargs['token'])
+            self.token = self.authToken.token
+            self.get()
+        return self
 
     def get(self, **kwargs):
+        if 'token' in kwargs:
+            self.authToken = Token( token = kwargs['token'])
+            self.token = self.authToken.token
+        if not self.token:
+            raise AuthCredentialsNeeded( "Authentication token required")
+        profile = self.authToken.nclient.get_user_user_access_token( self.token)
+        print pformat( profile)
+        for attr,go_attr in self.top_attrs.items():
+            setattr( self, attr, profile.get( go_attr))
+        if 'custom_fields' in profile:
+            for attr in profile['custom_fields'].keys():
+                setattr( self, attr, profile['custom_fields'][attr])
+        return self
+                         
+    def update(self, **kwargs):
         pass
-
