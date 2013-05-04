@@ -14,6 +14,7 @@ VERSION: 0.7.0 (Released 5/2/2013)
 ------------------------------------------
 NEW FEATURES:
 - Python language support for AuthToken as biokbase.Auth.Token
+- Unit tests for python client libraries
 
 ANTICIPATED FUTURE DEVELOPMENTS:
 - Python language support for AuthUser as biokbase.Auth.User
