@@ -11,6 +11,8 @@ from ConfigParser import ConfigParser
 import os
 from urlparse import urlparse
 from pprint import pformat
+import requests
+import re
 
 """
 Package "globals"
@@ -59,6 +61,8 @@ nexusconfig = { 'cache' : { 'class': 'nexus.token_utils.InMemoryCache',
                 'verify_ssl' : False,
                 'client' : None,
                 'client_secret' : None}
+# Compile a regex for parsing out user_id's from tokens
+token_userid = re.compile( '(?<=^un=)\w+')
 
 def LoadConfig():
     """
@@ -199,6 +203,9 @@ class Token:
                 pass
             except Exception, e:
                 raise e
+        if self.user_id is None and self.token:
+            # parse out the user_id and set it
+            self.user_id = token_userid.search( self.token).group(0)
 
     def validate( self, token = None):
         """
@@ -272,7 +279,7 @@ class Token:
         pass
 
 class User:
-    top_attr = { "user_id" : "username",
+    top_attrs = { "user_id" : "username",
                  "verified" : "email_validated",
                  "opt_in" : "opt_in",
                  "name" : "fullname",
@@ -300,7 +307,7 @@ class User:
             self.authToken = Token( token = kwargs['token'])
             self.token = self.authToken.token
             self.get()
-        return self
+        return
 
     def get(self, **kwargs):
         if 'token' in kwargs:
@@ -308,10 +315,17 @@ class User:
             self.token = self.authToken.token
         if not self.token:
             raise AuthCredentialsNeeded( "Authentication token required")
-        profile = self.authToken.nclient.get_user_user_access_token( self.token)
-        print pformat( profile)
+        p = { 'custom_fields' : '*',
+              'fields' : 'groups,username,email_validated,fullname,email'
+              }
+        headers = { 'Authorization' : 'Globus-Goauthtoken ' + self.token }
+        resp = requests.get( AuthSvcHost+"users/" + self.authToken.user_id, params = p,
+                             headers = headers)
+        profile = resp.json
         for attr,go_attr in self.top_attrs.items():
             setattr( self, attr, profile.get( go_attr))
+        # pull out the name field from the groups dict entries and put into groups
+        setattr( self, 'groups', [ x['name'] for x in resp.json['groups']])
         if 'custom_fields' in profile:
             for attr in profile['custom_fields'].keys():
                 setattr( self, attr, profile['custom_fields'][attr])
