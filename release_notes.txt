@@ -51,5 +51,3 @@ UPDATED FEATURES / MAJOR BUG FIXES:
 ANTICIPATED FUTURE DEVELOPMENTS:
 -command line scripts to support .authrc files
 -possible namechange on .authrc files
-
-
