@@ -489,9 +489,9 @@ sub validate {
 	} else {
 	    # Check cache for signer public key
 	    my($response, $binary_sig, $client);
+	    $binary_sig = pack('H*',$vars{'sig'});
 	    my $data = cache_get( \$SignerCache, $vars{'SigningSubject'});
 	    unless ($data) {
-		$binary_sig = pack('H*',$vars{'sig'});
 		$client = LWP::UserAgent->new();
 		$client->ssl_opts(verify_hostname => 0);
 		$client->timeout(5);

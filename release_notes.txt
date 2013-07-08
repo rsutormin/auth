@@ -10,6 +10,15 @@ Technical documentation is in the form of perldocs embedded in the Bio::KBase::A
 modules - sample code is included in the docs. A "make deploy-docs" should install the docs in the appropriate
 directories.
 
+VERSION: 0.7.1 (Released 6/22/2013)
+------------------------------------------
+NEW FEATURES:
+- Updates to biokbase.Auth.User to support basic read/only functionality.
+
+ANTICIPATED FUTURE DEVELOPMENTS:
+- Additional changes to biokbase.Auth.User to support modifying group membership/creation
+- Python MongoDB support for KBase Session IDs
+
 VERSION: 0.7.0 (Released 5/2/2013)
 ------------------------------------------
 NEW FEATURES:
