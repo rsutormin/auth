@@ -1,0 +1,182 @@
+package us.kbase.auth;
+
+import java.io.IOException;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.TimeZone;
+
+/**
+ * Describes an AuthToken as used in KBase.
+ * 
+ * This takes in a string in the token format and parses it out into this AuthToken object.
+ * This object makes each of the token attributes readily available for the user.
+ * @author wjriehl
+ *
+ */
+
+public class AuthToken {
+	private String tokenStr = null;
+	private String userName = null;
+	private String tokenId = null;
+	private String clientId = null;
+	private long expiry = 0;
+	private String tokenType = null;
+	private String signingSubject = null;
+	private String signature = null;
+	private String tokenData = null;
+	
+	/**
+	 * The standard constructor for an AuthToken takes a token string and parses it into
+	 * the various pieces used by this class.
+	 * 
+	 * If the token is badly formatted or missing components, it throws an IOException.
+	 * @param token
+	 * @throws IOException
+	 */
+	public AuthToken(String token) throws IOException {
+		this.tokenStr = token;
+		parseToken(token);
+	}
+
+	/**
+	 * Returns the user's name.
+	 * @return
+	 */
+	public String getUserName() {
+		return userName;
+	}
+	
+	/**
+	 * Returns the ID of the token.
+	 * @return
+	 */
+	public String getTokenId() {
+		return tokenId;
+	}
+	
+	/**
+	 * Returns the client's ID.
+	 * @return
+	 */
+	public String getClientId() {
+		return clientId;
+	}
+	
+	/**
+	 * Returns the token's expiration date as a numerical string in seconds since the Time2 epoch.
+	 * @return
+	 */
+	public long getExpiry() {
+		return expiry;
+	}
+	
+	/**
+	 * Returns the type of token that was generated.
+	 * @return
+	 */
+	public String getTokenType() {
+		return tokenType;
+	}
+	
+	/**
+	 * Returns the signing subject for this token (typically a globus online URL)
+	 * @return
+	 */
+	public String getSigningSubject() {
+		return signingSubject;
+	}
+	
+	/**
+	 * Returns the signature for the token.
+	 * @return
+	 */
+	public String getSignature() {
+		return signature;
+	}
+	
+	/**
+	 * Returns "token data" - the content of the entire token without the signature.
+	 * @return
+	 */
+	public String getTokenData() {
+		return tokenData;
+	}
+	
+	/**
+	 * Parses the KBase OAuth token into all of its fields and values.
+	 * e.g. "un" -> username, "tokenid" -> the token UUID, etc.
+	 *
+	 * List of fields (case sensitive!): 
+	 * un == user name
+	 * tokenid == token UUID
+	 * expiry == expiration time in seconds since time(2) epoch
+	 * client_id == user ID
+	 * token_type == "Bearer" or other type of token (probably Bearer)
+	 * SigningSubject == URL of signing authority
+	 * sig == token signature
+	 * tokenData == see below
+	 * 
+	 * This also includes a separate field called "tokenData". This maps to the part of the token string that needs to be validated
+	 * against the signature (in the "sig" field).
+	 * 
+	 * So you might use this as follows.
+	 * Map<String, String> parsed = parseToken(token);
+	 * hashAndCompare(parsed.get("tokenData"), parsed.get("sig"));
+	 * (also including some error checking)
+	 * 
+	 * @param token
+	 * @return
+	 * @throws IOException
+	 */
+	private void parseToken(String token) throws IOException {
+		Map<String, String> parsed = new HashMap<String, String>();
+		/**
+		 * Expect the token to be of the following format:
+		 * "key1=value1|key2=value2|key3=value3|..."
+		 * So, '|' and '=' are expected to be only present as delimiters.
+		 */
+		String[] tokenFields = token.split("[|]");
+		for (String field : tokenFields) {
+			String[] keyValuePair = field.split("[=]");
+			
+			// Should be exactly 2 elements here. If not == bad news.
+			if (keyValuePair.length != 2) {
+				throw new IOException("Auth token is in the incorrect format, near '" + field + "'");
+			}
+			parsed.put(keyValuePair[0], keyValuePair[1]);
+		}
+
+		// Everything up to '|sig=' is the token data, so grab that.
+		int sigPos = token.indexOf("|sig=");
+
+		// If we can't find that fragment, or it's at the end of the string, throw an error - there's no sig present!
+		if (sigPos == -1 || token.length() < sigPos+5) {
+			throw new IOException("Auth token is in the incorrect format - might be missing the signature?");
+		}
+
+		userName = parsed.get("un");
+		tokenId = parsed.get("tokenid");
+		expiry = Long.parseLong(parsed.get("expiry"));
+		clientId = parsed.get("client_id");
+		tokenType = parsed.get("token_type");
+		signingSubject = parsed.get("SigningSubject");
+		signature = parsed.get("sig");
+		tokenData = token.substring(0, sigPos);
+		
+		parsed.put("tokenData", token.substring(0, sigPos));
+	}
+
+	public boolean isExpired() {
+		System.out.println(new Date(expiry*1000).toString());
+		return (Calendar.getInstance(TimeZone.getTimeZone("UTC")).getTimeInMillis() / 1000L >= expiry);
+	}
+	
+	/**
+	 * Returns a string representation of the token - this is the identical token string that was generated by the service.
+	 */
+	public String toString() {
+		return tokenStr;
+	}
+}
