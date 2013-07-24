@@ -1,4 +1,4 @@
-all:
+all: compile-java test-java
 
 compile-java:
 	cd src/; \

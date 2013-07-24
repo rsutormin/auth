@@ -1,5 +1,6 @@
 import org.junit.Test;
 import org.junit.BeforeClass;
+import org.junit.AfterClass;
 import static org.junit.matchers.JUnitMatchers.*;
 import static org.hamcrest.CoreMatchers.*;
 import java.util.Arrays;
@@ -26,7 +27,7 @@ public class AuthServiceTest {
 
 	@BeforeClass
 	public static void loginTestUser() {
-		System.out.println("doing pre set up");
+		System.out.println("Setting up test user for AuthUser and AuthToken testing...");
 		try {
 			testUser = AuthService.login(TEST_UID, TEST_PW);
 		}
@@ -35,6 +36,12 @@ public class AuthServiceTest {
 			System.out.println("Not running any tests!");
 			System.exit(0);
 		}
+		System.out.println("Done! Beginning testing....");
+	}
+
+	@AfterClass
+	public static void cleanup() {
+		System.out.println("Done testing!");
 	}
 
 	// test AuthToken POJO stuff - make sure all fields are non-null
