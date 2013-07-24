@@ -12,7 +12,7 @@ import us.kbase.auth.AuthUser;
 
 public class AuthServiceTest {
 	private static final String TEST_UID = "kbasetest";
-	private static final String TEST_PW = "@Suite525";
+	private static final String TEST_PW = System.getProperty("test.user.password");
 
 	private static final String FULL_NAME = "KBase Test Account";
 	private static final String EMAIL = "sychan@lbl.gov";
