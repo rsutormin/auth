@@ -380,6 +380,8 @@ public class AuthService {
 			System.out.println(user2.getToken().getTokenData());
 			
 			System.out.println(user2.getToken().isExpired());
+
+			AuthUser user3 = AuthService.login("asdf", "jkl;");
 		} catch (AuthException e) {
 			// handle IOException
 			System.out.println(e.getLocalizedMessage());

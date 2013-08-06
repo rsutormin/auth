@@ -5,10 +5,12 @@ import static org.junit.matchers.JUnitMatchers.*;
 import static org.hamcrest.CoreMatchers.*;
 import java.util.Arrays;
 import java.util.List;
+import java.io.IOException;
 
 import us.kbase.auth.AuthService;
 import us.kbase.auth.AuthToken;
 import us.kbase.auth.AuthUser;
+import us.kbase.auth.AuthException;
 
 public class AuthServiceTest {
 	private static final String TEST_UID = "kbasetest";
@@ -46,7 +48,7 @@ public class AuthServiceTest {
 
 	// test AuthToken POJO stuff - make sure all fields are non-null
 	@Test
-	public void testCreateTokenFromString() throws Exception {
+	public void testCreateTokenFromString() throws IOException {
 		AuthToken token = new AuthToken(testUser.getTokenString());
 		org.junit.Assert.assertNotNull("failure - unable to create a token from a string", token);
 	}
@@ -168,33 +170,52 @@ public class AuthServiceTest {
 	}
 
 	@Test
-	public void testGetUserFromTokenObject() throws Exception {
+	public void testGetUserFromTokenObject() throws AuthException {
 		AuthUser user = AuthService.getUserFromToken(testUser.getToken());
 		org.junit.Assert.assertNotNull("failure - getting user from a token object returned a null user", user);
 	}
 
 	@Test
-	public void testGetUserFromTokenString() throws Exception {
+	public void testGetUserFromTokenString() throws AuthException {
 		AuthUser user = AuthService.getUserFromToken(testUser.getTokenString());
 		org.junit.Assert.assertNotNull("failure - getting user from a token string returned a null user", user);
 	}
 
 	@Test
-	public void testLogin() throws Exception {
+	public void testLogin() throws AuthException {
 		AuthUser user = AuthService.login(TEST_UID, TEST_PW);
 		org.junit.Assert.assertNotNull("failure - logging in returned a null user", user);
 	}
 
 	@Test
-	public void testValidateTokenStr() throws Exception {
+	public void testValidateTokenStr() throws AuthException {
 		String tokenStr = testUser.getTokenString();
 		org.junit.Assert.assertTrue("failure - valid token string didn't validate", AuthService.validateToken(tokenStr));
 	}
 
 	@Test
-	public void testValidateTokenObject() throws Exception {
+	public void testValidateTokenObject() throws AuthException {
 		AuthToken token = testUser.getToken();
 		org.junit.Assert.assertTrue("failure - valid token object didn't validate", AuthService.validateToken(token));
 	}
+
+	// login with bad user/pw
+	@Test(expected = AuthException.class)
+	public void testFailLogin() throws AuthException {
+		AuthUser user = AuthService.login("asdf", "asdf");
+	}
+
+	// try to verify a bad token
+	@Test(expected = AuthException.class)
+	public void testFailValidate() throws AuthException {
+		AuthService.validateToken("asdf");
+	}
+
+	// try to parse a bad token
+	@Test(expected = IOException.class)
+	public void testFailCreateToken() throws IOException {
+		AuthToken badToken = new AuthToken("bad token!");
+	}
+
 	// finished with AuthService methods
 }
