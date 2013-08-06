@@ -153,7 +153,7 @@ public class AuthService {
 			throw new RuntimeException("An unexpected encoding exception occurred: " + e.getLocalizedMessage());
 		}
 		catch (MalformedURLException e) {
-			throw new RuntimeException("An unexpected URL exception occurred: " + e.getLocalizedMessage());
+			throw new AuthException("An exception occurred while connecting to the auth service URL: " + e.getLocalizedMessage());
 		}
 		catch (IOException e) {
 			throw new AuthException("An exception occurred while parsing authentication results: " + e.getLocalizedMessage());
