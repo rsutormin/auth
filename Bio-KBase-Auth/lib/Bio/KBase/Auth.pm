@@ -20,28 +20,36 @@ if (defined($ENV{ KB_DEPLOYMENT_CONFIG })) {
 }
 
 my $c = Config::Simple->new( filename => $ConfPath);
-our %Conf = $c ? $c->vars() : {};
-our %AuthConf = map { $_, $Conf{ $_} } grep /^authentication\./, keys( %Conf);
-our $AuthSvcHost = $Conf{'authentication.servicehost'} ?
-    $Conf{'authentication.servicehost'} : "https://nexus.api.globusonline.org/";
+our %Conf; # = $c ? $c->vars() : {};
+# The INI files squash multiline strings, unpack the client_secret
+# field if it is in there
+#if (defined( $Conf{'authentication.client_secret'})) {
+#    $Conf{'authentication.client_secret'} =~ s/\\n/\n/g;
+#}
+our %AuthConf;# = map { $_, $Conf{ $_} } grep /^authentication\./, keys( %Conf);
 
-our $AuthorizePath = $Conf{'authentication.authpath'} ?
-    $Conf{'authentication.authpath'} : "/goauth/token";
+our $AuthSvcHost; # = $Conf{'authentication.servicehost'} ?
+#    $Conf{'authentication.servicehost'} : "https://nexus.api.globusonline.org/";
 
-our $ProfilePath = $Conf{'authentication.profilepath'} ?
-    $Conf{'authentication.profilepath'} : "users";
+our $AuthorizePath; # = $Conf{'authentication.authpath'} ?
+#    $Conf{'authentication.authpath'} : "/goauth/token";
 
-our $RoleSvcURL = $Conf{'authentication.rolesvcurl'} ?
-    $Conf{'authentication.rolesvcurl'} : "https://kbase.us/services/authorization/Roles";
+our $ProfilePath;# = $Conf{'authentication.profilepath'} ?
+#    $Conf{'authentication.profilepath'} : "users";
+
+our $RoleSvcURL;# = $Conf{'authentication.rolesvcurl'} ?
+#    $Conf{'authentication.rolesvcurl'} : "https://kbase.us/services/authorization/Roles";
 
 # handle to a MongoDB Connection
 our $MongoDB = undef;
 
-eval {
-    if ($Conf{'authentication.mongodb'} ) {
-	$MongoDB = MongoDB::Connection->new( host => $Conf{'authentication.mongodb'});
-    }
-};
+LoadConfig();
+
+#eval {
+#    if ($Conf{'authentication.mongodb'} ) {
+#	$MongoDB = MongoDB::Connection->new( host => $Conf{'authentication.mongodb'});
+#    }
+#};
 
 if ($@) {
     die "Invalid MongoDB connection declared in ".$ConfPath." authentication.mongodb = ".
@@ -54,21 +62,34 @@ sub LoadConfig {
 
     my $c = Config::Simple->new( $newConfPath);
     %Conf = $c ? $c->vars() : {};
-    %AuthConf = map { $_, $Conf{ $_} } grep /^authentication\./, keys( %Conf);
+    if (defined( $Conf{'authentication.client_secret'})) {
+	$Conf{'authentication.client_secret'} =~ s/\\n/\n/g;
+    }
+
     $AuthSvcHost = $Conf{'authentication.servicehost'} ?
-	$Conf{'authentication.servicehost'} : $AuthSvcHost;
+	$Conf{'authentication.servicehost'} : "https://nexus.api.globusonline.org/";
     
     $AuthorizePath = $Conf{'authentication.authpath'} ?
-	$Conf{'authentication.authpath'} : $AuthorizePath;
+	$Conf{'authentication.authpath'} : "/goauth/token";
     
     $ProfilePath = $Conf{'authentication.profilepath'} ?
-	$Conf{'authentication.profilepath'} : $ProfilePath;
+	$Conf{'authentication.profilepath'} : "users";
     
     $RoleSvcURL = $Conf{'authentication.rolesvcurl'} ?
-	$Conf{'authentication.rolesvcurl'} : $RoleSvcURL;
+	$Conf{'authentication.rolesvcurl'} : "https://kbase.us/services/authorization/Roles";
 
-    $MongoDB = $Conf{'authentication.sessiondb'} ?
-	$Conf{'authentication.sessiondb'} : $MongoDB;
+    eval {
+	if ($Conf{'authentication.mongodb'} ) {
+	    $MongoDB = MongoDB::Connection->new( host => $Conf{'authentication.mongodb'});
+	}
+    };
+    
+    if ($@) {
+	die "Invalid MongoDB connection declared in ".$ConfPath." authentication.mongodb = ".
+	    $Conf{'authentication.mongodb'};
+    }
+
+    %AuthConf = map { $_, $Conf{ $_} } grep /^authentication\./, keys( %Conf);
 
 }
 

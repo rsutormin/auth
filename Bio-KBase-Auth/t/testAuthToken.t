@@ -80,14 +80,14 @@ sub testClient {
     note( sprintf "Client: Recieved a response: %d %s\n", $res->code, $res->content);
 
     # move back original .kbase-auth file
-    if ( -e "~/.kbase-auth.testing") {
-      `mv ~/.kbase-auth.testing ~/.kbase-auth`;
-    }
+    #if ( -e "~/.kbase-auth.testing") {
+    #  `mv ~/.kbase-auth.testing ~/.kbase-auth`;
+    #}
 }
 
-if ( -e $Bio::KBase::AuthToken::authrc) {
-    rename $Bio::KBase::AuthToken::authrc, $Bio::KBase::AuthToken::authrc.$$;
-}
+#if ( -e $Bio::KBase::AuthToken::authrc) {
+#    rename $Bio::KBase::AuthToken::authrc, $Bio::KBase::AuthToken::authrc.$$;
+#}
 
 if ( defined $ENV{ $Bio::KBase::AuthToken::TokenEnv }) {
     undef $ENV{ $Bio::KBase::AuthToken::TokenEnv };
@@ -163,7 +163,7 @@ $val = $at->validate();
 my $tdelta2 = tv_interval( \@t1);
 
 note( "Elapsed time for first validation ".$tdelta." seconds, for second validation ".$tdelta2);
-ok( $tdelta2 < ($tdelta/2), "Checking for cached validation");
+ok( $tdelta2 < ($tdelta/5), "Checking for cached validation");
 
 # Test the same token, but encrypted with the passphrase "testing"
 $rsa2 = <<EOT3;
@@ -198,55 +198,70 @@ ok( $at = Bio::KBase::AuthToken->new('user_id' => 'kbasetest', 'keyfile' => $key
 ok( ($at->error_message =~ /Bad key\/passphrase/), "Checking for bad passphrase error message." );
 ok(!($at->validate()), "Validating failed RSA kbasetest login from improper passphrase");
 
-note( "Creating files for testing ~/authrc");
-$authrc = q({"password":"@Suite525","user_id":"kbasetest"});
+note( "Creating files for testing kbase_config");
+Bio::KBase::Auth::SetConfigs("password" =>'@Suite525',"user_id" => "kbasetest");
 
-open( TMP, ">".$Bio::KBase::AuthToken::authrc);
-print TMP $authrc;
-close( TMP);
+#open( TMP, ">".$Bio::KBase::AuthToken::authrc);
+#print TMP $authrc;
+#close( TMP);
 
 ok( $at = Bio::KBase::AuthToken->new(), "Creating a new token object for testing authrc with password");
-ok( $at->user_id() eq "kbasetest", "Verifying that kbasetest user was read from authrc");
+ok( $at->user_id() eq "kbasetest", "Verifying that kbasetest user was read from kbase_config");
 ok( $at->validate(), "Verifying that kbasetest user token was acquired properly with userid and password");
 
-$authrc = <<EOT6;
-{"client_secret":"-----BEGIN RSA PRIVATE KEY-----\nMIICWgIBAAKBgQC1QVwNCLinZJfKBfFaQm2nZQM0JvwVhV5fwjiLkUPF51I2HfEX\nh988fOc2aOWuhPxUYOnE6I5xqMeWVh5T/77tOLs14X7O6kkmQZhsURKeIv9TVwNM\nKoHyBRoE70p+K1qAA7szhz4DE+L0OuNa7H6oFVmpoOPq5GBwFqnFZZwqTwIBIwKB\ngENSyms9wO23phfWUlS5lnFgCIEVy1hzXZFII6GNuhZOmuDmjL+Y3eNEVeECY/Bd\nR8eRteoNPDjYSiHlePqg0eJ1CclHYOTR/ngBmqNxh5fSgscSPHIuoKlEVRrQE2BY\nxM+BxMV4Kz7cZ3YKHrgMvHeNBL1eAhlO9iH4ur6i/UlDAkEA2loWVhabzQ2m3DYN\n6m7W5NLuBIqRyvNh/zX8gETqwDWynLri4AAcBcerDPghnXkJDqlM7AgG8W1z05A1\nVLhjpQJBANSB2kFjVOfdKJwkfvnn82nf/peHODDKUiaIwD7RaKOJFOI9ULJ6s/fJ\nqOtJv/Gnv563Sy3p7pSDtH4PGKjXY+MCQBK3Q748c8EebWNVFyK5Cxrtgh2lejX3\nmq95p+28w6oTOzIBY+dQd241r5Nlub0KX9yvbP5J1LWbqteepXxKUa8CQHNcbyrP\nhdz0ZoCmGQtSB8vCvWgzdkZfM+kIaFydkJNKamwv6fp9H95I5qudEG09zmwaXAL7\nVaEUTAnq8CEkeA0CQQCC4JLKFblHiZdEFzn6jkYe4s9Nf6SX7A+Vn4hq1o9yVMzf\n+fEfmgafrDgETuDY9fbv8DwfGtIgaWsbXbvXKdFd\n-----END RSA PRIVATE KEY-----\n","user_id":"kbasetest"}
-EOT6
+$rsakey = <<EOT4;
+-----BEGIN RSA PRIVATE KEY-----
+MIICWgIBAAKBgQC1QVwNCLinZJfKBfFaQm2nZQM0JvwVhV5fwjiLkUPF51I2HfEX
+h988fOc2aOWuhPxUYOnE6I5xqMeWVh5T/77tOLs14X7O6kkmQZhsURKeIv9TVwNM
+KoHyBRoE70p+K1qAA7szhz4DE+L0OuNa7H6oFVmpoOPq5GBwFqnFZZwqTwIBIwKB
+gENSyms9wO23phfWUlS5lnFgCIEVy1hzXZFII6GNuhZOmuDmjL+Y3eNEVeECY/Bd
+R8eRteoNPDjYSiHlePqg0eJ1CclHYOTR/ngBmqNxh5fSgscSPHIuoKlEVRrQE2BY
+xM+BxMV4Kz7cZ3YKHrgMvHeNBL1eAhlO9iH4ur6i/UlDAkEA2loWVhabzQ2m3DYN
+6m7W5NLuBIqRyvNh/zX8gETqwDWynLri4AAcBcerDPghnXkJDqlM7AgG8W1z05A1
+VLhjpQJBANSB2kFjVOfdKJwkfvnn82nf/peHODDKUiaIwD7RaKOJFOI9ULJ6s/fJ
+qOtJv/Gnv563Sy3p7pSDtH4PGKjXY+MCQBK3Q748c8EebWNVFyK5Cxrtgh2lejX3
+mq95p+28w6oTOzIBY+dQd241r5Nlub0KX9yvbP5J1LWbqteepXxKUa8CQHNcbyrP
+hdz0ZoCmGQtSB8vCvWgzdkZfM+kIaFydkJNKamwv6fp9H95I5qudEG09zmwaXAL7
+VaEUTAnq8CEkeA0CQQCC4JLKFblHiZdEFzn6jkYe4s9Nf6SX7A+Vn4hq1o9yVMzf
++fEfmgafrDgETuDY9fbv8DwfGtIgaWsbXbvXKdFd
+-----END RSA PRIVATE KEY-----
+EOT4
 
-open( TMP, ">".$Bio::KBase::AuthToken::authrc);
-print TMP $authrc;
-close( TMP);
+Bio::KBase::Auth::SetConfigs( "client_secret" => $rsakey,
+			      "user_id" => "kbasetest",
+			      "password" => undef );
+
+#open( TMP, ">".$Bio::KBase::AuthToken::authrc);
+#print TMP $authrc;
+#close( TMP);
 
 ok( $at = Bio::KBase::AuthToken->new(), "Creating a new token object for testing authrc with client_secret");
 ok( $at->user_id() eq "kbasetest", "Verifying that kbasetest user was read from authrc");
 ok( $at->validate(), "Verifying that kbasetest user token was acquired properly with userid and password");
 
-$authrc = qq({"keyfile":"$keyfile","keyfile_passphrase":"testing","user_id":"kbasetest"});
-open( TMP, ">".$Bio::KBase::AuthToken::authrc);
-print TMP $authrc;
-close( TMP);
+Bio::KBase::Auth::SetConfigs("keyfile" => "$keyfile","keyfile_passphrase" => "testing","user_id" => "kbasetest", "password" => undef, "client_secret" => undef);
+#open( TMP, ">".$Bio::KBase::AuthToken::authrc);
+#print TMP $authrc;
+#close( TMP);
 
 ok( $at = Bio::KBase::AuthToken->new(), "Creating a new token object for testing authrc with RSA key and passphrase");
 note( "Passphrase for keyfile was: ".$at->{'keyfile_passphrase'});
 ok( $at->user_id() eq "kbasetest", "Verifying that kbasetest user was read from authrc");
 ok( $at->validate(), "Verifying that kbasetest user token was acquired properly with userid, rsa key and passphrase");
 
-ok( $at = Bio::KBase::AuthToken->new( ignore_authrc => 1), "Creating a blank object by ignoring the authrc file");
+ok( $at = Bio::KBase::AuthToken->new( ignore_kbase_config => 1), "Creating a blank object by ignoring the kbase_config file");
 ok( ! defined($at->user_id()), "Verifying that authrc was ignored");
 
-$authrc = qq({"keyfile":"$keyfile",","user_id":"kbasetest"});
-open( TMP, ">".$Bio::KBase::AuthToken::authrc);
-print TMP $authrc;
-close( TMP);
+Bio::KBase::Auth::SetConfigs("keyfile" => "$keyfile", "user_id" => "kbasetest", "password" => undef, "keyfile_passphrase" => "bad");
 
-ok( $at = Bio::KBase::AuthToken->new(), "Creating a new token object for testing authrc with RSA key and but no passphrase");
+ok( $at = Bio::KBase::AuthToken->new(), "Creating a new token object for testing authrc with RSA key and but bad passphrase");
 ok( ! defined($at->user_id()), "Verifying that authentication failed");
 ok( ! $at->validate(), "Verifying that kbasetest user token was no acquired properly when missing passphrase");
 
-unlink($Bio::KBase::AuthToken::authrc);
-if ( -e $Bio::KBase::AuthToken::authrc.$$) {
-    rename $Bio::KBase::AuthToken::authrc.$$, $Bio::KBase::AuthToken::authrc;
-}
+#unlink($Bio::KBase::AuthToken::authrc);
+#if ( -e $Bio::KBase::AuthToken::authrc.$$) {
+#    rename $Bio::KBase::AuthToken::authrc.$$, $Bio::KBase::AuthToken::authrc;
+#}
 
 if ( -e $Bio::KBase::Auth::ConfPath.$$) {
     rename $Bio::KBase::Auth::ConfPath.$$, $Bio::KBase::Auth::ConfPath;

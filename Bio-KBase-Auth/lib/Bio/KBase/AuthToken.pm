@@ -27,7 +27,9 @@ use Object::Tiny::RW qw {
 };
 
 # Pull the INI files based configs in
-our %Conf = %Bio::KBase::Auth::AuthConf;
+# use a typeglob to alias it
+our %Conf;
+*Conf = \%Bio::KBase::Auth::AuthConf;
 
 our $VERSION = $Bio::KBase::Auth::VERSION;
 
@@ -146,7 +148,8 @@ sub new {
 		$self->get();
 	    }
 	} elsif ( -e $authrc && ! $self->{'ignore_authrc'}) {
-	    my %creds = read_authrc( $authrc);
+	    #my %creds = read_authrc( $authrc);
+	    my %creds = map { $_, $Conf{ 'authentication.'.$_ } } grep { defined( $Conf{ 'authentication.'.$_ }); } @attrs;
 	    $self->get( %creds );
 	}
     };
