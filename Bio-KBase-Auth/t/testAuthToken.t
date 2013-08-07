@@ -198,12 +198,8 @@ ok( $at = Bio::KBase::AuthToken->new('user_id' => 'kbasetest', 'keyfile' => $key
 ok( ($at->error_message =~ /Bad key\/passphrase/), "Checking for bad passphrase error message." );
 ok(!($at->validate()), "Validating failed RSA kbasetest login from improper passphrase");
 
-note( "Creating files for testing kbase_config");
+note( "Creating settings for testing kbase_config");
 Bio::KBase::Auth::SetConfigs("password" =>'@Suite525',"user_id" => "kbasetest");
-
-#open( TMP, ">".$Bio::KBase::AuthToken::authrc);
-#print TMP $authrc;
-#close( TMP);
 
 ok( $at = Bio::KBase::AuthToken->new(), "Creating a new token object for testing authrc with password");
 ok( $at->user_id() eq "kbasetest", "Verifying that kbasetest user was read from kbase_config");
@@ -231,18 +227,11 @@ Bio::KBase::Auth::SetConfigs( "client_secret" => $rsakey,
 			      "user_id" => "kbasetest",
 			      "password" => undef );
 
-#open( TMP, ">".$Bio::KBase::AuthToken::authrc);
-#print TMP $authrc;
-#close( TMP);
-
 ok( $at = Bio::KBase::AuthToken->new(), "Creating a new token object for testing authrc with client_secret");
 ok( $at->user_id() eq "kbasetest", "Verifying that kbasetest user was read from authrc");
 ok( $at->validate(), "Verifying that kbasetest user token was acquired properly with userid and password");
 
 Bio::KBase::Auth::SetConfigs("keyfile" => "$keyfile","keyfile_passphrase" => "testing","user_id" => "kbasetest", "password" => undef, "client_secret" => undef);
-#open( TMP, ">".$Bio::KBase::AuthToken::authrc);
-#print TMP $authrc;
-#close( TMP);
 
 ok( $at = Bio::KBase::AuthToken->new(), "Creating a new token object for testing authrc with RSA key and passphrase");
 note( "Passphrase for keyfile was: ".$at->{'keyfile_passphrase'});
@@ -257,11 +246,6 @@ Bio::KBase::Auth::SetConfigs("keyfile" => "$keyfile", "user_id" => "kbasetest", 
 ok( $at = Bio::KBase::AuthToken->new(), "Creating a new token object for testing authrc with RSA key and but bad passphrase");
 ok( ! defined($at->user_id()), "Verifying that authentication failed");
 ok( ! $at->validate(), "Verifying that kbasetest user token was no acquired properly when missing passphrase");
-
-#unlink($Bio::KBase::AuthToken::authrc);
-#if ( -e $Bio::KBase::AuthToken::authrc.$$) {
-#    rename $Bio::KBase::AuthToken::authrc.$$, $Bio::KBase::AuthToken::authrc;
-#}
 
 if ( -e $Bio::KBase::Auth::ConfPath.$$) {
     rename $Bio::KBase::Auth::ConfPath.$$, $Bio::KBase::Auth::ConfPath;
