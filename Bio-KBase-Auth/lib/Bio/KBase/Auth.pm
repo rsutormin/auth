@@ -61,7 +61,7 @@ sub LoadConfig {
     my( $newConfPath) = $_[0] ? shift : $ConfPath; 
 
     my $c = Config::Simple->new( $newConfPath);
-    %Conf = $c ? $c->vars() : {};
+    %Conf = $c ? $c->vars() : ();
     if (defined( $Conf{'authentication.client_secret'})) {
 	$Conf{'authentication.client_secret'} =~ s/\\n/\n/g;
     }
@@ -128,8 +128,8 @@ sub SetConfigs {
 		die "Parameter value for $key is not a legal value: ".$params{$key};
 	    }
 	    my $fullkey = "authentication." . $key;
-	    if ($params{$key} eq undef) {
-		if ($c->param($fullkey) ne undef) {
+	    if (! defined($params{$key})) {
+		if (defined($c->param($fullkey))) {
 		    $c->delete($fullkey);
 		}
 	    } else {
