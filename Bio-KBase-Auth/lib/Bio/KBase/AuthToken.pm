@@ -146,9 +146,6 @@ sub new {
 		}
 		$self->get();
 	    }
-	} elsif ( ! $self->{'ignore_kbase_config'}) {
-	    my %creds = map { $_, $Conf{ 'authentication.'.$_ } } grep { defined( $Conf{ 'authentication.'.$_ }); } @attrs;
-	    $self->get( %creds );
 	}
     };
     if ($@) {

@@ -12,7 +12,7 @@ use HTTP::Request;
 use LWP::UserAgent;
 use JSON;
 use Digest::MD5 qw( md5_base64);
-use Test::More tests => 47;
+use Test::More tests => 49;
 use Time::HiRes qw( gettimeofday tv_interval);
 
 BEGIN {
@@ -97,6 +97,8 @@ if ( -e $Bio::KBase::Auth::ConfPath) {
 
 }
 
+ok( $at = Bio::KBase::AuthToken->new(), "Creating empty token");
+ok( (not defined($at->error_message())), "Making sure empty token doesn't generate error");
 ok( $at = Bio::KBase::AuthToken->new('user_id' => 'papa', 'password' => 'papapa'), "Logging in using papa account");
 ok($at->validate(), "Validating token for papa user using username/password");
 
