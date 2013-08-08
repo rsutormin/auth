@@ -7,7 +7,7 @@ use strict;
 use Config::Simple;
 use MongoDB;
 
-our $VERSION = '0.6.0';
+our $VERSION = '0.7.0';
 
 our $ConfPath = glob "~/.kbase_config";
 

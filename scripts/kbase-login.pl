@@ -39,10 +39,10 @@ my $token = Bio::KBase::AuthToken->new(user_id => $ARGV[0], password => $pswd);
 if (!defined($token->token())) {
 	print "Login failed. Now logged in as:\npublic\n";
 	# Clear any token that has been set
-	Bio::KBase::Auth::SetConfigs( auth_token => undef);
+	Bio::KBase::Auth::SetConfigs( token => undef, user_id => undef);
 } else {
         # Set the user_id and token, but clear the password
-	Bio::KBase::Auth::SetConfigs( auth_token => $token->token(),
+	Bio::KBase::Auth::SetConfigs( token => $token->token(),
 				      user_id => $ARGV[0],
 				      password => undef);
 	print "Login successful. Now logged in as:\n".$ARGV[0]."\n";

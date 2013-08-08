@@ -13,5 +13,5 @@
 use strict;
 use warnings;
 use Bio::KBase::Auth;
-Bio::KBase::Auth::SetConfigs( user_id => undef, auth_token => undef);
+Bio::KBase::Auth::SetConfigs( user_id => undef, token => undef);
 print "Logged in as:\npublic\n";
