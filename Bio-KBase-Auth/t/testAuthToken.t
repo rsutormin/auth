@@ -79,23 +79,22 @@ sub testClient {
     ok( ($res->code < 200) || ($res->code >= 300), "Querying server with bad oauth creds, expected 401 error");
     note( sprintf "Client: Recieved a response: %d %s\n", $res->code, $res->content);
 
-    # move back original .kbase-auth file
-    #if ( -e "~/.kbase-auth.testing") {
-    #  `mv ~/.kbase-auth.testing ~/.kbase-auth`;
-    #}
 }
-
-#if ( -e $Bio::KBase::AuthToken::authrc) {
-#    rename $Bio::KBase::AuthToken::authrc, $Bio::KBase::AuthToken::authrc.$$;
-#}
 
 if ( defined $ENV{ $Bio::KBase::AuthToken::TokenEnv }) {
     undef $ENV{ $Bio::KBase::AuthToken::TokenEnv };
 }
 
+my %old_config = map { $_ =~ s/authentication\.//; $_ => $Bio::KBase::Auth::Conf{'authentication.' . $_ } } keys %Bio::KBase::Auth::AuthConf;
+
 if ( -e $Bio::KBase::Auth::ConfPath) {
-    rename $Bio::KBase::Auth::ConfPath, $Bio::KBase::Auth::ConfPath.$$;
-    Bio::KBase::Auth::LoadConfig();
+    # clear all the authentication fields that we may care about during testing
+    %new = %old_config;
+    foreach $key ( 'user_id','password','keyfile','keyfile_passphrase','client_secret','token') {
+	$new{$key} = undef;
+    }
+    Bio::KBase::Auth::SetConfigs( %new);
+
 }
 
 ok( $at = Bio::KBase::AuthToken->new('user_id' => 'papa', 'password' => 'papapa'), "Logging in using papa account");
@@ -201,7 +200,7 @@ ok(!($at->validate()), "Validating failed RSA kbasetest login from improper pass
 note( "Creating settings for testing kbase_config");
 Bio::KBase::Auth::SetConfigs("password" =>'@Suite525',"user_id" => "kbasetest");
 
-ok( $at = Bio::KBase::AuthToken->new(), "Creating a new token object for testing authrc with password");
+ok( $at = Bio::KBase::AuthToken->new(), "Creating a new token object for testing kbase_config with password");
 ok( $at->user_id() eq "kbasetest", "Verifying that kbasetest user was read from kbase_config");
 ok( $at->validate(), "Verifying that kbasetest user token was acquired properly with userid and password");
 
@@ -227,28 +226,31 @@ Bio::KBase::Auth::SetConfigs( "client_secret" => $rsakey,
 			      "user_id" => "kbasetest",
 			      "password" => undef );
 
-ok( $at = Bio::KBase::AuthToken->new(), "Creating a new token object for testing authrc with client_secret");
-ok( $at->user_id() eq "kbasetest", "Verifying that kbasetest user was read from authrc");
+ok( $at = Bio::KBase::AuthToken->new(), "Creating a new token object for testing kbase_config with client_secret");
+ok( $at->user_id() eq "kbasetest", "Verifying that kbasetest user was read from kbase_config");
 ok( $at->validate(), "Verifying that kbasetest user token was acquired properly with userid and password");
 
 Bio::KBase::Auth::SetConfigs("keyfile" => "$keyfile","keyfile_passphrase" => "testing","user_id" => "kbasetest", "password" => undef, "client_secret" => undef);
 
-ok( $at = Bio::KBase::AuthToken->new(), "Creating a new token object for testing authrc with RSA key and passphrase");
+ok( $at = Bio::KBase::AuthToken->new(), "Creating a new token object for testing kbase_config with RSA key and passphrase");
 note( "Passphrase for keyfile was: ".$at->{'keyfile_passphrase'});
-ok( $at->user_id() eq "kbasetest", "Verifying that kbasetest user was read from authrc");
+ok( $at->user_id() eq "kbasetest", "Verifying that kbasetest user was read from kbase_config");
 ok( $at->validate(), "Verifying that kbasetest user token was acquired properly with userid, rsa key and passphrase");
 
 ok( $at = Bio::KBase::AuthToken->new( ignore_kbase_config => 1), "Creating a blank object by ignoring the kbase_config file");
-ok( ! defined($at->user_id()), "Verifying that authrc was ignored");
+ok( ! defined($at->user_id()), "Verifying that kbase_config was ignored");
 
 Bio::KBase::Auth::SetConfigs("keyfile" => "$keyfile", "user_id" => "kbasetest", "password" => undef, "keyfile_passphrase" => "bad");
 
-ok( $at = Bio::KBase::AuthToken->new(), "Creating a new token object for testing authrc with RSA key and but bad passphrase");
+ok( $at = Bio::KBase::AuthToken->new(), "Creating a new token object for testing kbase_config with RSA key and but bad passphrase");
 ok( ! defined($at->user_id()), "Verifying that authentication failed");
 ok( ! $at->validate(), "Verifying that kbasetest user token was no acquired properly when missing passphrase");
 
-if ( -e $Bio::KBase::Auth::ConfPath.$$) {
-    rename $Bio::KBase::Auth::ConfPath.$$, $Bio::KBase::Auth::ConfPath;
+Bio::KBase::Auth::SetConfigs("keyfile" => undef, "user_id" => undef, "password" => undef, "keyfile_passphrase" => undef);
+
+if ( -e $Bio::KBase::Auth::ConfPath) {
+    # restore old config
+    Bio::KBase::Auth::SetConfigs( %old_config);
 }
 
 unlink( $keyfile);
