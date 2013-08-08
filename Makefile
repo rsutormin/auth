@@ -42,7 +42,6 @@ deploy-docs:
 	-mkdir $(TARGET)/services
 	-mkdir $(SERVICE_DIR)
 
-	# run each perl module
 	for l in $(LIB_PERL) ; do \
 	name=$$(basename $$l .pm) ; \
 	echo $$n ; \
@@ -56,6 +55,7 @@ deploy-docs:
 	done
 	-mkdir $(SERVICE_DIR)/webroot
 	cp docs/*html $(SERVICE_DIR)/webroot/.
+	-mkdir -p $(DEPLOY_RUNTIME)/man/man3
 	cp docs/*.3 $(DEPLOY_RUNTIME)/man/man3
 
 deploy-scripts: deploy-perl-scripts deploy-python-scripts
