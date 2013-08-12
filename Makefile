@@ -54,7 +54,7 @@ deploy-docs:
 		fi \
 	done
 	-mkdir $(SERVICE_DIR)/webroot
-	cp docs/*html $(SERVICE_DIR)/webroot/.
+	cp docs/*.html $(SERVICE_DIR)/webroot/.
 	-mkdir -p $(DEPLOY_RUNTIME)/share/man/man3
 	cp docs/*.3 $(DEPLOY_RUNTIME)/share/man/man3
 

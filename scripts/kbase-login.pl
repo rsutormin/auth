@@ -17,10 +17,14 @@ use Term::ReadKey;
 my $primaryArgs = ["Username"];
 #Defining usage and options
 my ($opt, $usage) = describe_options(
-    "$0 <".join("> <",@{$primaryArgs}).'> %o',
+    "$0 <".join("> <",@{$primaryArgs})."> %o\nAcquire a KBase authentication token for the username specified. " .
+    "Prompts for password if not specified on the command line. " . 
+    "Upon successful login the token will be placed in the INI format file " .
+    $Bio::KBase::Auth::ConfPath .
+    " and used by default for KBase clients that require authentication",
     [ 'password|p:s', 'User password' ],
     [ 'help|h|?', 'Print this usage information' ],
-);
+    );
 if (defined($opt->{help})) {
 	print $usage;
     exit;
