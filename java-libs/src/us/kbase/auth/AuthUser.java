@@ -13,28 +13,27 @@ import org.codehaus.jackson.annotate.JsonProperty;
  *
  */
 public class AuthUser {
+	@JsonProperty("verified")
 	private boolean emailValidated = false;
+	@JsonProperty("user_id")
 	private String userId = null;
 	private String email = null;
 	private List<String> groups = null;
 	private String fullName = null;
+	@JsonProperty("kbase_sessionid")
 	private String kbaseSession = null;
 	private String errorMessage = null;
 	private AuthToken token = null;
+	@JsonProperty("opt_in")
 	private boolean optIn = false;
+	@JsonProperty("system_admin")
 	private boolean systemAdmin = false;
 
-	//TODO make Immutable
-	public AuthUser() { }
+	private AuthUser() { }
 
 	@JsonProperty("opt_in")
 	public boolean hasOptIn() {
 		return optIn;
-	}
-	
-	@JsonProperty("opt_in")
-	public void setOptIn(boolean optIn) {
-		this.optIn = optIn;
 	}
 	
 	@JsonProperty("system_admin")
@@ -42,41 +41,17 @@ public class AuthUser {
 		return systemAdmin;
 	}
 	
-	@JsonProperty("system_admin")
-	public void setSystemAdmin(boolean systemAdmin) {
-		this.systemAdmin = systemAdmin;
-	}
-	
 	@JsonProperty("verified")
 	public boolean isEmailValidated() {
 		return emailValidated;
 	}
-	@JsonProperty("verified")
-	public void setEmailValidated(boolean emailValidated) {
-		this.emailValidated = emailValidated;
-	}
-
 	@JsonProperty("user_id")
 	public String getUserId() {
 		return userId;
 	}
-	@JsonProperty("user_id")
-	public void setUserId(String userId) {
-		this.userId = userId;
-	}
-	
 	@JsonProperty("email")
 	public String getEmail() {
 		return email;
-	}
-	@JsonProperty("email")
-	public void setEmail(String email) {
-		this.email = email;
-	}
-
-	@JsonProperty("token")
-	public void setToken(String tokenStr) throws TokenFormatException  {
-		this.token = new AuthToken(tokenStr);
 	}
 	
 	/**
@@ -88,9 +63,6 @@ public class AuthUser {
 		return token;
 	}
 	
-	public void setToken(AuthToken token) {
-		this.token = token;
-	}
 
 	/**
 	 * Returns the token associated with this user as its original string.
@@ -105,37 +77,20 @@ public class AuthUser {
 		return groups;
 	}
 	
-	@JsonProperty("groups")
-	public void setGroups(List<String> groups) {
-		this.groups = groups;
-	}
 
 	@JsonProperty("name")
 	public String getFullName() {
 		return fullName;
 	}
 	
-	@JsonProperty("name")
-	public void setFullName(String fullName) {
-		this.fullName = fullName;
-	}
-
 	@JsonProperty("kbase_sessionid")
 	public String getSessionId() {
 		return kbaseSession;
 	}
-	@JsonProperty("kbase_sessionid")
-	public void setSessionId(String kbaseSession) {
-		this.kbaseSession = kbaseSession;
-	}
-	
+
 	@JsonProperty("error_msg")
 	public String getErrorMessage() {
 		return errorMessage;
-	}
-	@JsonProperty("error_msg")
-	public void setErrorMessage(String errorMessage) {
-		this.errorMessage = errorMessage;
 	}
 
 	public String toString() {

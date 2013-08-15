@@ -46,6 +46,7 @@ public class AuthServiceTest {
 		catch (Exception e) {
 			System.out.println("Setup failed to log in a test user for AuthUser and AuthToken tests!");
 			System.out.println("Not running any tests!");
+			System.out.println(e);
 			System.exit(0);
 		}
 		System.out.println("Done! Beginning testing....");
