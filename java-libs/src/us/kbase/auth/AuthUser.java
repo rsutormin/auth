@@ -1,6 +1,5 @@
 package us.kbase.auth;
 
-import java.io.IOException;
 import java.util.List;
 
 import org.codehaus.jackson.annotate.JsonProperty;
@@ -75,7 +74,7 @@ public class AuthUser {
 	}
 
 	@JsonProperty("token")
-	public void setToken(String tokenStr) throws IOException {
+	public void setToken(String tokenStr) throws TokenFormatException  {
 		this.token = new AuthToken(tokenStr);
 	}
 	

@@ -176,13 +176,13 @@ public class AuthService {
 	 * verification URL is invalid.
 	 */
 	public static boolean validateToken(String tokenStr) throws AuthException {
-		try {
+//		try {
 			AuthToken token = new AuthToken(tokenStr);
 			return validateToken(token);
-		}
-		catch (IOException e) {
-			throw new AuthException("An error occurred while parsing your token: " + e.getLocalizedMessage());
-		}
+//		}
+//		catch (IOException e) {
+//			throw new AuthException("An error occurred while parsing your token: " + e.getLocalizedMessage());
+//		}
 	}
 	
 	/**
@@ -205,6 +205,10 @@ public class AuthService {
 	 */
 	public static boolean validateToken(AuthToken token) throws AuthException {		
 		boolean result = false;
+		
+		if(token.isExpired()) {
+			throw new TokenExpiredException("token expired");
+		}
 
 		try {
 			/** now HTTPS the SigningSubject of input Token */
