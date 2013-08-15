@@ -208,6 +208,7 @@ public class AuthService {
 
 		try {
 			/** now HTTPS the SigningSubject of input Token */
+			//TODO hit auth service instead of the signing subject, get rid of all this crazy code
 			URL validationUrl = new URL(token.getSigningSubject());
 			
 			// Create a trust manager that does not validate certificate chains

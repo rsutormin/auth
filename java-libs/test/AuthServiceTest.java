@@ -79,8 +79,8 @@ public class AuthServiceTest {
 	}
 
 	@Test
-	public void testGetTokenExpiry() {
-		org.junit.Assert.assertFalse("failure - expiration time is zero", testUser.getToken().getExpiry() == 0);
+	public void testGetTokenIssue() {
+		org.junit.Assert.assertFalse("failure - issue time is zero", testUser.getToken().getIssueDate().getTime() == 0);
 	}
 
 	@Test
@@ -97,6 +97,13 @@ public class AuthServiceTest {
 	public void testIsTokenExpired() {
 		// This is a brand new token. It shouldn't be expired.
 		org.junit.Assert.assertFalse("failure - new token is expired", testUser.getToken().isExpired());
+	}
+	
+	@Test
+	public void testTokenExpires() throws Exception {
+		Thread.sleep(5000); //Globus seems to be able to issue tokens in the future and teleport them several seconds into the past
+							//or calendar is off by a second or two
+		org.junit.Assert.assertTrue("failure - token should be expired by now", testUser.getToken().isExpired(2));
 	}
 
 	@Test
