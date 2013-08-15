@@ -24,6 +24,7 @@ public class AuthUser {
 	private boolean optIn = false;
 	private boolean systemAdmin = false;
 
+	//TODO make Immutable
 	public AuthUser() { }
 
 	@JsonProperty("opt_in")

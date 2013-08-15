@@ -80,23 +80,21 @@ public class AuthServiceTest {
 	
 	@Test(expected = TokenExpiredException.class)
 	public void tokenCacheRejectsExpiredTokens() throws Exception {
-		TokenCache tc = new TokenCache(1, 2, 0L);
-		tc.putValidToken(someTokens.get(0));
+		TokenCache tc = new TokenCache(1, 2);
+		AuthToken token = new AuthToken(testUser.getToken().toString(), 0);
+		tc.putValidToken(token);
 	}
 	
 	public void tokenCacheDropsExpiredTokens() throws Exception {
-		TokenCache tc = new TokenCache(2, 2, 3600L);
-		assertEquals("failed - token expire time not set correctly", 3600L, tc.getTokenExpiryTime());
+		TokenCache tc = new TokenCache(2, 2);
 		tc.putValidToken(someTokens.get(0));
 		Thread.sleep(50);
 		tc.putValidToken(someTokens.get(1));
 		Thread.sleep(50);
-		tc.setTokenExpiryTime(1L);
+		AuthToken t = new AuthToken(someTokens.get(0).toString(), 0);
 		try {
-			tc.hasToken(someTokens.get(0));
+			tc.hasToken(t);
 		} catch (TokenExpiredException e) {}
-		assertEquals("failed - token expire time not updated", 1L, tc.getTokenExpiryTime());
-		tc.setTokenExpiryTime(3600L);
 		tc.putValidToken(someTokens.get(3));
 		boolean[] expected = {false, true, true};
 		for (int i = 0; i < expected.length; i++) {
@@ -160,9 +158,12 @@ public class AuthServiceTest {
 	
 	@Test
 	public void testTokenExpires() throws Exception {
-		Thread.sleep(5000); //Globus seems to be able to issue tokens in the future and teleport them several seconds into the past
-							//or calendar is off by a second or two
-		org.junit.Assert.assertTrue("failure - token should be expired by now", testUser.getToken().isExpired(2));
+		AuthToken token1 = AuthService.login(TEST_UID, TEST_PW, 2).getToken();
+		Thread.sleep(7000); //Globus seems to be able to issue tokens in the future and teleport them several seconds into the past
+							//or java Calendar is off by a second or two
+		AuthToken token2 = new AuthToken(testUser.getToken().toString(), 2);
+		assertTrue("failure - token should be expired by now", token1.isExpired());
+		org.junit.Assert.assertTrue("failure - token should be expired by now", token2.isExpired());
 	}
 
 	@Test
@@ -237,14 +238,10 @@ public class AuthServiceTest {
 
 	@Test
 	public void testGetUserFromTokenObject() throws AuthException {
-		AuthUser user = AuthService.getUserFromToken(testUser.getToken());
+		AuthToken t = new AuthToken(testUser.getToken().toString(), 400);
+		AuthUser user = AuthService.getUserFromToken(t);
 		org.junit.Assert.assertNotNull("failure - getting user from a token object returned a null user", user);
-	}
-
-	@Test
-	public void testGetUserFromTokenString() throws AuthException {
-		AuthUser user = AuthService.getUserFromToken(testUser.getTokenString());
-		org.junit.Assert.assertNotNull("failure - getting user from a token string returned a null user", user);
+		assertEquals("failure - token expiration wasn't maintained", 400, user.getToken().getExpiryTime());
 	}
 
 	@Test
@@ -252,7 +249,13 @@ public class AuthServiceTest {
 		AuthUser user = AuthService.login(TEST_UID, TEST_PW);
 		org.junit.Assert.assertNotNull("failure - logging in returned a null user", user);
 	}
-
+	
+	@Test
+	public void testLoginWithExpiry() throws AuthException {
+		AuthUser user = AuthService.login(TEST_UID, TEST_PW, 300);
+		assertEquals("fail - wrong expiration lifetime", 300, user.getToken().getExpiryTime());
+	}
+	
 	@Test
 	public void testValidateTokenStr() throws AuthException {
 		String tokenStr = testUser.getTokenString();

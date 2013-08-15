@@ -15,25 +15,11 @@ public class TokenCache {
 	
 	final private int size;
 	final private int maxsize;
-	private long expires;
 	final private HashMap<String, Date> cache = new HashMap<>();
 	
-	public TokenCache(int size, int maxsize, long expiresSeconds) {
+	public TokenCache(int size, int maxsize) {
 		this.size = size;
 		this.maxsize = maxsize;
-		this.expires = expiresSeconds;
-	}
-	
-	public TokenCache(int size, int maxsize) {
-		this(size, maxsize, AuthToken.DEFAULT_EXPIRES);
-	}
-	
-	public TokenCache(int size, long expiresSeconds) {
-		this(size, DEFAULT_MAX_SIZE, expiresSeconds);
-	}
-	
-	public TokenCache(long expiresSeconds) {
-		this(DEFAULT_SIZE, expiresSeconds);
 	}
 	
 	public TokenCache(int size) {
@@ -49,7 +35,7 @@ public class TokenCache {
 	}
 	
 	private MD5Bool checkToken(AuthToken token) throws TokenExpiredException {
-		if(token.isExpired(expires)) {
+		if(token.isExpired()) {
 			throw new TokenExpiredException("token expired");
 		}
 		String tokmd = tokenToMD5(token);
@@ -85,14 +71,6 @@ public class TokenCache {
 		return bytesToHex(md.digest(token.toString().getBytes()));
 	}
 
-	public long getTokenExpiryTime() {
-		return expires;
-	}
-
-	public void setTokenExpiryTime(long expires) {
-		this.expires = expires;
-	}
-	
 	// from http://stackoverflow.com/questions/9655181/convert-from-byte-array-to-hex-string-in-java
 	final protected static char[] hexArray = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
 	private static String bytesToHex(byte[] bytes) {

@@ -55,54 +55,54 @@ public class AuthService {
 	 * Logs in a user and returns an AuthUser object, which is more or less a POJO containing basic user attributes,
 	 * along with the generated AuthToken.
 	 * 
-	 * @param user
-	 * @param pw
+	 * @param user the username
+	 * @param pw the password
+	 * @param expiry the desired expiration time for the token in seconds.
 	 * @return an AuthUser that has been successfully logged in.
 	 * @throws AuthException if the credentials are invalid, or if there is a problem communicating with the server.
 	 */
-	public static AuthUser login(String userName, String password) throws AuthException {
+	public static AuthUser login(String userName, String password, long expiry) throws AuthException {
 		// This is the data that will be POSTed to the service.
 		// By default (not sure if we *really* need to change it), it fetches all the fields.
 		try {
 			String dataStr = "user_id=" + URLEncoder.encode(userName, "UTF-8") + 
 							 "&password=" + URLEncoder.encode(password, "UTF-8") + 
 							 "&cookie=1&fields=user_id,name,email,groups,kbase_sessionid,token,verified,opt_in,system_admin";
-			return fetchUser(dataStr);
+			return fetchUser(dataStr, expiry);
 		}
 		catch (UnsupportedEncodingException e) {
 			throw new RuntimeException("An unexpected URL encoding exception occurred: " + e.getLocalizedMessage());
 		}
 	}
+	
 
 	/**
-	 * Given a token for a logged in user, returns the AuthUser object representing that user's profile.
-	 *
-	 * @param token
-	 * @return an AuthUser associated with the given token.
-	 * @throws AuthException if the token is malformed or invalid, or if an error occurs while communicating
-	 * with the server.
+	 * Logs in a user and returns an AuthUser object, which is more or less a POJO containing basic user attributes,
+	 * along with the generated AuthToken.
+	 * 
+	 * @param user the username
+	 * @param pw the password
+	 * @return an AuthUser that has been successfully logged in.
+	 * @throws AuthException if the credentials are invalid, or if there is a problem communicating with the server.
 	 */
-	public static AuthUser getUserFromToken(String token) throws AuthException {
-		String dataStr = "token=" + token +
-						 "&fields=user_id,name,email,groups,kbase_sessionid,token,verified,opt_in,system_admin";
-		
-		return fetchUser(dataStr);
+	public static AuthUser login(String userName, String password) throws AuthException {
+		return login(userName, password, AuthToken.DEFAULT_EXPIRES);
 	}
 
 	/**
 	 * Given an AuthToken object for a logged in user, this returns the AuthUser object representing that user's
 	 * profile.
 	 * 
-	 * @param token
+	 * @param token the token
 	 * @return an AuthUser associated with the given token.
-	 * @throws AuthException 
+	 * @throws AuthException if the token is malformed or invalid, or if an error occurs while communicating
+	 * with the server.
 	 */
 	public static AuthUser getUserFromToken(AuthToken token) throws AuthException {
-		
 		String dataStr = "token=" + token.toString() +
-						 "&fields=user_id,name,email,groups,kbase_sessionid,token,verified,opt_in,system_admin";
-		
-		return fetchUser(dataStr);
+				 "&fields=user_id,name,email,groups,kbase_sessionid,token,verified,opt_in,system_admin";
+
+		return fetchUser(dataStr, token.getExpiryTime());
 	}
 	
 	/**
@@ -113,7 +113,7 @@ public class AuthService {
 	 * @return an AuthUser that has been authenticated with KBase
 	 * @throws AuthException if the auth credentials are invalid or if the login URL is incorrect.
 	 */
-	private static AuthUser fetchUser(String dataStr) throws AuthException {
+	private static AuthUser fetchUser(String dataStr, long expiry) throws AuthException {
 		// Start with a null user - if the mapper fails for some reason, we know it's
 		// still null (and not uninitialized), and can throw a proper exception.
 		AuthUser user = null;
@@ -146,9 +146,14 @@ public class AuthService {
 			BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()));
 	
 			user = new ObjectMapper().readValue(br, AuthUser.class);
+			if (user == null) { // if still null, throw an exception 
+				throw new AuthException("Unable to construct a user object from login results!");
+			}
+			user.getToken().setExpiryTime(expiry);
 
 			br.close();
 			conn.disconnect();
+			return user;
 		}
 		catch (UnsupportedEncodingException e) {
 			throw new RuntimeException("An unexpected encoding exception occurred: " + e.getLocalizedMessage());
@@ -159,13 +164,6 @@ public class AuthService {
 		catch (IOException e) {
 			throw new AuthException("An exception occurred while parsing authentication results: " + e.getLocalizedMessage());
 		}
-		
-		// In the end, return the user.
-		if (user == null) { // if still null, throw an exception 
-			throw new AuthException("Unable to construct a user object from login results!");
-		}
-		return user;
-		
 	}
 	
 	/**
@@ -388,13 +386,13 @@ public class AuthService {
 			boolean validated = AuthService.validateToken(user.getToken());
 			System.out.println(user.toString() + "\nValidated token? " + validated);
 			
-			AuthUser user2 = AuthService.getUserFromToken(user.getToken().toString());
+			AuthUser user2 = AuthService.getUserFromToken(user.getToken());
 			System.out.println(user2.toString());
 			System.out.println(user2.getToken().getTokenData());
 			
 			System.out.println(user2.getToken().isExpired());
 
-			AuthUser user3 = AuthService.login("asdf", "jkl;");
+			AuthService.login("asdf", "jkl;");
 		} catch (AuthException e) {
 			// handle IOException
 			System.out.println(e.getLocalizedMessage());
