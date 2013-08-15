@@ -8,43 +8,43 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 
-class TokenCache {
+public class TokenCache {
 	
 	final static int DEFAULT_SIZE = 1000;
 	final static int DEFAULT_MAX_SIZE = 1000;
 	
 	final private int size;
 	final private int maxsize;
-	final private long expires;
+	private long expires;
 	final private HashMap<String, Date> cache = new HashMap<>();
 	
-	TokenCache(int size, int maxsize, long expiresSeconds) {
+	public TokenCache(int size, int maxsize, long expiresSeconds) {
 		this.size = size;
 		this.maxsize = maxsize;
 		this.expires = expiresSeconds;
 	}
 	
-	TokenCache(int size, int maxsize) {
+	public TokenCache(int size, int maxsize) {
 		this(size, maxsize, AuthToken.DEFAULT_EXPIRES);
 	}
 	
-	TokenCache(int size, long expiresSeconds) {
+	public TokenCache(int size, long expiresSeconds) {
 		this(size, DEFAULT_MAX_SIZE, expiresSeconds);
 	}
 	
-	TokenCache(long expiresSeconds) {
+	public TokenCache(long expiresSeconds) {
 		this(DEFAULT_SIZE, expiresSeconds);
 	}
 	
-	TokenCache(int size) {
+	public TokenCache(int size) {
 		this(size, DEFAULT_MAX_SIZE);
 	}
 	
-	TokenCache() {
+	public TokenCache() {
 		this(DEFAULT_SIZE);
 	}
 	
-	boolean hasToken(AuthToken token) throws TokenExpiredException {
+	public boolean hasToken(AuthToken token) throws TokenExpiredException {
 		return checkToken(token).tokenInCache;
 	}
 	
@@ -60,21 +60,11 @@ class TokenCache {
 		return new MD5Bool(false, tokmd);
 	}
 	
-	void putValidToken(AuthToken token) throws TokenExpiredException {
-//		if(token.isExpired(expires)) {
-//			throw new TokenExpiredException("token expired");
-//		}
-//		String tokmd = tokenToMD5(token);
-//		if(cache.containsKey(tokmd)) {
-//			cache.put(tokmd, new Date());
-//			return;
-//		}
+	public void putValidToken(AuthToken token) throws TokenExpiredException {
 		final MD5Bool sb = checkToken(token);
 		if(sb.tokenInCache) {return;}
 		cache.put(sb.tokenMD5, new Date());
-		if(cache.size() <= maxsize) {
-			return;
-		}
+		if(cache.size() <= maxsize) {return;}
 		List<DateMD5> dmd5s = new ArrayList<>();
 		for (String s: cache.keySet()) {
 			dmd5s.add(new DateMD5(cache.get(s), s));
@@ -85,14 +75,69 @@ class TokenCache {
 		}
 	}
 	
-	private String tokenToMD5(AuthToken token) {
+	private static String tokenToMD5(AuthToken token) {
 		MessageDigest md = null;
 		try {
 			md = MessageDigest.getInstance("md5");
 		} catch (NoSuchAlgorithmException e) {
 			throw new RuntimeException("No md5", e);
 		}
-		return new String(md.digest(token.toString().getBytes()));
+		return bytesToHex(md.digest(token.toString().getBytes()));
+	}
+
+	public long getTokenExpiryTime() {
+		return expires;
+	}
+
+	public void setTokenExpiryTime(long expires) {
+		this.expires = expires;
+	}
+	
+	public static void main(String[] args) throws Exception {
+		List<AuthToken> tl = new ArrayList<>();
+		
+		for(int i = 0; i < 5; i++) {
+			AuthToken t = AuthService.login("kbasetest", "@Suite525").getToken();
+			tl.add(t);
+			System.out.println(i + ":  " + tokenToMD5(t));
+		}
+		TokenCache tc = new TokenCache(2, 4);
+//		System.out.println(tl);
+		tc.putValidToken(tl.get(0));
+		Thread.sleep(50);
+		tc.putValidToken(tl.get(1));
+		Thread.sleep(50);
+		for (String s: tc.cache.keySet()) {
+			System.out.println(s + " " + tc.cache.get(s).getTime());
+		}
+		System.out.println("Has token 0: " + tc.hasToken(tl.get(0)));
+		tc.putValidToken(tl.get(2));
+		Thread.sleep(50);
+		tc.putValidToken(tl.get(3));
+		Thread.sleep(50);
+		System.out.println("Has token 0: " + tc.hasToken(tl.get(0)));
+		for (String s: tc.cache.keySet()) {
+			System.out.println(s + " " + tc.cache.get(s).getTime());
+		}
+		tc.putValidToken(tl.get(4));
+		for (AuthToken t: tl) {
+			System.out.println(tc.hasToken(t) + " " + tokenToMD5(t));
+			
+		}
+		
+	}
+	
+	// from http://stackoverflow.com/questions/9655181/convert-from-byte-array-to-hex-string-in-java
+	final protected static char[] hexArray = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
+	private static String bytesToHex(byte[] bytes) {
+	    char[] hexChars = new char[bytes.length * 2];
+	    int v;
+	    for ( int j = 0; j < bytes.length; j++ ) {
+	        v = bytes[j] & 0xFF;
+	        hexChars[j * 2] = hexArray[v >>> 4];
+	        hexChars[j * 2 + 1] = hexArray[v & 0x0F];
+	    }
+	    return new String(hexChars);
 	}
 }
 
