@@ -7,6 +7,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.matchers.JUnitMatchers.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.io.IOException;
 
 import us.kbase.auth.AuthService;
 import us.kbase.auth.AuthToken;
@@ -26,7 +27,7 @@ public class AuthServiceTest {
 	private static final boolean IS_OPT_IN = false;
 	private static final String[] GROUPS = { "kbase_test", "kbase_test_users", "kbase_users2", "kbase_staff", "kbase_users" };
 	private static final boolean EMAIL_VALID = true;
-	private static final List<AuthToken> someTokens = new ArrayList<>();
+	private static final List<AuthToken> someTokens = new ArrayList<AuthToken>();
 
 	// Fetched before any tests are run - this test user is then used in the various POJO tests.
 	private static AuthUser testUser = null;
@@ -159,7 +160,7 @@ public class AuthServiceTest {
 	
 	@Test
 	public void testTokenExpires() throws Exception {
-		AuthToken token1 = AuthService.login(TEST_UID, TEST_PW, 2).getToken();
+		AuthToken token1 = AuthService.login(TEST_UID, TEST_PW, 5).getToken();
 		Thread.sleep(7000); //Globus seems to be able to issue tokens in the future and teleport them several seconds into the past
 							//or java Calendar is off by a second or two
 		AuthToken token2 = new AuthToken(testUser.getToken().toString(), 2);
@@ -258,13 +259,13 @@ public class AuthServiceTest {
 	}
 	
 	@Test
-	public void testValidateTokenStr() throws AuthException {
+	public void testValidateTokenStr() throws AuthException, IOException {
 		String tokenStr = testUser.getTokenString();
 		org.junit.Assert.assertTrue("failure - valid token string didn't validate", AuthService.validateToken(tokenStr));
 	}
 
 	@Test
-	public void testValidateTokenObject() throws AuthException {
+	public void testValidateTokenObject() throws AuthException, IOException {
 		AuthToken token = testUser.getToken();
 		org.junit.Assert.assertTrue("failure - valid token object didn't validate", AuthService.validateToken(token));
 	}
@@ -277,7 +278,7 @@ public class AuthServiceTest {
 
 	// try to verify a bad token
 	@Test(expected = AuthException.class)
-	public void testFailValidate() throws AuthException {
+	public void testFailValidate() throws AuthException, IOException {
 		AuthService.validateToken("asdf");
 	}
 

@@ -15,7 +15,7 @@ public class TokenCache {
 	
 	final private int size;
 	final private int maxsize;
-	final private HashMap<String, Date> cache = new HashMap<>();
+	final private HashMap<String, Date> cache = new HashMap<String, Date>();
 	
 	public TokenCache(int size, int maxsize) {
 		this.size = size;
@@ -51,7 +51,7 @@ public class TokenCache {
 		if(sb.tokenInCache) {return;}
 		cache.put(sb.tokenMD5, new Date());
 		if(cache.size() <= maxsize) {return;}
-		List<DateMD5> dmd5s = new ArrayList<>();
+		List<DateMD5> dmd5s = new ArrayList<DateMD5>();
 		for (String s: cache.keySet()) {
 			dmd5s.add(new DateMD5(cache.get(s), s));
 		}
