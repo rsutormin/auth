@@ -93,40 +93,6 @@ public class TokenCache {
 		this.expires = expires;
 	}
 	
-	public static void main(String[] args) throws Exception {
-		List<AuthToken> tl = new ArrayList<>();
-		
-		for(int i = 0; i < 5; i++) {
-			AuthToken t = AuthService.login("kbasetest", "@Suite525").getToken();
-			tl.add(t);
-			System.out.println(i + ":  " + tokenToMD5(t));
-		}
-		TokenCache tc = new TokenCache(2, 4);
-//		System.out.println(tl);
-		tc.putValidToken(tl.get(0));
-		Thread.sleep(50);
-		tc.putValidToken(tl.get(1));
-		Thread.sleep(50);
-		for (String s: tc.cache.keySet()) {
-			System.out.println(s + " " + tc.cache.get(s).getTime());
-		}
-		System.out.println("Has token 0: " + tc.hasToken(tl.get(0)));
-		tc.putValidToken(tl.get(2));
-		Thread.sleep(50);
-		tc.putValidToken(tl.get(3));
-		Thread.sleep(50);
-		System.out.println("Has token 0: " + tc.hasToken(tl.get(0)));
-		for (String s: tc.cache.keySet()) {
-			System.out.println(s + " " + tc.cache.get(s).getTime());
-		}
-		tc.putValidToken(tl.get(4));
-		for (AuthToken t: tl) {
-			System.out.println(tc.hasToken(t) + " " + tokenToMD5(t));
-			
-		}
-		
-	}
-	
 	// from http://stackoverflow.com/questions/9655181/convert-from-byte-array-to-hex-string-in-java
 	final protected static char[] hexArray = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
 	private static String bytesToHex(byte[] bytes) {
