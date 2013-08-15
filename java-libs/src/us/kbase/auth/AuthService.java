@@ -190,21 +190,12 @@ public class AuthService {
 	
 	/**
 	 * This validates a KBase Auth token, and returns true or if valid or false if not.
-	 * 
-	 * It works in a few steps:
-	 * 1. Check the token format, throw IOException if the format's wrong.
-	 * 2. Extract the 'token' part and the signature.
-	 * 3. Get the public key from the 'SigningSubject' part of the token.
-	 * 4. Do the sha1-RSA comparison.
-	 * 5. Return the result of the comparison
-	 * 
-	 * Most of this is taken from KBaseAuthValidateToken.java, written by Shuchu Han, as part of the Persistent Store code.
-	 * So, thanks!
+	 * If the token has expired, it throws a TokenExpiredException.
 	 *
 	 * @param token
 	 * @return true if the token's valid, false otherwise
-	 * @throws AuthException if there is a parsing problem with either the token or the server response, or if the token's 
-	 * verification URL is invalid.
+	 * @throws TokenExpiredException if the token is expired (it might be otherwise valid)
+	 * @throws IOException if there's a problem communicating with the back end validator.
 	 */
 	public static boolean validateToken(AuthToken token) throws TokenExpiredException,
 																IOException {		
@@ -219,9 +210,8 @@ public class AuthService {
 			return true;
 		}
 
-		// Otherwise, fetch the user from the AuthService.
+		// Otherwise, fetch the user from the Auth Service.
 		// If the user is there, then cache this token and return that it's valid.
-
 		try {
 			// if we get a user back (and not an exception), then the token is valid.
 			AuthUser user = getUserFromToken(token);
@@ -231,110 +221,6 @@ public class AuthService {
 			// if we get an exception, then an authentication error happened - that's an invalid token.
 			return false;
 		}
-
-
-		// try {
-		// 	/** now HTTPS the SigningSubject of input Token */
-		// 	//TODO hit auth service instead of the signing subject, get rid of all this crazy code
-		// 	URL validationUrl = new URL(token.getSigningSubject());
-			
-		// 	// Create a trust manager that does not validate certificate chains
-		// 	TrustManager[] trustAllCerts = new TrustManager[] { 
-		// 		new X509TrustManager() {
-		// 			public X509Certificate[] getAcceptedIssuers() { 
-		// 				return new X509Certificate[0]; 
-		// 			}
-		// 			public void checkClientTrusted(X509Certificate[] certs, String authType) {}
-		// 			public void checkServerTrusted(X509Certificate[] certs, String authType) {}
-		// 		}
-		// 	};
-			
-		// 	// Ignore differences between given hostname and certificate hostname
-		// 	HostnameVerifier hv = new HostnameVerifier() {
-		// 		public boolean verify(String hostname, SSLSession session) { return true; }
-		// 	};
-			
-		// 	// Install the all-trusting trust manager
-		// 	SSLContext sc = SSLContext.getInstance("SSL");
-		// 	sc.init(null, trustAllCerts, new SecureRandom());
-		// 	HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
-		// 	HttpsURLConnection.setDefaultHostnameVerifier(hv);
-			
-		// 	/** make the request to Authentication server */
-		// 	HttpsURLConnection conn = (HttpsURLConnection) validationUrl.openConnection(); 
-		// 	InputStream in = conn.getInputStream();
-			
-		// 	/** Encoding the HTTP response into JSON format */
-		// 	BufferedReader br = new BufferedReader(new InputStreamReader(in));
-		// 	ObjectMapper m = new ObjectMapper();
-		// 	JsonNode jn = m.readTree(br);
-		// 	JsonNode jd = jn.get("pubkey");
-
-		// 	in.close();
-		// 	conn.disconnect();
-			
-		// 	/** now get the public key and do the verify */
-		// 	Security.addProvider(new BouncyCastleProvider());
-		// 	PEMReader pemReader = new PEMReader(new StringReader(jd.getTextValue().replace("\\n","\n")));
-		// 	RSAPublicKey pubKey = (RSAPublicKey) pemReader.readObject();
-		// 	pemReader.close();
-
-		// 	/** http://docs.oracle.com/javase/6/docs/technotes/guides/security/crypto/CryptoSpec.html#KeyFactoryEx */
-		// 	Signature s = Signature.getInstance("SHA1withRSA");
-			
-		// 	s.initVerify(pubKey);
-
-		// 	* update the data
-		// 	 * 
-		// 	 *	SHA-1 (and all other hashing algorithms) return binary data. That means that (in Java) they produce a byte[].
-		// 	 *  That byte array does not represent any specific characters, which means you can't simply turn it into a String 
-		// 	 *  like you did.If you need a String, then you have to format that byte[] in a way that can be represented as 
-		// 	 *  a String (otherwise, just keep the byte[] around).Two common ways of representing arbitrary byte[] as printable
-		// 	 *  characters are BASE64 or simple hex-Strings (i.e. representing each byte by two hexadecimal digits). 
-		// 	 *  It looks like you're trying to produce a hex-String. There's also another pitfall: if you want to get the SHA-1 
-		// 	 *  of a Java String, then you need to convert that String to a byte[] first (as the input of SHA-1 is a byte[] as well). 
-		// 	 *  If you simply use myString.getBytes() as you showed, then it will use the platform default encoding and as such 
-		// 	 *  will be dependent on the environment you run it in (for example it could return different data based on the 
-		// 	 *  language/locale setting of your OS).A better solution is to specify the encoding to use for the String-to-byte[] 
-		// 	 *  conversion like this: myString.getBytes("UTF-8"). Choosing UTF-8 (or another encoding that can represent every 
-		// 	 *  unicode character) is the safest choice here.
-			 
-		// 	byte[] sig_data_byte = token.getTokenData().getBytes("UTF-8");
-		// 	s.update(sig_data_byte);
-
-		// 	/**
-		// 	* The equivalent of Perl 's pack "H*", $vartoconvert in Java is :
-		// 	* javax.xml.bind.DatatypeConverter.parseHexBinary(hexadecimalString);.
-		// 	* For more information on this, I think it is recommended to read 
-		// 	* DatatypeConverter class' reference from JavaDocs. 
-		// 	*/
-		// 	byte[] sig_byte = javax.xml.bind.DatatypeConverter.parseHexBinary(token.getSignature());
-			
-		// 	/** verification of signature*/
-		// 	result = s.verify(sig_byte);
-		// }
-		// catch (SignatureException e) {
-		// 	throw new RuntimeException("An unexpected error occurred while verifying the auth token");
-		// }
-		// catch (NoSuchAlgorithmException e) {
-		// 	throw new RuntimeException("An unexpected error occurred while verifying the auth token: " + e.getLocalizedMessage());
-		// }
-		// catch (MalformedURLException e) {
-		// 	throw new AuthException("An error occurred while using the token's verification URL: " + e.getLocalizedMessage());
-		// }
-		// catch (IOException e) {
-		// 	throw new AuthException("An error occurred while retrieving the token signature");
-		// }
-		// catch (KeyManagementException e) {
-		// 	throw new RuntimeException("An unexpected error occurred while initializing the SSL trust mechanism.");
-		// }
-		// catch (InvalidKeyException e) {
-		// 	throw new AuthException("An error occurred while parsing the public key for the token.");
-		// }
-		// if(result) {
-		// 	tc.putValidToken(token);
-		// }
-		// return result;
 	}
 
 	/**
