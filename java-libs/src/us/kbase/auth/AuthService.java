@@ -49,6 +49,7 @@ import org.codehaus.jackson.map.ObjectMapper;
 public class AuthService {
 	private static String AUTH_URL = "https://www.kbase.us/services/authorization";
 	private static String AUTH_LOGIN_PATH = "/Sessions/Login";
+	private static TokenCache tc = new TokenCache();
 	
 	/**
 	 * Logs in a user and returns an AuthUser object, which is more or less a POJO containing basic user attributes,
@@ -209,6 +210,10 @@ public class AuthService {
 		if(token.isExpired()) {
 			throw new TokenExpiredException("token expired");
 		}
+		
+		if(tc.hasToken(token)) {
+			return true;
+		}
 
 		try {
 			/** now HTTPS the SigningSubject of input Token */
@@ -307,6 +312,9 @@ public class AuthService {
 		}
 		catch (InvalidKeyException e) {
 			throw new AuthException("An error occurred while parsing the public key for the token.");
+		}
+		if(result) {
+			tc.putValidToken(token);
 		}
 		return result;
 	}
