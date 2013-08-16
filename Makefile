@@ -28,16 +28,15 @@ all: build-libs
 deploy: deploy-libs deploy-docs deploy-scripts
 
 build-libs:
+	-mkdir lib; \
 	cd Bio-KBase-Auth; \
 	$(DEPLOY_RUNTIME)/bin/perl ./Build.PL ; \
 	cd ..; \
-	@mkdir lib; \
 	rsync -arvC python-libs/biokbase lib/ ; \
-	cp python-libs/auth_token.py lib/biokbase/auth ; \
 	rsync -arvC Bio-KBase-Auth/lib/Bio lib/ ; \
 
 deploy-libs: build-libs
-	rsync -arv --exclude README lib/. $(TARGET)/lib/.
+	rsync -rv --exclude README lib/. $(TARGET)/lib/.
 
 deploy-docs:
 	-mkdir $(TARGET)/services
