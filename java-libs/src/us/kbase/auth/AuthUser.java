@@ -10,6 +10,7 @@ import org.codehaus.jackson.annotate.JsonProperty;
  * 
  * Mostly, this is used for unmarshalling an authentication response from KBase.
  * @author wjriehl
+ * @author gaprice@lbl.gov
  *
  */
 public class AuthUser {
