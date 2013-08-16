@@ -161,8 +161,9 @@ public class AuthServiceTest {
 	
 	@Test
 	public void testTokenExpires() throws Exception {
+		// on some machines the token is already expired by the time you get it if you give <= 5s to expire
 		AuthToken token1 = AuthService.login(TEST_UID, TEST_PW, 5).getToken();
-		Thread.sleep(7000); //Globus seems to be able to issue tokens in the future and teleport them several seconds into the past
+		Thread.sleep(10000); //Globus seems to be able to issue tokens in the future and teleport them several seconds into the past
 							//or java Calendar is off by a second or two
 		AuthToken token2 = new AuthToken(testUser.getToken().toString(), 2);
 		assertTrue("failure - token should be expired by now", token1.isExpired());

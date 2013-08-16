@@ -3,17 +3,13 @@ package us.kbase.auth;
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.StringReader;
 import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLEncoder;
-import java.security.InvalidKeyException;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
-import java.security.interfaces.RSAPublicKey;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -22,7 +18,6 @@ import javax.net.ssl.SSLSession;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 
-import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
 
 /**
@@ -212,7 +207,7 @@ public class AuthService {
 		// If the user is there, then cache this token and return that it's valid.
 		try {
 			// if we get a user back (and not an exception), then the token is valid.
-			AuthUser user = getUserFromToken(token);
+			getUserFromToken(token);
 			tc.putValidToken(token);
 			return true;
 		} catch (AuthException e) {
@@ -306,26 +301,4 @@ public class AuthService {
 
 		return false;
 	}
-	
-	// Main for testing.
-	// TODO - make some JUnit tests.
-	public static void main(String[] args) {
-		try {
-			AuthUser user = AuthService.login("kbasetest", "@Suite525");
-			boolean validated = AuthService.validateToken(user.getToken());
-			System.out.println(user.toString() + "\nValidated token? " + validated);
-			
-			AuthUser user2 = AuthService.getUserFromToken(user.getToken());
-			System.out.println(user2.toString());
-			System.out.println(user2.getToken().getTokenData());
-			
-			System.out.println(user2.getToken().isExpired());
-
-			AuthService.login("asdf", "jkl;");
-		} 
-		catch (Exception e) {
-			System.out.println(e.getLocalizedMessage());
-		}
-	}
-	
 }
