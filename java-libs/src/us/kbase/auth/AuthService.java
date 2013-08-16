@@ -207,7 +207,8 @@ public class AuthService {
 		// If the user is there, then cache this token and return that it's valid.
 		try {
 			// if we get a user back (and not an exception), then the token is valid.
-			getUserFromToken(token);
+			String dataStr = "token=" + token.toString() + "&fields=user_id";
+			fetchUser(dataStr, token.getExpiryTime());
 			tc.putValidToken(token);
 			return true;
 		} catch (AuthException e) {
