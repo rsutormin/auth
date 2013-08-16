@@ -32,7 +32,11 @@ import org.codehaus.jackson.map.ObjectMapper;
  * Thus, this provides code for a user to log in to KBase, retrieve a valid Auth token, and
  * optionally validate it.
  * 
+ * All tokens seen by this class are cached by the
+ * {@link us.kbase.auth.TokenCache} class.
+ * 
  * @author wjriehl
+ * @author gaprice@lbl.gov
  */
 public class AuthService {
 	private static URL AUTH_URL;
@@ -53,8 +57,8 @@ public class AuthService {
 	 * Logs in a user and returns an AuthUser object, which is more or less a POJO containing basic user attributes,
 	 * along with the generated AuthToken.
 	 * 
-	 * @param user the username
-	 * @param pw the password
+	 * @param userName the username
+	 * @param password the password
 	 * @param expiry the desired expiration time for the token in seconds.
 	 * @return an AuthUser that has been successfully logged in.
 	 * @throws AuthException if the credentials are invalid, or if there is a problem communicating with the server.
@@ -79,8 +83,8 @@ public class AuthService {
 	 * Logs in a user and returns an AuthUser object, which is more or less a POJO containing basic user attributes,
 	 * along with the generated AuthToken.
 	 * 
-	 * @param user the username
-	 * @param pw the password
+	 * @param userName the username
+	 * @param password the password
 	 * @return an AuthUser that has been successfully logged in.
 	 * @throws AuthException if the credentials are invalid, or if there is a problem communicating with the server.
 	 */
@@ -171,7 +175,7 @@ public class AuthService {
 	 * 
 	 * @param tokenStr the token string retrieved from KBase
 	 * @return true if the token's valid, false otherwise
-	 * @throw AuthException if there is a problem parsing the token or the server response, or if the token's 
+	 * @throws AuthException if there is a problem parsing the token or the server response, or if the token's 
 	 * verification URL is invalid.
 	 */
 	public static boolean validateToken(String tokenStr) throws TokenFormatException,
