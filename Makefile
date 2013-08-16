@@ -28,6 +28,9 @@ all: build-libs
 deploy: deploy-libs deploy-docs deploy-scripts
 
 build-libs:
+	cd Bio-KBase-Auth; \
+	$(DEPLOY_RUNTIME)/bin/perl ./Build.PL ; \
+	cd ..; \
 	@mkdir lib; \
 	rsync -arvC python-libs/biokbase lib/ ; \
 	cp python-libs/auth_token.py lib/biokbase/auth ; \
@@ -86,7 +89,7 @@ deploy-python-scripts:
 test: test-libs test-client test-scripts test-service
 	@echo "running library, client and script tests"
 
-test-libs: 
+test-libs: build-libs
 	export PERL5LIB=$(shell pwd)/Bio-KBase-Auth/lib ; \
 	cd Bio-KBase-Auth; $(DEPLOY_RUNTIME)/bin/perl ./Build test;
 
