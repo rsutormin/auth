@@ -8,6 +8,7 @@ import static org.junit.matchers.JUnitMatchers.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.io.IOException;
+import java.net.URL;
 
 import us.kbase.auth.AuthService;
 import us.kbase.auth.AuthToken;
@@ -160,8 +161,9 @@ public class AuthServiceTest {
 	
 	@Test
 	public void testTokenExpires() throws Exception {
+		// on some machines the token is already expired by the time you get it if you give <= 5s to expire
 		AuthToken token1 = AuthService.login(TEST_UID, TEST_PW, 5).getToken();
-		Thread.sleep(7000); //Globus seems to be able to issue tokens in the future and teleport them several seconds into the past
+		Thread.sleep(10000); //Globus seems to be able to issue tokens in the future and teleport them several seconds into the past
 							//or java Calendar is off by a second or two
 		AuthToken token2 = new AuthToken(testUser.getToken().toString(), 2);
 		assertTrue("failure - token should be expired by now", token1.isExpired());
@@ -230,16 +232,18 @@ public class AuthServiceTest {
 	}
 
 	@Test
-	public void testServiceUrlChange() {
-		String oldUrl = AuthService.getServiceUrl();
-		String newUrl = "https://kbase.us/testurl";
-		AuthService.setServiceUrl(newUrl);
-		org.junit.Assert.assertEquals("failure - new url isn't set properly", newUrl, AuthService.getServiceUrl());
+	public void testValidServiceUrlChange() throws Exception{
+		URL oldUrl = AuthService.getServiceUrl();
+
+		// valid url
+		URL newUrl = new URL("https://kbase.us/services/authorization/Sessions/Login");
+		
+		org.junit.Assert.assertTrue("failure - setting a valid service url didn't work!", AuthService.setServiceUrl(newUrl));
 		AuthService.setServiceUrl(oldUrl);
 	}
 
 	@Test
-	public void testGetUserFromTokenObject() throws AuthException {
+	public void testGetUserFromTokenObject() throws Exception {
 		AuthToken t = new AuthToken(testUser.getToken().toString(), 400);
 		AuthUser user = AuthService.getUserFromToken(t);
 		org.junit.Assert.assertNotNull("failure - getting user from a token object returned a null user", user);
@@ -247,13 +251,13 @@ public class AuthServiceTest {
 	}
 
 	@Test
-	public void testLogin() throws AuthException {
+	public void testLogin() throws Exception {
 		AuthUser user = AuthService.login(TEST_UID, TEST_PW);
 		org.junit.Assert.assertNotNull("failure - logging in returned a null user", user);
 	}
 	
 	@Test
-	public void testLoginWithExpiry() throws AuthException {
+	public void testLoginWithExpiry() throws Exception {
 		AuthUser user = AuthService.login(TEST_UID, TEST_PW, 300);
 		assertEquals("fail - wrong expiration lifetime", 300, user.getToken().getExpiryTime());
 	}
@@ -272,7 +276,7 @@ public class AuthServiceTest {
 
 	// login with bad user/pw
 	@Test(expected = AuthException.class)
-	public void testFailLogin() throws AuthException {
+	public void testFailLogin() throws Exception {
 		AuthService.login("asdf", "asdf");
 	}
 

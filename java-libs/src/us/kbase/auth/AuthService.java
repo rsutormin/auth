@@ -3,22 +3,13 @@ package us.kbase.auth;
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.StringReader;
 import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLEncoder;
-import java.security.InvalidKeyException;
-import java.security.KeyManagementException;
-import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.security.Security;
-import java.security.Signature;
-import java.security.SignatureException;
 import java.security.cert.X509Certificate;
-import java.security.interfaces.RSAPublicKey;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -27,13 +18,10 @@ import javax.net.ssl.SSLSession;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.bouncycastle.openssl.PEMReader;
-import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
 
 /**
- * A fairly simple Auth service client for KBase, intended (at least initially) for use with GLAMM.
+ * A fairly simple Auth service client for KBase.
  * Usage:
  * 
  * AuthUser user = AuthService.login(user, password);
@@ -47,9 +35,19 @@ import org.codehaus.jackson.map.ObjectMapper;
  * @author wjriehl
  */
 public class AuthService {
-	private static String AUTH_URL = "https://www.kbase.us/services/authorization";
-	private static String AUTH_LOGIN_PATH = "/Sessions/Login";
+	private static URL AUTH_URL;
+
+	private static String AUTH_URL_STRING = "https://www.kbase.us/services/authorization/Sessions/Login";
 	private static TokenCache tc = new TokenCache();
+
+	static {
+		try {
+			AUTH_URL = new URL(AUTH_URL_STRING);
+		}
+		catch (MalformedURLException e) {
+			throw new RuntimeException("Something that should never occur, has occurred. Look for nearby holes in reality.");
+		}
+	}
 	
 	/**
 	 * Logs in a user and returns an AuthUser object, which is more or less a POJO containing basic user attributes,
@@ -61,7 +59,8 @@ public class AuthService {
 	 * @return an AuthUser that has been successfully logged in.
 	 * @throws AuthException if the credentials are invalid, or if there is a problem communicating with the server.
 	 */
-	public static AuthUser login(String userName, String password, long expiry) throws AuthException {
+	public static AuthUser login(String userName, String password, long expiry) throws AuthException,
+																					   IOException {
 		// This is the data that will be POSTed to the service.
 		// By default (not sure if we *really* need to change it), it fetches all the fields.
 		try {
@@ -72,9 +71,6 @@ public class AuthService {
 		}
 		catch (UnsupportedEncodingException e) {
 			throw new RuntimeException("An unexpected URL encoding exception occurred: " + e.getLocalizedMessage());
-		}
-		catch (IOException e) {
-			throw new AuthException("An error occurred while parsing the authentication results: " + e.getLocalizedMessage());
 		}
 	}
 	
@@ -88,7 +84,8 @@ public class AuthService {
 	 * @return an AuthUser that has been successfully logged in.
 	 * @throws AuthException if the credentials are invalid, or if there is a problem communicating with the server.
 	 */
-	public static AuthUser login(String userName, String password) throws AuthException {
+	public static AuthUser login(String userName, String password) throws AuthException,
+																		  IOException {
 		return login(userName, password, AuthToken.DEFAULT_EXPIRES);
 	}
 
@@ -101,16 +98,12 @@ public class AuthService {
 	 * @throws AuthException if the token is malformed or invalid, or if an error occurs while communicating
 	 * with the server.
 	 */
-	public static AuthUser getUserFromToken(AuthToken token) throws AuthException {
+	public static AuthUser getUserFromToken(AuthToken token) throws AuthException,
+																	IOException {
 		String dataStr = "token=" + token.toString() +
 				 "&fields=user_id,name,email,groups,kbase_sessionid,token,verified,opt_in,system_admin";
 
-		try {
-			return fetchUser(dataStr, token.getExpiryTime());
-		}
-		catch (IOException e) {
-			throw new AuthException("An error occurred while parsing the authentication results: " + e.getLocalizedMessage());
-		}
+		return fetchUser(dataStr, token.getExpiryTime());
 	}
 	
 	/**
@@ -129,7 +122,7 @@ public class AuthService {
 
 		try {
 			// Build the connection project and set it up.
-			HttpsURLConnection conn = (HttpsURLConnection) new URL(AUTH_URL + AUTH_LOGIN_PATH).openConnection();
+			HttpsURLConnection conn = (HttpsURLConnection) AUTH_URL.openConnection();
 			conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
 			conn.setRequestProperty("Content-Length", String.valueOf(dataStr.getBytes().length));
 			conn.setRequestProperty("Content-Language", "en-US");
@@ -214,7 +207,8 @@ public class AuthService {
 		// If the user is there, then cache this token and return that it's valid.
 		try {
 			// if we get a user back (and not an exception), then the token is valid.
-			AuthUser user = getUserFromToken(token);
+			String dataStr = "token=" + token.toString() + "&fields=user_id";
+			fetchUser(dataStr, token.getExpiryTime());
 			tc.putValidToken(token);
 			return true;
 		} catch (AuthException e) {
@@ -267,42 +261,45 @@ public class AuthService {
 	 * Returns the current URL to which the service is pointing.
 	 * @return the current URL for the service
 	 */
-	public static String getServiceUrl() {
+	public static URL getServiceUrl() {
 		return AUTH_URL;
 	}
 	
 	/**
-	 * Sets the URL that the service should point to. This is the base URL, e.g.:
-	 * https://kbase.us/services/authorization
-	 * NOT
+	 * Sets the URL that the service should point to. This is the URL that points to the login service:
 	 * https://kbase.us/services/authorization/Sessions/Login
 	 * 
-	 * @param url
+	 * Before setting the URL, this checks to see if a service exists there with a simple GET request.
+	 * If it sees something resembling the KBase auth service, it will set the URL and return 'true'. 
+	 * Otherwise, no change is made and 'false' is returned.
+	 *
+	 * @param url the new URL for the service
+	 * @throws IOException if something goes wrong with the connection test.
 	 */
-	public static void setServiceUrl(String url) {
-		if (url != null && url.length() > 0 && url.startsWith("http"))
-			AUTH_URL = url;
-	}
-	
-	// Main for testing.
-	// TODO - make some JUnit tests.
-	public static void main(String[] args) {
-		try {
-			AuthUser user = AuthService.login("kbasetest", "@Suite525");
-			boolean validated = AuthService.validateToken(user.getToken());
-			System.out.println(user.toString() + "\nValidated token? " + validated);
-			
-			AuthUser user2 = AuthService.getUserFromToken(user.getToken());
-			System.out.println(user2.toString());
-			System.out.println(user2.getToken().getTokenData());
-			
-			System.out.println(user2.getToken().isExpired());
+	public static boolean setServiceUrl(URL url) throws IOException {
 
-			AuthService.login("asdf", "jkl;");
-		} 
-		catch (Exception e) {
-			System.out.println(e.getLocalizedMessage());
+		HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
+
+		int response = conn.getResponseCode();
+
+		// we want to check for a 401 error with this text (or something like it):
+		// {"user_id": null, "error_msg": "Must specify user_id and password in POST message body"}
+		if (response == 401) {
+			BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getErrorStream()));
+			String line;
+			String result = "";
+			while ((line = reader.readLine()) != null) {
+				result += line;
+			}
+			reader.close();
+			conn.disconnect();
+
+			if (result.contains("\"user_id\": null")) {
+				AUTH_URL = url;
+				return true;
+			}
 		}
+
+		return false;
 	}
-	
 }
