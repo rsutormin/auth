@@ -23,20 +23,18 @@ SERVICE = authorization_server
 SERVICE_DIR = $(TARGET)/services/$(SERVICE)
 
 
-all:
+all: build-libs
 
 deploy: deploy-libs deploy-docs deploy-scripts
 
-deploy-libs:
-	cd Bio-KBase-Auth; \
-	mkdir -p $(KB_PERL_PATH); \
-	$(DEPLOY_RUNTIME)/bin/perl ./Build.PL ; \
-	$(DEPLOY_RUNTIME)/bin/perl ./Build installdeps --install_path lib=$(KB_PERL_PATH); \
-	$(DEPLOY_RUNTIME)/bin/perl ./Build install --install_path lib=$(KB_PERL_PATH) 
-	mkdir -p $(KB_PERL_PATH)/biokbase/auth; \
-	touch $(KB_PERL_PATH)/biokbase/__init__.py; \
-	touch $(KB_PERL_PATH)/biokbase/auth/__init__.py; \
-	cp python-libs/auth_token.py $(KB_PERL_PATH)/biokbase/auth
+build-libs:
+	@mkdir lib; \
+	rsync -arvC python-libs/biokbase lib/ ; \
+	cp python-libs/auth_token.py lib/biokbase/auth ; \
+	rsync -arvC Bio-KBase-Auth/lib/Bio lib/ ; \
+
+deploy-libs: build-libs
+	rsync -arv lib/. $(TARGET)/lib/.
 
 deploy-docs:
 	-mkdir $(TARGET)/services
