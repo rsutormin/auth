@@ -1,10 +1,10 @@
 """
-   Tests for the biokbase.Auth.* modules
+   Tests for the biokbase.auth.* modules
 
 """
 
 import unittest
-import biokbase.Auth
+import biokbase.auth
 import os
 import subprocess
 import re
@@ -46,10 +46,10 @@ class test_AuthToken( unittest.TestCase):
         # Clear up any custom/personal configs before starting tests
         if 'TokenEnv' in os.environ:
             del os.environ['TokenEnv']
-        for file in [ biokbase.Auth.kb_config ]:
+        for file in [ biokbase.auth.kb_config ]:
             cls.rename( file)
-        biokbase.Auth.authdata = dict()
-        biokbase.Auth.LoadConfig()
+        biokbase.auth.authdata = dict()
+        biokbase.auth.LoadConfig()
         # Create RSA keys file to use for testing, this first
         # is unencrypted, the second has the passphrase
         # "SecretSquirrel"
@@ -113,42 +113,42 @@ Q8aeVU7+7MjBYC2IQbg8MO1Yf2EDWrKgHhUPg8lvrA0=
         """
         Test various aspects of username and password logins
         """
-        self.assertIsInstance( biokbase.Auth.Token(user_id='papa',password=self.accounts['papa']), biokbase.Auth.Token)
-        t=biokbase.Auth.Token(user_id='papa',password=self.accounts['papa'])
+        self.assertIsInstance( biokbase.auth.Token(user_id='papa',password=self.accounts['papa']), biokbase.auth.Token)
+        t=biokbase.auth.Token(user_id='papa',password=self.accounts['papa'])
         self.assertEqual( t.user_id, "papa", msg="User_id should equal 'papa' for new object")
         self.assertTrue( t.validate(), msg="Should validate for non-kbase user 'papa' token")
         self.assertTrue( t.validate(t.token), msg="Should validate for non-kbase user 'papa' token using explicit validation")
-        self.assertTrue( biokbase.Auth.Token(user_id='kbasetest',password=self.accounts['kbasetest']).validate(),
+        self.assertTrue( biokbase.auth.Token(user_id='kbasetest',password=self.accounts['kbasetest']).validate(),
                          msg="Should be able to validate token for legit kbasetest user login")
-        with self.assertRaises( biokbase.Auth.AuthFail,msg="Bad password should not validate"):
-            biokbase.Auth.Token(user_id='papa',password='poopa').validate(), 
+        with self.assertRaises( biokbase.auth.AuthFail,msg="Bad password should not validate"):
+            biokbase.auth.Token(user_id='papa',password='poopa').validate(), 
         with self.assertRaises( AttributeError,msg="Empty password should not validate"):
-            biokbase.Auth.Token(user_id='papa_blah',password='').validate(), 
+            biokbase.auth.Token(user_id='papa_blah',password='').validate(), 
         with self.assertRaises( AttributeError,msg="Empty user and password should not validate"):
-            biokbase.Auth.Token(user_id=None,password=None).validate(), 
+            biokbase.auth.Token(user_id=None,password=None).validate(), 
         badtoken = "un=papa|clientid=papa|expiry=1376607863|SigningSubject=https://graph.not.api.test.globuscs.info/goauth/keys/861eb8e0-e634-11e1-ac2c-1231381a5994|sig=321ca03d17d984b70822e7414f20a73709f87ba4ed427ad7f41671dc58eae15911322a71787bdaece3885187da1158daf37f21eadd10ea2e75274ca0d8e3fc1f70ca7588078c2a4a96d1340f5ac26ccea89b406399486ba592be9f1d8ffe6273b7acdba8a0edf4154cb3da6caa6522f363d2f6f4d04e080d682e15b35f0bbc36"
-        t=biokbase.Auth.Token(user_id='papa',token=badtoken)
+        t=biokbase.auth.Token(user_id='papa',token=badtoken)
         self.assertEqual( t.user_id, "papa", msg="User_id should equal 'papa' for new badtoken object")
         with self.assertRaises( Exception, msg="Should not validate for non-kbase user 'papa' token"):
             t.validate()
         self.assertTrue( t.get( user_id = 'papa', password = self.accounts['papa']).validate(), msg="Should validate with parameters passed into get()")
-        os.environ[biokbase.Auth.tokenenv] = t.token
-        t2=biokbase.Auth.Token()
+        os.environ[biokbase.auth.tokenenv] = t.token
+        t2=biokbase.auth.Token()
         self.assertTrue( t2.validate(), msg="Should validate with parameters passed into get()")
 
     def testInitFiles(self):
         """
         Test the INI file related functions
         """
-        biokbase.Auth.SetConfigs( { 'user_id' : 'kbasetest',
+        biokbase.auth.SetConfigs( { 'user_id' : 'kbasetest',
                                     'password' : self.accounts['kbasetest']})
-        biokbase.Auth.LoadConfig()
-        self.assertTrue( (biokbase.Auth.authdata['user_id'] == 'kbasetest'), msg="User_id should be set to kbasetest in .kbase_config")
-        self.assertTrue( (biokbase.Auth.authdata['password'] == self.accounts['kbasetest']), msg="Password should be set in .kbase_config")
-        t=biokbase.Auth.Token()
+        biokbase.auth.LoadConfig()
+        self.assertTrue( (biokbase.auth.authdata['user_id'] == 'kbasetest'), msg="User_id should be set to kbasetest in .kbase_config")
+        self.assertTrue( (biokbase.auth.authdata['password'] == self.accounts['kbasetest']), msg="Password should be set in .kbase_config")
+        t=biokbase.auth.Token()
         self.assertTrue( t.token, msg="Should be able to acquire token using .kbase_config")
-        biokbase.Auth.SetConfigs( { 'user_id' : None, 'password' : None})
-        biokbase.Auth.LoadConfig()
+        biokbase.auth.SetConfigs( { 'user_id' : None, 'password' : None})
+        biokbase.auth.LoadConfig()
         
         
     def testRSALogin(self):
@@ -156,18 +156,18 @@ Q8aeVU7+7MjBYC2IQbg8MO1Yf2EDWrKgHhUPg8lvrA0=
         Test logins using RSA keys, both the ~/.ssh/id_rsa variety and the ssh-agent based
         Spins up an ssh-agent instance and loads it with key from self.filesDelete[0]
         """
-        t = biokbase.Auth.Token( user_id="kbasetest", keyfile=self.filesDelete[0])
-        self.assertIsInstance(t,biokbase.Auth.Token,msg="Should be able to initialize token with user_id and keyfile")
+        t = biokbase.auth.Token( user_id="kbasetest", keyfile=self.filesDelete[0])
+        self.assertIsInstance(t,biokbase.auth.Token,msg="Should be able to initialize token with user_id and keyfile")
         self.assertTrue(t.token,msg="Should have a token from keyfile initialization")
         self.assertTrue(t.validate(),msg="Should be able to validate token from keyfile")
-        with self.assertRaises( biokbase.Auth.AuthCredentialsNeeded, msg="keyfile without user_id should raise exception"):
-            biokbase.Auth.Token(keyfile=self.filesDelete[0]).get()
+        with self.assertRaises( biokbase.auth.AuthCredentialsNeeded, msg="keyfile without user_id should raise exception"):
+            biokbase.auth.Token(keyfile=self.filesDelete[0]).get()
         with self.assertRaises( ValueError, msg="user_id with bogus keyfile should raise exception"):
-            biokbase.Auth.Token(user_id="kbasetest", keyfile="/dev/null")
+            biokbase.auth.Token(user_id="kbasetest", keyfile="/dev/null")
         with self.assertRaises( ValueError, msg="encrypted keyfile with no passphrase should raise error"):
-            t = biokbase.Auth.Token(user_id="kbasetest", keyfile=self.filesDelete[1])
-        t = biokbase.Auth.Token(user_id="kbasetest", keyfile=self.filesDelete[1],keyfile_passphrase="SecretSquirrel")
-        self.assertIsInstance(t,biokbase.Auth.Token,msg="Should be able to initialize token with user_id, keyfile, keyfile_passphrase")
+            t = biokbase.auth.Token(user_id="kbasetest", keyfile=self.filesDelete[1])
+        t = biokbase.auth.Token(user_id="kbasetest", keyfile=self.filesDelete[1],keyfile_passphrase="SecretSquirrel")
+        self.assertIsInstance(t,biokbase.auth.Token,msg="Should be able to initialize token with user_id, keyfile, keyfile_passphrase")
         self.assertTrue(t.token,msg="Should have a token from keyfile initialization")
         # Fork and exec an ssh-agent to store the ssh-keys
         sshSocket = "-".join(["/tmp/ssh-agent",self.pid])
@@ -180,12 +180,12 @@ Q8aeVU7+7MjBYC2IQbg8MO1Yf2EDWrKgHhUPg8lvrA0=
             raise Exception( "Could not parse out SSH_AGENT_PID from ssh-agent output: %s" % e)
         env['SSH_AUTH_SOCK'] = sshSocket
         subprocess.check_output( ['ssh-add',self.filesDelete[0]], env=env)
-        t = biokbase.Auth.Token(user_id="kbasetest", sshagent_keyname=self.filesDelete[0])
-        self.assertIsInstance(t,biokbase.Auth.Token,msg="Should be able to initialize token with user_id, sshagent_keyname")
+        t = biokbase.auth.Token(user_id="kbasetest", sshagent_keyname=self.filesDelete[0])
+        self.assertIsInstance(t,biokbase.auth.Token,msg="Should be able to initialize token with user_id, sshagent_keyname")
         self.assertTrue(t.token,msg="Should have a token from sshagent_keyname initialization")
         # test default use of ssh-agent key
-        t = biokbase.Auth.Token(user_id="kbasetest")
-        self.assertIsInstance(t,biokbase.Auth.Token,msg="Should be able to initialize token with user_id, default sshagent key")
+        t = biokbase.auth.Token(user_id="kbasetest")
+        self.assertIsInstance(t,biokbase.auth.Token,msg="Should be able to initialize token with user_id, default sshagent key")
         self.assertTrue(t.token,msg="Should have a token from sshagent_keyname initialization")
         # Okay, kill the ssh-agent and move on
         os.kill(childPID,signal.SIGHUP)
