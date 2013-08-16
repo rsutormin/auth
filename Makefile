@@ -23,14 +23,18 @@ SERVICE = authorization_server
 SERVICE_DIR = $(TARGET)/services/$(SERVICE)
 
 
-all:
+all: build-libs
 
 deploy: deploy-libs deploy-docs deploy-scripts
 
 build-libs:
+	@mkdir lib; \
 	rsync -arvC python-libs/biokbase lib/ ; \
 	cp python-libs/auth_token.py lib/biokbase/auth ; \
 	rsync -arvC Bio-KBase-Auth/lib/Bio lib/ ; \
+
+deploy-libs: build-libs
+	rsync -arv lib/. $(TARGET)/lib/.
 
 deploy-docs:
 	-mkdir $(TARGET)/services
