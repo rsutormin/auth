@@ -33,7 +33,7 @@ public class TokenCache {
 	
 	final private int size;
 	final private int maxsize;
-	final private ConcurrentHashMap<String, Date> cache = new ConcurrentHashMap<String, Date>();
+	final private ConcurrentHashMap<String, Date> cache;
 	
 	/**
 	 * Create a new TokenCache.
@@ -49,6 +49,7 @@ public class TokenCache {
 		}
 		this.size = size;
 		this.maxsize = maxsize;
+		cache = new ConcurrentHashMap<String, Date>(size);
 	}
 	
 	/**
