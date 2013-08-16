@@ -34,7 +34,7 @@ build-libs:
 	rsync -arvC Bio-KBase-Auth/lib/Bio lib/ ; \
 
 deploy-libs: build-libs
-	rsync -arv lib/. $(TARGET)/lib/.
+	rsync -arv --exclude README lib/. $(TARGET)/lib/.
 
 deploy-docs:
 	-mkdir $(TARGET)/services
