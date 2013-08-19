@@ -155,8 +155,10 @@ public class AuthService {
 			if (user == null) { // if still null, throw an exception 
 				throw new AuthException("Unable to construct a user object from login results!");
 			}
-			user.getToken().setExpiryTime(expiry);
-			tc.putValidToken(user.getToken());
+			if (user.getToken() != null) {
+				user.getToken().setExpiryTime(expiry);
+				tc.putValidToken(user.getToken());
+			}
 
 			br.close();
 			conn.disconnect();

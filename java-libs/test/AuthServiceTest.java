@@ -1,3 +1,4 @@
+import org.codehaus.jackson.map.ObjectMapper;
 import org.junit.Test;
 import org.junit.BeforeClass;
 import org.junit.AfterClass;
@@ -7,8 +8,15 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.matchers.JUnitMatchers.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.io.BufferedReader;
+import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.UnsupportedEncodingException;
 import java.net.URL;
+import java.net.URLEncoder;
+
+import javax.net.ssl.HttpsURLConnection;
 
 import us.kbase.auth.AuthService;
 import us.kbase.auth.AuthToken;
@@ -29,13 +37,14 @@ public class AuthServiceTest {
 	private static final String[] GROUPS = { "kbase_test", "kbase_test_users", "kbase_users2", "kbase_staff", "kbase_users" };
 	private static final boolean EMAIL_VALID = true;
 	private static final List<AuthToken> someTokens = new ArrayList<AuthToken>();
+	private static final List<AuthToken> uncachedTokens = new ArrayList<AuthToken>();
 
 	// Fetched before any tests are run - this test user is then used in the various POJO tests.
 	private static AuthUser testUser = null;
 
 
 	@BeforeClass
-	public static void loginTestUser() {
+	public static void loginTestUser() throws UnsupportedEncodingException {
 		System.out.println("Setting up test user for AuthUser and AuthToken testing...");
 		try {
 			testUser = AuthService.login(TEST_UID, TEST_PW);
@@ -43,6 +52,11 @@ public class AuthServiceTest {
 			for(int i = 0; i < tokens; i++) {
 				System.out.println("Getting token " + (i + 1) + "/" + tokens);
 				someTokens.add(AuthService.login(TEST_UID, TEST_PW).getToken());
+			}
+			tokens = 2;
+			for(int i = 0; i < tokens; i++) {
+				System.out.println("Getting uncached token " + (i + 1) + "/" + tokens);
+				uncachedTokens.add(getUncachedToken());
 			}
 		}
 		catch (Exception e) {
@@ -52,6 +66,38 @@ public class AuthServiceTest {
 			System.exit(0);
 		}
 		System.out.println("Done! Beginning testing....");
+	}
+	
+	public static AuthToken getUncachedToken() throws IOException, AuthException {
+		String dataStr = "user_id=" + URLEncoder.encode(TEST_UID, "UTF-8") + 
+				 "&password=" + URLEncoder.encode(TEST_PW, "UTF-8") + 
+				 "&cookie=1&fields=user_id,name,email,groups,kbase_sessionid,token,verified,opt_in,system_admin";
+		HttpsURLConnection conn = (HttpsURLConnection) AuthService.getServiceUrl().openConnection();
+		conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+		conn.setRequestProperty("Content-Length", String.valueOf(dataStr.getBytes().length));
+		conn.setRequestProperty("Content-Language", "en-US");
+		conn.setRequestMethod("POST");
+		conn.setDoOutput(true);
+		conn.setDoInput(true);
+		conn.setUseCaches(false);
+		
+		// Write out the POST data.
+		DataOutputStream writer = new DataOutputStream(conn.getOutputStream());
+		writer.writeBytes(dataStr);
+		writer.flush();
+		writer.close();
+		
+		// If we don't have a happy response code, throw an exception.
+		int responseCode = conn.getResponseCode();
+		if (responseCode != 200) {
+			conn.disconnect();
+			throw new AuthException("Login failed! Server responded with code " + responseCode + " " + conn.getResponseMessage());
+		}
+
+		/** Encoding the HTTP response into JSON format */
+		BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+
+		return new ObjectMapper().readValue(br, AuthUser.class).getToken();
 	}
 
 	@AfterClass
@@ -266,11 +312,15 @@ public class AuthServiceTest {
 	public void testValidateTokenStr() throws AuthException, IOException {
 		String tokenStr = testUser.getTokenString();
 		org.junit.Assert.assertTrue("failure - valid token string didn't validate", AuthService.validateToken(tokenStr));
+		tokenStr = uncachedTokens.get(0).toString();
+		org.junit.Assert.assertTrue("failure - valid token object didn't validate", AuthService.validateToken(tokenStr));
 	}
 
 	@Test
 	public void testValidateTokenObject() throws AuthException, IOException {
 		AuthToken token = testUser.getToken();
+		org.junit.Assert.assertTrue("failure - valid token object didn't validate", AuthService.validateToken(token));
+		token = uncachedTokens.get(1);
 		org.junit.Assert.assertTrue("failure - valid token object didn't validate", AuthService.validateToken(token));
 	}
 
