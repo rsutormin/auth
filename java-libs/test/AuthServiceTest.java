@@ -15,6 +15,8 @@ import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.util.Date;
+
 
 import javax.net.ssl.HttpsURLConnection;
 
@@ -38,6 +40,9 @@ public class AuthServiceTest {
 	private static final boolean EMAIL_VALID = true;
 	private static final List<AuthToken> someTokens = new ArrayList<AuthToken>();
 	private static final List<AuthToken> uncachedTokens = new ArrayList<AuthToken>();
+
+	private static final int TIME_TRAVEL_SLEEP_TIME = 17000;  // ms
+	private static final int SHORT_TOKEN_LIFESPAN = 15;       // seconds
 
 	// Fetched before any tests are run - this test user is then used in the various POJO tests.
 	private static AuthUser testUser = null;
@@ -207,9 +212,11 @@ public class AuthServiceTest {
 	
 	@Test
 	public void testTokenExpires() throws Exception {
+		System.out.println("Sleeping for " + (TIME_TRAVEL_SLEEP_TIME/1000) + " seconds to account for Globus Online's time traveling tokens.");
+
 		// on some machines the token is already expired by the time you get it if you give <= 5s to expire
-		AuthToken token1 = AuthService.login(TEST_UID, TEST_PW, 5).getToken();
-		Thread.sleep(10000); //Globus seems to be able to issue tokens in the future and teleport them several seconds into the past
+		AuthToken token1 = AuthService.login(TEST_UID, TEST_PW, SHORT_TOKEN_LIFESPAN).getToken();
+		Thread.sleep(TIME_TRAVEL_SLEEP_TIME); //Globus seems to be able to issue tokens in the future and teleport them several seconds into the past
 							//or java Calendar is off by a second or two
 		AuthToken token2 = new AuthToken(testUser.getToken().toString(), 2);
 		assertTrue("failure - token should be expired by now", token1.isExpired());
@@ -342,5 +349,28 @@ public class AuthServiceTest {
 		new AuthToken("bad token!");
 	}
 
-	// finished with AuthService methods
+
+    // @Test
+    // public void testTokenExpires() throws Exception {
+    //     // on some machines the token is already expired by the time you get it if you give <= 5s to expire
+    //     AuthToken token1 = AuthService.login(TEST_UID, TEST_PW, 15).getToken();
+    //     System.out.println("just got token");
+    //     System.out.println("current: " + new Date().getTime());
+    //     System.out.println("issued:  " + token1.getIssueDate().getTime());
+    //     System.out.println("exp interval (s): " + token1.getExpiryTime());
+    //     System.out.println("expires: " + (token1.getIssueDate().getTime() + token1.getExpiryTime() * 1000));
+    //     Thread.sleep(17000); //Globus seems to be able to issue tokens in the future and teleport them several seconds into the past
+    //                         //or java Calendar is off by a second or two
+    //     System.out.println("slept");
+    //     System.out.println("current: " + new Date().getTime());
+    //     System.out.println("issued: " + token1.getIssueDate().getTime());
+    //     System.out.println("exp interval (s): " + token1.getExpiryTime());
+    //     System.out.println("expires: " + (token1.getIssueDate().getTime() + token1.getExpiryTime() * 1000));
+    //     AuthToken token2 = new AuthToken(testUser.getToken().toString(), 2);
+    //     assertTrue("failure - token should be expired by now", token1.isExpired());
+    //     org.junit.Assert.assertTrue("failure - token should be expired by now", token2.isExpired());
+    // }
+
+// 	// finished with AuthService methods
 }
+

@@ -208,6 +208,11 @@ public class AuthToken {
 	 * otherwise.
 	 */
 	public boolean isExpired() {
+		// System.out.println("Expire time: " + expireTime);
+		// System.out.println("Issued time: " + issued.getTime());
+		// System.out.println("Current time: " + new Date().getTime());
+		// System.out.println("Issued+expired: " + (issued.getTime() + (expireTime * 1000)));
+
 		return new Date().getTime() - issued.getTime() > expireTime * 1000;
 	}
 	
