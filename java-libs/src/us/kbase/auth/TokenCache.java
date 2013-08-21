@@ -13,7 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 
  * Tokens are stored until the size of the cache is greater than the maximum
  * allowed size. Tokens are then ordered by most recent access and the oldest
- * tokens are discared to return the cache to its nominal size.
+ * tokens are discarded to return the cache to its nominal size.
  * 
  * This class is thread safe.
  * 

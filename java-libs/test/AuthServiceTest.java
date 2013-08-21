@@ -3,10 +3,13 @@ import org.junit.Test;
 import org.junit.BeforeClass;
 import org.junit.AfterClass;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.matchers.JUnitMatchers.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
@@ -15,8 +18,6 @@ import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.net.URL;
 import java.net.URLEncoder;
-import java.util.Date;
-
 
 import javax.net.ssl.HttpsURLConnection;
 
@@ -24,6 +25,7 @@ import us.kbase.auth.AuthService;
 import us.kbase.auth.AuthToken;
 import us.kbase.auth.AuthUser;
 import us.kbase.auth.AuthException;
+import us.kbase.auth.StringCache;
 import us.kbase.auth.TokenCache;
 import us.kbase.auth.TokenExpiredException;
 import us.kbase.auth.TokenFormatException;
@@ -40,8 +42,9 @@ public class AuthServiceTest {
 	private static final boolean EMAIL_VALID = true;
 	private static final List<AuthToken> someTokens = new ArrayList<AuthToken>();
 	private static final List<AuthToken> uncachedTokens = new ArrayList<AuthToken>();
+	private static List<String> testStrings;
 
-	private static final int TIME_TRAVEL_SLEEP_TIME = 17000;  // ms
+	private static final int TIME_TRAVEL_SLEEP_TIME = 20000;  // ms
 	private static final int SHORT_TOKEN_LIFESPAN = 15;       // seconds
 
 	// Fetched before any tests are run - this test user is then used in the various POJO tests.
@@ -70,6 +73,7 @@ public class AuthServiceTest {
 			System.out.println(e);
 			System.exit(0);
 		}
+		testStrings = Arrays.asList("string1", "string2", "string3", "string4", "string5");
 		System.out.println("Done! Beginning testing....");
 	}
 	
@@ -139,23 +143,69 @@ public class AuthServiceTest {
 		tc.putValidToken(token);
 	}
 	
+	@Test
 	public void tokenCacheDropsExpiredTokens() throws Exception {
-		TokenCache tc = new TokenCache(2, 2);
+		TokenCache tc = new TokenCache(2, 3);
 		tc.putValidToken(someTokens.get(0));
 		Thread.sleep(50);
 		tc.putValidToken(someTokens.get(1));
+		Thread.sleep(50);
+		tc.putValidToken(someTokens.get(2));
 		Thread.sleep(50);
 		AuthToken t = new AuthToken(someTokens.get(0).toString(), 0);
 		try {
 			tc.hasToken(t);
 		} catch (TokenExpiredException e) {}
 		tc.putValidToken(someTokens.get(3));
-		boolean[] expected = {false, true, true};
+		boolean[] expected = {false, false, true, true};
 		for (int i = 0; i < expected.length; i++) {
 			assertEquals("failure - cache retained wrong tokens", expected[i], tc.hasToken(someTokens.get(i)));
 			
 		}
 	}
+	
+	//test StringCache
+	@Test
+	public void stringCacheDropsOldStrings() throws InterruptedException {
+		StringCache sc = new StringCache(2, 4);
+		sc.putString(testStrings.get(0));
+		Thread.sleep(50);
+		sc.putString(testStrings.get(1));
+		Thread.sleep(50);
+		assertTrue("failure - cache missing strings", sc.hasString(testStrings.get(0)));
+		sc.putString(testStrings.get(2));
+		Thread.sleep(50);
+		sc.putString(testStrings.get(3));
+		Thread.sleep(50);
+		assertTrue("failure - cache missing strings", sc.hasString(testStrings.get(0)));
+		sc.putString(testStrings.get(4));
+		boolean[] expected = {true, false, false, false, true};
+		for (int i = 0; i < expected.length; i++) {
+			assertEquals("failure - cache retained wrong strings", expected[i], sc.hasString(testStrings.get(i)));
+			
+		}
+	}
+	
+	@Test
+	public void stringCacheDropsExpiredStrings() throws InterruptedException {
+		StringCache sc = new StringCache(2, 3);
+		sc.setExpiry(2);
+		assertThat("failure - expiry time not set correctly", new Long(sc.getExpiry()), is(new Long(2)));
+		sc.putString(testStrings.get(0));
+		Thread.sleep(2500);
+		sc.putString(testStrings.get(1));
+		Thread.sleep(50);
+		sc.putString(testStrings.get(2));
+		Thread.sleep(50);
+		assertThat("failure expired string is still in cache", sc.hasString(testStrings.get(0)), is(false));
+		sc.putString(testStrings.get(3));
+		boolean[] expected = {false, false, true, true};
+		for (int i = 0; i < expected.length; i++) {
+			assertEquals("failure - cache retained wrong strings", expected[i], sc.hasString(testStrings.get(i)));
+			
+		}
+	}
+	
 
 	// test AuthToken POJO stuff - make sure all fields are non-null
 	@Test
