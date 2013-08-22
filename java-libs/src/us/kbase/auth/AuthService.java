@@ -135,6 +135,7 @@ public class AuthService {
 	 */
 	public static Map<String, Boolean> isValidUserName(List<String> usernames,
 			AuthToken token) throws IOException, AuthException {
+		//TODO when auth service supports, just query auth service for this
 		final List<String> badlist = new ArrayList<String>();
 		final Map<String, Boolean> result = new HashMap<String, Boolean>();
 		for (String user: usernames) {
@@ -165,6 +166,7 @@ public class AuthService {
 	 */
 	public static Map<String, UserDetail> fetchUserDetail(List<String> usernames,
 			AuthToken token) throws IOException, AuthException {
+		//TODO when auth service supports, just query auth service for this
 		final Map<String, UserDetail> result = new HashMap<String, UserDetail>();
 		if (usernames.size() == 0) {
 			return result;
