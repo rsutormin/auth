@@ -5,8 +5,10 @@ import org.junit.AfterClass;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.junit.matchers.JUnitMatchers.*;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,6 +31,7 @@ import us.kbase.auth.StringCache;
 import us.kbase.auth.TokenCache;
 import us.kbase.auth.TokenExpiredException;
 import us.kbase.auth.TokenFormatException;
+import us.kbase.auth.UserDetail;
 
 public class AuthServiceTest {
 	private static final String TEST_UID = "kbasetest";
@@ -399,28 +402,25 @@ public class AuthServiceTest {
 		new AuthToken("bad token!");
 	}
 
-
-    // @Test
-    // public void testTokenExpires() throws Exception {
-    //     // on some machines the token is already expired by the time you get it if you give <= 5s to expire
-    //     AuthToken token1 = AuthService.login(TEST_UID, TEST_PW, 15).getToken();
-    //     System.out.println("just got token");
-    //     System.out.println("current: " + new Date().getTime());
-    //     System.out.println("issued:  " + token1.getIssueDate().getTime());
-    //     System.out.println("exp interval (s): " + token1.getExpiryTime());
-    //     System.out.println("expires: " + (token1.getIssueDate().getTime() + token1.getExpiryTime() * 1000));
-    //     Thread.sleep(17000); //Globus seems to be able to issue tokens in the future and teleport them several seconds into the past
-    //                         //or java Calendar is off by a second or two
-    //     System.out.println("slept");
-    //     System.out.println("current: " + new Date().getTime());
-    //     System.out.println("issued: " + token1.getIssueDate().getTime());
-    //     System.out.println("exp interval (s): " + token1.getExpiryTime());
-    //     System.out.println("expires: " + (token1.getIssueDate().getTime() + token1.getExpiryTime() * 1000));
-    //     AuthToken token2 = new AuthToken(testUser.getToken().toString(), 2);
-    //     assertTrue("failure - token should be expired by now", token1.isExpired());
-    //     org.junit.Assert.assertTrue("failure - token should be expired by now", token2.isExpired());
-    // }
-
+	@Test
+	public void testGetUserDetails() throws Exception {
+		AuthToken token = testUser.getToken();
+		UserDetail ud = AuthService.fetchUserDetail("kbasetest", token);
+		assertThat("username doesn't match", ud.getUserName(), is("kbasetest"));
+		assertThat("email doesn't match", ud.getEmail(), is("sychan@lbl.gov"));
+		assertThat("full name doesn't match", ud.getFullName(), is("KBase Test Account"));
+		assertThat("validates already seen name", AuthService.isValidUserName("kbasetest", token), is(true));
+		assertThat("validates new name", AuthService.isValidUserName("kbase", token), is(true));
+		assertThat("can't validate bad name", AuthService.isValidUserName("afajjahfhauefavuaeuvaljaeifjaigjaja", token), is(false));
+		assertNull("can't fetch bad name", AuthService.fetchUserDetail("afajjahfhauefavuaeuvaljaeifjaigjaja", token));
+		try {
+			AuthService.isValidUserName("\\foo", token);
+			fail("auth service accepted invalid username");
+		} catch (IllegalArgumentException iae) {
+			assertThat("incorrect exception message", iae.getLocalizedMessage(),
+					is("username has invalid character: \\"));
+		}
+	}
 // 	// finished with AuthService methods
 }
 
