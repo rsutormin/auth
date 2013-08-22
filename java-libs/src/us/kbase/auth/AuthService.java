@@ -138,6 +138,9 @@ public class AuthService {
 		final List<String> badlist = new ArrayList<String>();
 		final Map<String, Boolean> result = new HashMap<String, Boolean>();
 		for (String user: usernames) {
+			if (user == null) {
+				continue;
+			}
 			if (uc.hasString(user)) {
 				result.put(user, true);
 			} else {
@@ -167,6 +170,9 @@ public class AuthService {
 			return result;
 		}
 		for (String un: usernames) {
+			if (un == null) {
+				continue;
+			}
 			result.put(un, null);
 			final Matcher m = INVALID_USERNAME.matcher(un);
 			if (m.find()) {

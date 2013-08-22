@@ -100,6 +100,9 @@ public class StringCache {
 	 * otherwise.
 	 */
 	public boolean hasString(String string) {
+		if (string == null) {
+			throw new NullPointerException("string cannot be null");
+		}
 		if (!cache.containsKey(string)) {
 			return false;
 		}
@@ -118,6 +121,9 @@ public class StringCache {
 	 * @param string the string to add
 	 */
 	public void putString(String string) {
+		if (string == null) {
+			throw new NullPointerException("string cannot be null");
+		}
 		Date now = new Date();
 		List<Date> dates = new ArrayList<Date>();
 		dates.add(ADDED, now);

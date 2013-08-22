@@ -5,6 +5,7 @@ import org.junit.AfterClass;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -193,6 +194,18 @@ public class AuthServiceTest {
 	@Test
 	public void stringCacheDropsExpiredStrings() throws InterruptedException {
 		StringCache sc = new StringCache(2, 3);
+		try {
+			sc.hasString(null);
+			fail("string cache accepted a null");
+		} catch (NullPointerException npe) {
+			assertThat("NPE text correct", npe.getLocalizedMessage(), is("string cannot be null"));
+		}
+		try {
+			sc.putString(null);
+			fail("string cache accepted a null");
+		} catch (NullPointerException npe) {
+			assertThat("NPE text correct", npe.getLocalizedMessage(), is("string cannot be null"));
+		}
 		sc.setExpiry(2);
 		assertThat("failure - expiry time not set correctly", new Long(sc.getExpiry()), is(new Long(2)));
 		sc.putString(testStrings.get(0));
@@ -413,8 +426,10 @@ public class AuthServiceTest {
 		List<String> users = new ArrayList<String>();
 		users.add("kbasetest");
 		users.add("kbauthorz");
+		users.add(null); // should ignore nulls
 		users.add("ahfueafavafueafhealuefhalfuafeuauflaef");
 		Map<String, UserDetail> res = AuthService.fetchUserDetail(users, token);
+		assertFalse("still has a null user", res.containsKey(null));
 		assertNull("bad user found somehow", res.get("ahfueafavafueafhealuefhalfuafeuauflaef"));
 		UserDetail ud = res.get("kbasetest");
 		assertThat("username doesn't match", ud.getUserName(), is("kbasetest"));
