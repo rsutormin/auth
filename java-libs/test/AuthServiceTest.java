@@ -13,6 +13,7 @@ import static org.junit.matchers.JUnitMatchers.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -408,22 +409,36 @@ public class AuthServiceTest {
 	@Test
 	public void testGetUserDetails() throws Exception {
 		AuthToken token = testUser.getToken();
-		UserDetail ud = AuthService.fetchUserDetail("kbasetest", token);
+		assertThat("no users doesn't return empty hash", AuthService.fetchUserDetail(new ArrayList<String>(), token).size(), is(0));
+		List<String> users = new ArrayList<String>();
+		users.add("kbasetest");
+		users.add("kbauthorz");
+		users.add("ahfueafavafueafhealuefhalfuafeuauflaef");
+		Map<String, UserDetail> res = AuthService.fetchUserDetail(users, token);
+		assertNull("bad user found somehow", res.get("ahfueafavafueafhealuefhalfuafeuauflaef"));
+		UserDetail ud = res.get("kbasetest");
 		assertThat("username doesn't match", ud.getUserName(), is("kbasetest"));
 		assertThat("email doesn't match", ud.getEmail(), is("sychan@lbl.gov"));
 		assertThat("full name doesn't match", ud.getFullName(), is("KBase Test Account"));
-		assertThat("validates already seen name", AuthService.isValidUserName("kbasetest", token), is(true));
-		assertThat("validates new name", AuthService.isValidUserName("kbase", token), is(true));
-		assertThat("can't validate bad name", AuthService.isValidUserName("afajjahfhauefavuaeuvaljaeifjaigjaja", token), is(false));
-		assertNull("can't fetch bad name", AuthService.fetchUserDetail("afajjahfhauefavuaeuvaljaeifjaigjaja", token));
+		ud = res.get("kbauthorz");
+		assertThat("username doesn't match", ud.getUserName(), is("kbauthorz"));
+		assertThat("email doesn't match", ud.getEmail(), is("sychan@lbl.gov"));
+		assertThat("full name doesn't match", ud.getFullName(), is("KBase Authorization"));
+		users.remove("kbauthorz");
+		users.add("kbase");
+		Map<String, Boolean> valid = AuthService.isValidUserName(users, token);
+		assertThat("validates already seen name", valid.get("kbasetest"), is(true));
+		assertThat("validates new name", valid.get("kbase"), is(true));
+		assertThat("can't validate bad name", valid.get("ahfueafavafueafhealuefhalfuafeuauflaef"), is(false));
+		users.add("\\foo");
 		try {
-			AuthService.isValidUserName("\\foo", token);
+			AuthService.isValidUserName(users, token);
 			fail("auth service accepted invalid username");
 		} catch (IllegalArgumentException iae) {
 			assertThat("incorrect exception message", iae.getLocalizedMessage(),
-					is("username has invalid character: \\"));
+					is("username \\foo has invalid character: \\"));
 		}
 	}
- 	// finished with AuthService methods
+	// finished with AuthService methods
 }
 

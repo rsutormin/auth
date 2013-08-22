@@ -10,6 +10,8 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -122,44 +124,59 @@ public class AuthService {
 	}
 	
 	/**
-	 * Checks whether a string is a valid user name.
+	 * Checks whether strings are a valid user names.
 	 * Checks the local cache first to avoid an http call.
-	 * @param username the username
+	 * @param usernames the usernames
 	 * @param token a valid token
-	 * @return <code>true</code> if the string is a valid user name,
-	 * <code>false</code> otherwise.
+	 * @return a mapping of username to validity.
 	 * @throws AuthException if the credentials are invalid
 	 * @throws IOException if there is a problem communicating with the server.
+	 * @throws IllegalArgumentException if a username is invalid.
 	 */
-	public static boolean isValidUserName(String username, AuthToken token)
-			throws IOException, AuthException {
-		if (uc.hasString(username)) {
-			return true;
+	public static Map<String, Boolean> isValidUserName(List<String> usernames,
+			AuthToken token) throws IOException, AuthException {
+		final List<String> badlist = new ArrayList<String>();
+		final Map<String, Boolean> result = new HashMap<String, Boolean>();
+		for (String user: usernames) {
+			if (uc.hasString(user)) {
+				result.put(user, true);
+			} else {
+				badlist.add(user);
+			}
 		}
-		if (fetchUserDetail(username, token) != null) {
-			uc.putString(username);
-			return true;
+		Map<String, UserDetail> uds = fetchUserDetail(badlist, token);
+		for (String user: uds.keySet()) {
+			result.put(user, uds.get(user) != null);
 		}
-		return false;
+		return result;
 	}
 	
 	/**
-	 * Get information about a user.
-	 * @param user the user name of the user that is the subject of the request
+	 * Get information about users.
+	 * @param usernames the user names of the user that is the subject of the request
 	 * @param token a valid token.
+	 * @return a mapping of username to user details.
 	 * @throws AuthException if the credentials are invalid
 	 * @throws IOException if there is a problem communicating with the server.
+	 * @throws IllegalArgumentException if a username is invalid.
 	 */
-	public static UserDetail fetchUserDetail(String user, AuthToken token) throws
-			IOException, AuthException {
-		final Matcher m = INVALID_USERNAME.matcher(user);
-		if (m.find()) {
-			throw new IllegalArgumentException(
-					"username has invalid character: " + m.group(0));
+	public static Map<String, UserDetail> fetchUserDetail(List<String> usernames,
+			AuthToken token) throws IOException, AuthException {
+		final Map<String, UserDetail> result = new HashMap<String, UserDetail>();
+		if (usernames.size() == 0) {
+			return result;
+		}
+		for (String un: usernames) {
+			result.put(un, null);
+			final Matcher m = INVALID_USERNAME.matcher(un);
+			if (m.find()) {
+				throw new IllegalArgumentException(
+						"username " + un + " has invalid character: " + m.group(0));
+			}
 		}
 		URL query = null;
 		try {
-			query = new URL(GLOBUS_USER_URL_STRING + user);
+			query = new URL(GLOBUS_USER_URL_STRING + join(usernames, ","));
 		} catch (MalformedURLException mue) {
 			throw new IllegalArgumentException("username has illegal characters");
 		}
@@ -183,13 +200,30 @@ public class AuthService {
 		@SuppressWarnings("unchecked")
 		final List<Map<String, Object>> results = (List<Map<String, Object>>) userd.get("results");
 		for (Map<String, Object> res: results) {
-			if (user.equals(res.get("username"))) {
+//			System.out.println(res);
+			final String user = (String) res.get("username");
+			if (result.containsKey(user)) {
 				uc.putString(user);
-				return new UserDetail(user, (String) res.get("email"), (String) res.get("fullname"));
+				result.put(user, new UserDetail(user, (String) res.get("email"), (String) res.get("fullname")));
 			}
 			
 		}
-		return null;
+		return result;
+	}
+	
+	private static String join(List<String> list, String conjunction) {
+		StringBuilder sb = new StringBuilder();
+		boolean first = true;
+		for (String item : list)
+		{
+			if (first) {
+				first = false;
+			} else {
+				sb.append(conjunction);
+			}
+			sb.append(item);
+		}
+		return sb.toString();
 	}
 	
 	/**
