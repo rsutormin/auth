@@ -195,13 +195,16 @@ public class AuthServiceTest {
 		sc.setExpiry(2);
 		assertThat("failure - expiry time not set correctly", new Long(sc.getExpiry()), is(new Long(2)));
 		sc.putString(testStrings.get(0));
-		Thread.sleep(2500);
+		Thread.sleep(1500);
+		//touch to reset touched time of string, but not added time
+		assertThat("failure - missing non-expired String", sc.hasString(testStrings.get(0)), is(true));
+		Thread.sleep(1000); //now should be expired but touched within 1 sec
 		sc.putString(testStrings.get(1));
 		Thread.sleep(50);
 		sc.putString(testStrings.get(2));
 		Thread.sleep(50);
-		assertThat("failure expired string is still in cache", sc.hasString(testStrings.get(0)), is(false));
 		sc.putString(testStrings.get(3));
+		assertThat("failure expired string is still in cache", sc.hasString(testStrings.get(0)), is(false));
 		boolean[] expected = {false, false, true, true};
 		for (int i = 0; i < expected.length; i++) {
 			assertEquals("failure - cache retained wrong strings", expected[i], sc.hasString(testStrings.get(i)));
@@ -265,7 +268,7 @@ public class AuthServiceTest {
 	
 	@Test
 	public void testTokenExpires() throws Exception {
-		System.out.println("Sleeping for " + (TIME_TRAVEL_SLEEP_TIME/1000) + " seconds to account for Globus Online's time traveling tokens.");
+		System.out.println("\nSleeping for " + (TIME_TRAVEL_SLEEP_TIME/1000) + " seconds to account for Globus Online's time traveling tokens.");
 
 		// on some machines the token is already expired by the time you get it if you give <= 5s to expire
 		AuthToken token1 = AuthService.login(TEST_UID, TEST_PW, SHORT_TOKEN_LIFESPAN).getToken();
@@ -421,6 +424,6 @@ public class AuthServiceTest {
 					is("username has invalid character: \\"));
 		}
 	}
-// 	// finished with AuthService methods
+ 	// finished with AuthService methods
 }
 

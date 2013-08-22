@@ -34,10 +34,13 @@ public class StringCache {
 	 */
 	final public static long EXPIRY = 24 * 60 * 60;
 	
+	final private static int ADDED = 0;
+	final private static int TOUCHED = 1;
+	
 	final private int size;
 	final private int maxsize;
 	private long expiry = EXPIRY;
-	final private ConcurrentHashMap<String, Date> cache;
+	final private ConcurrentHashMap<String, List<Date>> cache;
 	
 	/**
 	 * Create a new StringCache.
@@ -53,7 +56,7 @@ public class StringCache {
 		}
 		this.size = size;
 		this.maxsize = maxsize;
-		cache = new ConcurrentHashMap<String, Date>(maxsize);
+		cache = new ConcurrentHashMap<String, List<Date>>(maxsize);
 	}
 	
 	/**
@@ -90,7 +93,8 @@ public class StringCache {
 	}
 	
 	/**
-	 * Determine whether a string is in the cache.
+	 * Determine whether a string is in the cache. Does not reset the
+	 * expiration time for the string.
 	 * @param token the string to check
 	 * @return <code>true</code> if the string is in the cache, <code>false</code>
 	 * otherwise.
@@ -99,24 +103,31 @@ public class StringCache {
 		if (!cache.containsKey(string)) {
 			return false;
 		}
-		if (new Date().getTime() - cache.get(string).getTime() > expiry * 1000) {
+		if (new Date().getTime() - cache.get(string).get(ADDED).getTime() > expiry * 1000) {
 			return false;
 		}
-		cache.put(string, new Date());
+		List<Date> dates = new ArrayList<Date>();
+		dates.add(ADDED, cache.get(string).get(ADDED));
+		dates.add(TOUCHED, new Date());
+		cache.put(string, dates);
 		return true;
 	}
 		
 	/**
-	 * Add a string to the cache.
+	 * Add a string to the cache. Resets the expiration time for the string.
 	 * @param string the string to add
 	 */
 	public void putString(String string) {
-		cache.put(string, new Date());
+		Date now = new Date();
+		List<Date> dates = new ArrayList<Date>();
+		dates.add(ADDED, now);
+		dates.add(TOUCHED, now);
+		cache.put(string, dates);
 		synchronized (cache) { // block here otherwise all threads may start sorting
 			if(cache.size() <= maxsize) {return;}
 			List<DateString> ds = new ArrayList<DateString>();
 			for (String s: cache.keySet()) {
-				ds.add(new DateString(cache.get(s), s));
+				ds.add(new DateString(cache.get(s).get(TOUCHED), s));
 			}
 			Collections.sort(ds);
 			for(int i = size; i < ds.size(); i++) {
