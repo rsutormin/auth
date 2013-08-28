@@ -2,3 +2,4 @@
 local_settings.py
 /doc
 /pod2htmd.tmp
+/java-libs/kbase-auth-*.jar
