@@ -269,7 +269,11 @@ public class AuthService {
 			int responseCode = conn.getResponseCode();
 			if (responseCode != 200) {
 				conn.disconnect();
-				throw new AuthException("Login failed! Server responded with code " + responseCode + " " + conn.getResponseMessage());
+				if (responseCode < 500) {
+					throw new AuthException("Login failed! Server responded with code " + responseCode + " " + conn.getResponseMessage());
+				} else {
+					throw new IOException("Server comms failed. Code: " + responseCode + " " + conn.getResponseMessage());
+				}
 			}
 
 			/** Encoding the HTTP response into JSON format */
@@ -277,7 +281,7 @@ public class AuthService {
 	
 			final AuthUser user = new ObjectMapper().readValue(br, AuthUser.class);
 			if (user == null) { // if still null, throw an exception 
-				throw new AuthException("Unable to construct a user object from login results!");
+				throw new IOException("Server returned a null object. Code: " + responseCode + " " + conn.getResponseMessage());
 			}
 			if (user.getToken() != null) {
 				user.getToken().setExpiryTime(expiry);
@@ -292,7 +296,7 @@ public class AuthService {
 			throw new RuntimeException("An unexpected encoding exception occurred: " + e.getLocalizedMessage());
 		}
 		catch (MalformedURLException e) {
-			throw new RuntimeException("An exception occurred while connecting to the auth service URL: " + e.getLocalizedMessage());
+			throw new RuntimeException("An exception occurred while constructing the auth service URL: " + e.getLocalizedMessage());
 		}
 	}
 	
