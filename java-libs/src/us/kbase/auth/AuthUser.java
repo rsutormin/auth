@@ -2,7 +2,7 @@ package us.kbase.auth;
 
 import java.util.List;
 
-import org.codehaus.jackson.annotate.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * A simple class defining an authenticated user. This contains a series of
