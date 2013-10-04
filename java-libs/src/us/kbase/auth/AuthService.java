@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -184,7 +185,7 @@ public class AuthService {
 		}
 		URL query = null;
 		try {
-			query = new URL(GLOBUS_USER_URL_STRING + join(usernames, ","));
+			query = new URL(GLOBUS_USER_URL_STRING + join(result.keySet(), ","));
 		} catch (MalformedURLException mue) {
 			throw new IllegalArgumentException("username has illegal characters");
 		}
@@ -219,7 +220,7 @@ public class AuthService {
 		return result;
 	}
 	
-	private static String join(List<String> list, String conjunction) {
+	private static String join(Set<String> list, String conjunction) {
 		StringBuilder sb = new StringBuilder();
 		boolean first = true;
 		for (String item : list)
