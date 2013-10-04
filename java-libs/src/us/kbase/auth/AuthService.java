@@ -48,9 +48,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class AuthService {
 	private static URL AUTH_URL;
 	
-	
 	private static String GLOBUS_USER_URL_STRING =
-			"https://www.globusonline.org/service/graph/search?query=type%3A+user+";
+			"https://nexus.api.globusonline.org/search?query=type%3A+user+";
+	
 	private static String AUTH_URL_STRING = "https://www.kbase.us/services/authorization/Sessions/Login";
 	private static TokenCache tc = new TokenCache();
 	private static StringCache uc = new StringCache();
@@ -158,7 +158,7 @@ public class AuthService {
 	
 	/**
 	 * Get information about users.
-	 * @param usernames the user names of the user that is the subject of the request
+	 * @param usernames the user names of the users that are the subject of the request
 	 * @param token a valid token.
 	 * @return a mapping of username to user details.
 	 * @throws AuthException if the credentials are invalid
@@ -169,9 +169,6 @@ public class AuthService {
 			AuthToken token) throws IOException, AuthException {
 		//TODO WAIT when auth service supports, just query auth service for this
 		final Map<String, UserDetail> result = new HashMap<String, UserDetail>();
-		if (usernames.size() == 0) {
-			return result;
-		}
 		for (String un: usernames) {
 			if (un == null) {
 				continue;
@@ -183,6 +180,9 @@ public class AuthService {
 						"username " + un + " has invalid character: " + m.group(0));
 			}
 		}
+		if (result.keySet().isEmpty()) {
+			return result;
+		}
 		URL query = null;
 		try {
 			query = new URL(GLOBUS_USER_URL_STRING + join(result.keySet(), ","));
@@ -190,6 +190,7 @@ public class AuthService {
 			throw new IllegalArgumentException("username has illegal characters");
 		}
 		final HttpsURLConnection conn = (HttpsURLConnection) query.openConnection();
+		conn.setRequestProperty("X-Globus-Goauthtoken", token.toString());
 		conn.setRequestMethod("GET");
 		conn.setDoOutput(true);
 		conn.setUseCaches(false);

@@ -1,6 +1,5 @@
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.BeforeClass;
 import org.junit.AfterClass;
@@ -421,8 +420,6 @@ public class AuthServiceTest {
 		new AuthToken("bad token!");
 	}
 
-	//TODO restore test when globus issue resolved
-	@Ignore
 	@Test
 	public void testGetUserDetails() throws Exception {
 		AuthToken token = testUser.getToken();
