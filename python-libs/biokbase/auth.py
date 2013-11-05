@@ -325,7 +325,7 @@ class User:
         headers = { 'Authorization' : 'Globus-Goauthtoken ' + self.token }
         resp = requests.get( AuthSvcHost+"users/" + self.authToken.user_id, params = p,
                              headers = headers)
-        profile = resp.json
+        profile = resp.json()
         for attr,go_attr in self.top_attrs.items():
             setattr( self, attr, profile.get( go_attr))
         # pull out the name field from the groups dict entries and put into groups

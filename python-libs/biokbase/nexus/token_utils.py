@@ -179,7 +179,7 @@ def request_access_token(client_id, client_secret,
             auth=(client_id, client_secret),
             data=payload, verify=verify)
     if response.status_code == requests.codes.created:
-        return DictObj(response.json)
+        return DictObj(response.json())
     raise TokenRequestError(response.json)
 
 def get_token_refresh(client_id, client_secret,
@@ -201,8 +201,8 @@ def get_token_refresh(client_id, client_secret,
             auth=(client_id, client_secret),
             data=payload, verify=verify)
     if response.status_code == requests.codes.ok:
-        return DictObj(response.json)
-    raise TokenRequestError(response.json)
+        return DictObj(response.json())
+    raise TokenRequestError(response.json())
 
 
 class TokenRequestError(Exception):
