@@ -146,6 +146,31 @@ sub SetConfigs {
     return( 1);   
 }
 
+
+# This function looks up the stashed kbase config file, and if it
+# exists it pulls out the user_id and token information and returns
+# the info.
+#
+sub GetConfigs {
+    my(%params) = @_;
+    my $c;
+    my $configs = {user_id=>'',token=>''};
+    eval {
+	$c = Config::Simple->new( filename => $ConfPath);
+	if ( $c ) {
+	    my $user  = $c->param('authentication.user_id');
+	    my $token = $c->param('authentication.token');
+	    if (defined($user))  { $configs->{user_id} = $user; } 
+	    if (defined($token)) { $configs->{token}   = $token; }
+	}
+    };
+    if ($@) {
+	die $@;
+    }
+    return $configs;
+}
+
+
 1;
 
 __END__
@@ -214,6 +239,12 @@ Keys must be an alphanumeric string beginning with an alphabetic character.
 Values must be either a string(number) or an array reference of strings.
 
 The keys will be inserted into authentication section.
+
+=item B<GetConfigs()>
+
+This function looks up the stashed kbase config file, and if it exists it pulls out the user_id and
+token information and returns the info in a hash with keys 'user_id' and 'token' defined. If the user or
+token is not set, then the values for 'user_id' and 'token' are set to the empty string.
 
 =back
 

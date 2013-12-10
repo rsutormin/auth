@@ -23,7 +23,9 @@ SERVICE = authorization_server
 SERVICE_DIR = $(TARGET)/services/$(SERVICE)
 
 
-all: build-libs
+all: build-libs bin
+
+bin: $(BIN_PERL)
 
 deploy: deploy-libs deploy-docs deploy-scripts
 
@@ -35,8 +37,9 @@ build-libs:
 	rsync -arvC python-libs/biokbase lib/ ; \
 	rsync -arvC Bio-KBase-Auth/lib/Bio lib/ ; \
 
-deploy-libs: build-libs
-	rsync -rv --exclude README lib/. $(TARGET)/lib/.
+# this target is now included from Makefile.common.rules 
+#deploy-libs: build-libs
+#	rsync -rv --exclude README lib/. $(TARGET)/lib/.
 
 deploy-docs:
 	-mkdir $(TARGET)/services
@@ -58,31 +61,32 @@ deploy-docs:
 	-mkdir -p $(DEPLOY_RUNTIME)/share/man/man3
 	cp docs/*.3 $(DEPLOY_RUNTIME)/share/man/man3
 
-deploy-scripts: deploy-perl-scripts deploy-python-scripts
-
-deploy-perl-scripts:
-	export KB_TOP=$(TARGET); \
-	export KB_RUNTIME=$(DEPLOY_RUNTIME); \
-	export KB_PERL_PATH=$(TARGET)/lib ; \
-	for src in $(SRC_PERL) ; do \
-		basefile=`basename $$src`; \
-		base=`basename $$src .pl`; \
-		echo install $$src $$base ; \
-		cp $$src $(TARGET)/plbin ; \
-		$(WRAP_PERL_SCRIPT) "$(TARGET)/plbin/$$basefile" $(TARGET)/bin/$$base ; \
-	done 
-
-deploy-python-scripts:
-	export KB_TOP=$(TARGET); \
-	export KB_RUNTIME=$(DEPLOY_RUNTIME); \
-	export KB_PYTHON_PATH=$(TARGET)/lib ; \
-	for src in $(SRC_PYTHON) ; do \
-		basefile=`basename $$src`; \
-		base=`basename $$src .py`; \
-		echo install $$src $$base ; \
-		cp $$src $(TARGET)/pybin ; \
-		$(WRAP_PYTHON_SCRIPT) "$(TARGET)/pybin/$$basefile" $(TARGET)/bin/$$base ; \
-	done 
+# these targets are now included from Makefile.common.rules 
+#deploy-scripts: deploy-perl-scripts deploy-python-scripts
+#
+#deploy-perl-scripts:
+#	export KB_TOP=$(TARGET); \
+#	export KB_RUNTIME=$(DEPLOY_RUNTIME); \
+#	export KB_PERL_PATH=$(TARGET)/lib ; \
+#	for src in $(SRC_PERL) ; do \
+#		basefile=`basename $$src`; \
+#		base=`basename $$src .pl`; \
+#		echo install $$src $$base ; \
+#		cp $$src $(TARGET)/plbin ; \
+#		$(WRAP_PERL_SCRIPT) "$(TARGET)/plbin/$$basefile" $(TARGET)/bin/$$base ; \
+#	done 
+#
+#deploy-python-scripts:
+#	export KB_TOP=$(TARGET); \
+#	export KB_RUNTIME=$(DEPLOY_RUNTIME); \
+#	export KB_PYTHON_PATH=$(TARGET)/lib ; \
+#	for src in $(SRC_PYTHON) ; do \
+#		basefile=`basename $$src`; \
+#		base=`basename $$src .py`; \
+#		echo install $$src $$base ; \
+#		cp $$src $(TARGET)/pybin ; \
+#		$(WRAP_PYTHON_SCRIPT) "$(TARGET)/pybin/$$basefile" $(TARGET)/bin/$$base ; \
+#	done 
 
 
 test: test-libs test-client test-scripts test-service
@@ -147,3 +151,4 @@ test-service:
 		fi \
 	done
 
+include $(TOP_DIR)/tools/Makefile.common.rules
