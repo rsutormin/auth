@@ -10,8 +10,9 @@ DEPLOY_RUNTIME ?= /kb/runtime
 TARGET ?= /kb/deployment
 DEPLOY_PERL = $(addprefix $(TARGET)/bin/,$(basename $(notdir $(SRC_PERL))))
 
+#KB_PERL_PATH is now just defined from Makefile.common
 #KB_PERL_PATH = $(DEPLOY_RUNTIME)/perl5/site_perl
-KB_PERL_PATH = $(TARGET)/lib
+#KB_PERL_PATH = $(TARGET)/lib
 
 # You can change these if you are putting your tests somewhere
 # else or if you are not using the standard .t suffix
