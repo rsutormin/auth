@@ -1,6 +1,5 @@
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.BeforeClass;
 import org.junit.AfterClass;
@@ -457,15 +456,13 @@ public class AuthServiceTest {
 		}
 	}
 	
-	//TODO restore when auth service fixed
-	@Ignore
 	@Test
 	public void throwMangledTokenAtServer() throws Exception {
 		try {
 			AuthService.validateToken(testUser.getToken() + "a");
 		} catch (AuthException ae) {
 			assertThat("correct exception message", ae.getLocalizedMessage(),
-					is("Login failed! Server responded with code 401 Unauthorized")); //TODO this will need fixing when auth server fixed
+					is("Login failed! Server responded with code 401 Unauthorized"));
 		}
 	}
 	// finished with AuthService methods
