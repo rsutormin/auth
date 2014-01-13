@@ -30,11 +30,12 @@ if (defined($ENV{ KB_CLIENT_CONFIG })) {
 #}
 
 my $c = Config::Simple->new( filename => $ConfPath);
+
 our %Conf;
 our %AuthConf;
-
 our $AuthSvcHost;
 our $AuthorizePath;
+
 our $ProfilePath;
 our $RoleSvcURL;
 
