@@ -12,6 +12,9 @@ directories.
 
 VERSION 0.7.3 (Released 1/13/2014)
 ------------------------------------------
+NEW FEATURES
+- Added command 'kbase-whoami' which reports the username of the logged in user. 
+
 BUG FIXES
 - Merged in changes to support Python Requests 1.0+
 - Fixed Auth libs to use KB_CLIENT_CONFIG for INI configs instead of KB_DEPLOYMENT_CONFIG
