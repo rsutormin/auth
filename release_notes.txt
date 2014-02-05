@@ -10,6 +10,16 @@ Technical documentation is in the form of perldocs embedded in the Bio::KBase::A
 modules - sample code is included in the docs. A "make deploy-docs" should install the docs in the appropriate
 directories.
 
+VERSION 0.7.3 (Released 1/13/2014)
+------------------------------------------
+NEW FEATURES
+- Added command 'kbase-whoami' which reports the username of the logged in user. 
+
+BUG FIXES
+- Merged in changes to support Python Requests 1.0+
+- Fixed Auth libs to use KB_CLIENT_CONFIG for INI configs instead of KB_DEPLOYMENT_CONFIG
+  and also fixed a bug in how we called the Nexus API for custom fields.
+
 VERSION: 0.7.2 (Released 7/8/2013)
 ------------------------------------------
 BUG FIXES

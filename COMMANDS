@@ -1,2 +1,0 @@
-#group-name	auth_client	Client side scripts for authentication
-#command-set	scripts/(.*).pl	auth_client
