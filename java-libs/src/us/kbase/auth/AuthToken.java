@@ -21,7 +21,7 @@ public class AuthToken {
 	/**
 	 * The default token expiration time in seconds.
 	 */
-	public static final long DEFAULT_EXPIRES = 3 * 24 * 60 * 60;
+	public static final long DEFAULT_EXPIRES = 60 * 24 * 60 * 60;
 	final private String tokenStr;
 	final private String userName;
 	final private String tokenId;
