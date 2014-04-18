@@ -165,6 +165,7 @@ public class AuthService {
 	 * @throws IOException if there is a problem communicating with the server.
 	 * @throws IllegalArgumentException if a username is invalid.
 	 */
+	@SuppressWarnings("unchecked")
 	public static Map<String, UserDetail> fetchUserDetail(List<String> usernames,
 			AuthToken token) throws IOException, AuthException {
 		//TODO WAIT when auth service supports, just query auth service for this
@@ -203,11 +204,15 @@ public class AuthService {
 
 		/** Encoding the HTTP response into JSON format */
 		final BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-
-		@SuppressWarnings("unchecked")
-		final Map<String, Object> userd = (Map<String, Object>) new ObjectMapper().readValue(br, Map.class);
+		String responseText = readFromReaderAndClose(br);
 		
-		@SuppressWarnings("unchecked")
+		final Map<String, Object> userd;
+		try {
+			userd = (Map<String, Object>) new ObjectMapper().readValue(responseText, Map.class);
+		} catch (Exception ex) {
+			throw new AuthException(ex.getMessage(), ex, responseText);
+		}
+		
 		final List<Map<String, Object>> results = (List<Map<String, Object>>) userd.get("results");
 		for (Map<String, Object> res: results) {
 //			System.out.println(res);
@@ -219,6 +224,18 @@ public class AuthService {
 			
 		}
 		return result;
+	}
+	
+	private static String readFromReaderAndClose(BufferedReader br) throws IOException {
+		StringBuilder ret = new StringBuilder();
+		while (true) {
+			String l = br.readLine();
+			if (l == null)
+				break;
+			ret.append(l).append('\n');
+		}
+		br.close();
+		return ret.toString();
 	}
 	
 	private static String join(Set<String> list, String conjunction) {
@@ -280,8 +297,15 @@ public class AuthService {
 
 			/** Encoding the HTTP response into JSON format */
 			final BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-	
-			final AuthUser user = new ObjectMapper().readValue(br, AuthUser.class);
+			String responseText = readFromReaderAndClose(br);
+			
+			final AuthUser user;
+			try {
+				user = new ObjectMapper().readValue(responseText, AuthUser.class);
+			} catch (Exception ex) {
+				throw new AuthException(ex.getMessage(), ex, responseText);
+			}
+
 			if (user == null) { // if still null, throw an exception 
 				throw new IOException("Server returned a null object. Code: " + responseCode + " " + conn.getResponseMessage());
 			}
