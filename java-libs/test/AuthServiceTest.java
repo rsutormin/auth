@@ -14,6 +14,7 @@ import static org.junit.Assert.fail;
 import static org.junit.matchers.JUnitMatchers.*;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.io.BufferedReader;
@@ -283,15 +284,28 @@ public class AuthServiceTest {
 	
 	@Test
 	public void testTokenExpires() throws Exception {
-		System.out.println("\nSleeping for " + (TIME_TRAVEL_SLEEP_TIME/1000) + " seconds to account for Globus Online's time traveling tokens.");
+		// Test that a token expires properly when created with a short lifespan.
+		// Uses some trickery to get around clock skew vs. Globus.
+		int tokenLifespan = SHORT_TOKEN_LIFESPAN; // sec (initial, will be modified by skew)
 
-		// on some machines the token is already expired by the time you get it if you give <= 5s to expire
-		AuthToken token1 = AuthService.login(TEST_UID, TEST_PW, SHORT_TOKEN_LIFESPAN).getToken();
-		Thread.sleep(TIME_TRAVEL_SLEEP_TIME); //Globus seems to be able to issue tokens in the future and teleport them several seconds into the past
-							//or java Calendar is off by a second or two
-		AuthToken token2 = new AuthToken(testUser.getToken().toString(), 2);
-		assertTrue("failure - token should be expired by now", token1.isExpired());
-		org.junit.Assert.assertTrue("failure - token should be expired by now", token2.isExpired());
+		// Fetch a token with default lifespan.
+		AuthToken token = AuthService.login(TEST_UID, TEST_PW).getToken();
+
+		// Estimate clock skew by getting it's creation date and comparing with the system clock.
+		int clockSkew = (int)(token.getIssueDate().getTime() - new Date().getTime()) / 1000; // sec 
+
+		// If that clockSkew is < 0, flip the sign and add it to the short lifespan
+		if (clockSkew < 0)
+			tokenLifespan -= clockSkew;
+
+		// Get a fresh token with a short expiry time.
+		token = AuthService.login(TEST_UID, TEST_PW, tokenLifespan).getToken();
+		long remainingLifespan = token.getIssueDate().getTime() - new Date().getTime() + token.getExpiryTime()*1000;
+
+		System.out.println("Sleeping for " + remainingLifespan + " ms to deal with clock skew vs. GlobusOnline");
+		Thread.sleep(remainingLifespan);
+
+		org.junit.Assert.assertTrue("failure - token should be expired by now", token.isExpired());
 	}
 
 	@Test
