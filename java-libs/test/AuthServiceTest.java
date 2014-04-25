@@ -51,7 +51,6 @@ public class AuthServiceTest {
 	private static final List<AuthToken> uncachedTokens = new ArrayList<AuthToken>();
 	private static List<String> testStrings;
 
-	private static final int TIME_TRAVEL_SLEEP_TIME = 20000;  // ms
 	private static final int SHORT_TOKEN_LIFESPAN = 15;       // seconds
 
 	// Fetched before any tests are run - this test user is then used in the various POJO tests.
@@ -84,6 +83,15 @@ public class AuthServiceTest {
 		System.out.println("Done! Beginning testing....");
 	}
 	
+	/**
+	 * Returns the remaining lifespan of a token in milliseconds.
+	 * @param token the token of interest
+	 * @return long number of remaining milliseconds before the token becomes invalid
+	 */
+	public static long getRemainingLifespan(AuthToken token) {
+		return (token.getExpiryTime() * 1000) - (new Date().getTime() - token.getIssueDate().getTime());
+	}
+
 	public static AuthToken getUncachedToken() throws IOException, AuthException {
 		String dataStr = "user_id=" + URLEncoder.encode(TEST_UID, "UTF-8") + 
 				 "&password=" + URLEncoder.encode(TEST_PW, "UTF-8") + 
@@ -147,6 +155,12 @@ public class AuthServiceTest {
 	public void tokenCacheRejectsExpiredTokens() throws Exception {
 		TokenCache tc = new TokenCache(1, 2);
 		AuthToken token = new AuthToken(testUser.getToken().toString(), 0);
+
+		// If the token still has some life in it, as issued, then sleep until it's gone.
+		long remainingLife = getRemainingLifespan(token);
+		if (remainingLife > 0)
+			Thread.sleep(remainingLife);
+
 		tc.putValidToken(token);
 	}
 	
@@ -300,7 +314,7 @@ public class AuthServiceTest {
 
 		// Get a fresh token with a short expiry time.
 		token = AuthService.login(TEST_UID, TEST_PW, tokenLifespan).getToken();
-		long remainingLifespan = token.getIssueDate().getTime() - new Date().getTime() + token.getExpiryTime()*1000;
+		long remainingLifespan = getRemainingLifespan(token); //token.getIssueDate().getTime() - new Date().getTime() + token.getExpiryTime()*1000;
 
 		System.out.println("Sleeping for " + remainingLifespan + " ms to deal with clock skew vs. GlobusOnline");
 		Thread.sleep(remainingLifespan);
