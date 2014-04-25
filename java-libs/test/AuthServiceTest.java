@@ -158,8 +158,10 @@ public class AuthServiceTest {
 
 		// If the token still has some life in it, as issued, then sleep until it's gone.
 		long remainingLife = getRemainingLifespan(token);
-		if (remainingLife > 0)
-			Thread.sleep(remainingLife);
+		if (remainingLife > 0) {
+			System.out.println("tokenCacheRejectsExpiredTokens: sleeping for " + (remainingLife+10) + " ms to deal with clock skew vs. GlobusOnline");
+			Thread.sleep(remainingLife+10);
+		}
 
 		tc.putValidToken(token);
 	}
@@ -174,6 +176,11 @@ public class AuthServiceTest {
 		tc.putValidToken(someTokens.get(2));
 		Thread.sleep(50);
 		AuthToken t = new AuthToken(someTokens.get(0).toString(), 0);
+		long remainingLife = getRemainingLifespan(t);
+		if (remainingLife > 0) {
+			System.out.println("tokenCacheDropsExpiredTokens: sleeping for " + (remainingLife+10) + " ms to deal with clock skew vs. GlobusOnline");
+			Thread.sleep(remainingLife+10);
+		}
 		try {
 			tc.hasToken(t);
 		} catch (TokenExpiredException e) {}
@@ -315,9 +322,10 @@ public class AuthServiceTest {
 		// Get a fresh token with a short expiry time.
 		token = AuthService.login(TEST_UID, TEST_PW, tokenLifespan).getToken();
 		long remainingLifespan = getRemainingLifespan(token); //token.getIssueDate().getTime() - new Date().getTime() + token.getExpiryTime()*1000;
-
-		System.out.println("Sleeping for " + remainingLifespan + " ms to deal with clock skew vs. GlobusOnline");
-		Thread.sleep(remainingLifespan);
+		if (remainingLifespan > 0) {
+			System.out.println("testTokenExpires: Sleeping for " + (remainingLifespan+10) + " ms to deal with clock skew vs. GlobusOnline");
+			Thread.sleep(remainingLifespan+10);
+		}
 
 		org.junit.Assert.assertTrue("failure - token should be expired by now", token.isExpired());
 	}
