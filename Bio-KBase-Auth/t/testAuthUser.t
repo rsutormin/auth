@@ -43,7 +43,7 @@ ok($au2 = Bio::KBase::AuthUser->new(), "Creating a second AuthUser object to ver
 ok($au2->get(token =>$at->token, nocache => 1), "Trying to fetch user profile to new object");
 ok($au2 != $au, "Verifying that second reference doesn't point to the same object as first");
 is($au->{'random_numbers'},$au2->{'random_numbers'}, "Comparing random numbers for equality in newly fetched record.");
-is($au->{'email'},$au2->{'email'}, "Comparing random numbers for equality in newly fetched record.");
+is($au->{'email'},$au2->{'email'}, "Comparing email addresses for equality in newly fetched record.");
 ok($au2->update('email' => 'sychan@lbl.gov'), "Setting email back to original value in second object");
 is($au2->email(), 'sychan@lbl.gov', "Verifying email is set back to original value");
 ok($au->email() ne $au2->email, "Email addresses should not match between 2 profile records.");

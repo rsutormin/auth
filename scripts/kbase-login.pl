@@ -17,10 +17,14 @@ use Term::ReadKey;
 my $primaryArgs = ["Username"];
 #Defining usage and options
 my ($opt, $usage) = describe_options(
-    "$0 <".join("> <",@{$primaryArgs}).'> %o',
+    "$0 <".join("> <",@{$primaryArgs})."> %o\nAcquire a KBase authentication token for the username specified. " .
+    "Prompts for password if not specified on the command line. " . 
+    "Upon successful login the token will be placed in the INI format file " .
+    $Bio::KBase::Auth::ConfPath .
+    " and used by default for KBase clients that require authentication",
     [ 'password|p:s', 'User password' ],
     [ 'help|h|?', 'Print this usage information' ],
-);
+    );
 if (defined($opt->{help})) {
 	print $usage;
     exit;
@@ -39,10 +43,10 @@ my $token = Bio::KBase::AuthToken->new(user_id => $ARGV[0], password => $pswd);
 if (!defined($token->token())) {
 	print "Login failed. Now logged in as:\npublic\n";
 	# Clear any token that has been set
-	Bio::KBase::Auth::SetConfigs( auth_token => undef);
+	Bio::KBase::Auth::SetConfigs( token => undef, user_id => undef);
 } else {
         # Set the user_id and token, but clear the password
-	Bio::KBase::Auth::SetConfigs( auth_token => $token->token(),
+	Bio::KBase::Auth::SetConfigs( token => $token->token(),
 				      user_id => $ARGV[0],
 				      password => undef);
 	print "Login successful. Now logged in as:\n".$ARGV[0]."\n";

@@ -27,7 +27,9 @@ use Object::Tiny::RW qw {
 };
 
 # Pull the INI files based configs in
-our %Conf = %Bio::KBase::Auth::AuthConf;
+# use a typeglob to alias it
+our %Conf;
+*Conf = \%Bio::KBase::Auth::AuthConf;
 
 our $VERSION = $Bio::KBase::Auth::VERSION;
 
@@ -37,7 +39,6 @@ our @trust_token_signers = ( 'https://graph.api.go.sandbox.globuscs.info/goauth/
 # used to add extra time to the lifetime of tokens. The unit is seconds.
 # This can be be overridden  with a parameter passed into the validate() function.
 our $token_lifetime = 0;
-our $authrc = glob "~/.authrc";
 our @attrs = ( 'user_id', 'token','client_secret', 'keyfile',
 	       'keyfile_passphrase','password','sshagent_keys',
 	       'sshagent_keyname');
@@ -94,8 +95,8 @@ if (defined $Conf{'authentication.authzdb'}) {
 
 # Your typical constructor - takes a hash that specifies the initial values to
 # plug into the object.
-# A special attribute is "ignore_authrc", if that it set then we will not bother
-# trying to read the authrc file
+# A special attribute is "ignore_kbase_config", if that it set then we will not bother
+# trying to read the ~/.kbase_config file
 sub new {
     my $class = shift;
 
@@ -145,9 +146,6 @@ sub new {
 		}
 		$self->get();
 	    }
-	} elsif ( -e $authrc && ! $self->{'ignore_authrc'}) {
-	    my %creds = read_authrc( $authrc);
-	    $self->get( %creds );
 	}
     };
     if ($@) {
@@ -489,15 +487,19 @@ sub validate {
 	} else {
 	    # Check cache for signer public key
 	    my($response, $binary_sig, $client);
+	    $binary_sig = pack('H*',$vars{'sig'});
 	    my $data = cache_get( \$SignerCache, $vars{'SigningSubject'});
 	    unless ($data) {
-		$binary_sig = pack('H*',$vars{'sig'});
 		$client = LWP::UserAgent->new();
 		$client->ssl_opts(verify_hostname => 0);
 		$client->timeout(5);
 		$response = $client->get( $vars{'SigningSubject'});
-		$data = from_json( $response->content());
-		cache_set( \$SignerCache, $SignerCacheSize, $vars{'SigningSubject'}, encode_base64( $response->content(), ''));
+		if ($response->is_success) {
+		    $data = from_json( $response->content());
+		    cache_set( \$SignerCache, $SignerCacheSize, $vars{'SigningSubject'}, encode_base64( $response->content(), ''));
+		} else {
+		    die "Failed to get signing subject: " . $response->status_line;
+		}
 	    } else {
 		$data = from_json(decode_base64( $data));
 	    }
@@ -521,7 +523,7 @@ sub validate {
 	$self->error_message("Failed to verify token: $@");
 	return( undef);
     } else {
-	$self->{'error_message'} = undef;
+	$self->{'error_message'} = $verify ? undef : "Token failed RSA signature verification";
 	return( $verify);
     }
 }
@@ -599,37 +601,6 @@ sub _SquashJSONBool {
 	}
     }
     return $json_ref;
-}
-
-# Reads the auth_rc file and filter it down to only recognized attributes
-# return if the file was readable
-# otherwise throw an exception. The caller should be prepared to catch the
-# exception and just deal with no creds.
-# Returns undef if the auth_rc file is non-existent, throws error if
-# is unreadable
-sub read_authrc {
-    my $auth_rc = shift @_;
-    my $creds;
-    # List of legitimate attributes to allow from the authrc file
-
-    unless ( $auth_rc && -e $auth_rc) {
-	return( undef );
-    }
-
-    if ( -r $auth_rc) {
-	open RC, "<", $auth_rc;
-	my @creds = <RC>;
-	chomp( @creds);
-	close RC;
-	$creds = from_json( join( '\n', @creds));
-    } else {
-	die( "$auth_rc is unreadable");
-    }
-
-    # return only the filtered set of attributes that are allowed - don't
-    # let just any old line noise into the mix
-    my %creds2 = map { $_, $creds->{ $_ } } grep { defined( $creds->{ $_ }); } @attrs;
-    return(%creds2);
 }
 
 # Code to read in an encrypted an openssh RSA private key file,
@@ -820,13 +791,9 @@ An array that contains prefixes for trusted signing URLs in the SigningSubject f
 
 Additional seconds to add to the expiration time of tokens. Tokens currently issued with a default 24 hour lifetime, but modifying this value will change when the validate() function will no longer accept the token. The units are in seconds.
 
-=item B<$authrc>
-
-This file contains JSON formatted attributes for the AuthToken object related to acquiring credentials. When no parameters are passed into the new() method, it will default to reading in parameters from the authrc file to initialize the token. The default value is glob( "~/.authrc")
-
 =item B<@attrs>
 
-List of strings that enumerate the attributes allowed to be read from the B<authrc> file.
+List of strings that enumerate the attributes allowed to be read from the B<.kbase_config> file.
 
 =item B<$VERSION>
 
@@ -922,7 +889,7 @@ contains error messages, if any, from most recent method call.
 
 =item B<new>()
 
-returns a Bio::KBase::AuthToken reference. Optionally pass in hash params to initialize attributes. If we have enough attributes to perform a login either a token, or (user_id,password) or (user_id,client_secret) then the library will try to acquire a new token from Globus Nexus. If no parameters are given, then the library will look for a readable file in ~/.authrc and extract the attributes that match from @Bio::KBase::AuthToken::attrs into the new token an attempt to fetch a token from the Globus Online service. If you wish to short circuit the authrc file, you can pass in a ignore_authrc => 1 as a parameter to new()
+returns a Bio::KBase::AuthToken reference. Optionally pass in hash params to initialize attributes. If we have enough attributes to perform a login either a token, or (user_id,password) or (user_id,client_secret) then the library will try to acquire a new token from Globus Nexus. If no parameters are given, then the library will look for a readable INI file in ~/.kbase_config and extract the attributes that match from @Bio::KBase::AuthToken::attrs into the new token an attempt to fetch a token from the Globus Online service. If you wish to short circuit the .kbase_config file, you can pass in a ignore_kbase_config => 1 as a parameter to new()
 
    Examples:
 

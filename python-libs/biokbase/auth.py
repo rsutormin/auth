@@ -11,6 +11,8 @@ from ConfigParser import ConfigParser
 import os
 from urlparse import urlparse
 from pprint import pformat
+import requests
+import re
 
 """
 Package "globals"
@@ -52,13 +54,15 @@ AuthSvcHost = authdata.get( 'servicehost', "https://nexus.api.globusonline.org/"
 # Copied from perl libs for reference, not used here
 #ProfilePath = authdata.get( 'authpath', "/goauth/token")
 RoleSvcURL = authdata.get( 'rolesvcurl', "https://kbase.us/services/authorization/Roles")
-nexusconfig = { 'cache' : { 'class': 'nexus.token_utils.InMemoryCache',
+nexusconfig = { 'cache' : { 'class': 'biokbase.nexus.token_utils.InMemoryCache',
                             'args': [],
                             },
                 'server' : urlparse(AuthSvcHost).netloc,
                 'verify_ssl' : False,
                 'client' : None,
                 'client_secret' : None}
+# Compile a regex for parsing out user_id's from tokens
+token_userid = re.compile( '(?<=^un=)\w+')
 
 def LoadConfig():
     """
@@ -85,7 +89,7 @@ def LoadConfig():
     # Copied from perl libs for reference, not used here
     #ProfilePath = authdata.get( 'authpath', "/goauth/token")
     RoleSvcURL = authdata.get( 'rolesvcurl', "https://kbase.us/services/authorization/Roles")
-    nexusconfig = { 'cache' : { 'class': 'nexus.token_utils.InMemoryCache',
+    nexusconfig = { 'cache' : { 'class': 'biokbase.nexus.token_utils.InMemoryCache',
                                 'args': [],
                                 },
                     'server' : urlparse(AuthSvcHost).netloc,
@@ -134,12 +138,12 @@ class AuthFail( Exception ):
 class Token:
     """
     Class that handles token requests and validation. This is basically a wrapper
-    around the nexus.client.NexusClient class from GlobusOnline that provides a
+    around the biokbase.nexus.client.NexusClient class from GlobusOnline that provides a
     similar API to the perl Bio::KBase::AuthToken module. For KBase purposes
     we have modified the base Globus Online classes to support ssh agent based
     authentication as well.
 
-    In memory caching is provided by the underlying nexus.client implementation.
+    In memory caching is provided by the underlying biokbase.nexus.client implementation.
 
     Instance Attributes:
     user_id 
@@ -174,7 +178,11 @@ class Token:
             setattr( self, attr, kwargs.get(attr,None))
         self.nclient = NexusClient(nexusconfig)
         self.nclient.user_key_file = self.keyfile
-        self.sshagent_keys = self.nclient.agent_keys
+
+        if self.nclient.__dict__.has_key("agent_keys"):
+            self.sshagent_keys = self.nclient.agent_keys
+        else:
+            self.sshagent_keys = dict()
 
         # Flag to mark if we got default values from .kbase_config file
         defattr = reduce( lambda x,y: x or (authconf.get(y, None) is not None), attrs)
@@ -199,6 +207,9 @@ class Token:
                 pass
             except Exception, e:
                 raise e
+        if self.user_id is None and self.token:
+            # parse out the user_id and set it
+            self.user_id = token_userid.search( self.token).group(0)
 
     def validate( self, token = None):
         """
@@ -272,7 +283,7 @@ class Token:
         pass
 
 class User:
-    top_attr = { "user_id" : "username",
+    top_attrs = { "user_id" : "username",
                  "verified" : "email_validated",
                  "opt_in" : "opt_in",
                  "name" : "fullname",
@@ -300,7 +311,7 @@ class User:
             self.authToken = Token( token = kwargs['token'])
             self.token = self.authToken.token
             self.get()
-        return self
+        return
 
     def get(self, **kwargs):
         if 'token' in kwargs:
@@ -308,10 +319,17 @@ class User:
             self.token = self.authToken.token
         if not self.token:
             raise AuthCredentialsNeeded( "Authentication token required")
-        profile = self.authToken.nclient.get_user_user_access_token( self.token)
-        print pformat( profile)
+        p = { 'custom_fields' : '*',
+              'fields' : 'groups,username,email_validated,fullname,email'
+              }
+        headers = { 'Authorization' : 'Globus-Goauthtoken ' + self.token }
+        resp = requests.get( AuthSvcHost+"users/" + self.authToken.user_id, params = p,
+                             headers = headers)
+        profile = resp.json()
         for attr,go_attr in self.top_attrs.items():
             setattr( self, attr, profile.get( go_attr))
+        # pull out the name field from the groups dict entries and put into groups
+        setattr( self, 'groups', [ x['name'] for x in resp.json['groups']])
         if 'custom_fields' in profile:
             for attr in profile['custom_fields'].keys():
                 setattr( self, attr, profile['custom_fields'][attr])
