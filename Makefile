@@ -1,6 +1,8 @@
 TOP_DIR = ../..
 include $(TOP_DIR)/tools/Makefile.common
 
+TOP_ABS = $(shell $(TOP_DIR)/runtime/bin/perl -MCwd -e 'print Cwd::abs_path("$(TOP_DIR)") ')
+
 SRC_PERL = $(wildcard scripts/*.pl)
 BIN_PERL = $(addprefix $(BIN_DIR)/,$(basename $(notdir $(SRC_PERL))))
 LIB_PERL = $(wildcard Bio-KBase-Auth/lib/Bio/KBase/*.pm)
@@ -33,7 +35,7 @@ deploy: deploy-libs deploy-docs deploy-scripts
 build-libs:
 	-mkdir lib; \
 	cd Bio-KBase-Auth; \
-	$(DEPLOY_RUNTIME)/bin/perl ./Build.PL ; \
+	$(TOP_ABS)/runtime/bin/perl ./Build.PL ; \
 	cd ..; \
 	rsync -arvC python-libs/biokbase lib/ ; \
 	rsync -arvC Bio-KBase-Auth/lib/Bio lib/ ; \
@@ -60,7 +62,7 @@ deploy-docs:
 	-mkdir $(SERVICE_DIR)/webroot
 	cp docs/*.html $(SERVICE_DIR)/webroot/.
 	-mkdir -p $(DEPLOY_RUNTIME)/share/man/man3
-	cp docs/*.3 $(DEPLOY_RUNTIME)/share/man/man3
+	-cp docs/*.3 $(DEPLOY_RUNTIME)/share/man/man3
 
 # these targets are now included from Makefile.common.rules 
 #deploy-scripts: deploy-perl-scripts deploy-python-scripts
