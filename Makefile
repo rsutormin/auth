@@ -8,6 +8,18 @@ BIN_PERL = $(addprefix $(BIN_DIR)/,$(basename $(notdir $(SRC_PERL))))
 LIB_PERL = $(wildcard Bio-KBase-Auth/lib/Bio/KBase/*.pm)
 
 
+GLOBUS_TOKEN_URL = https://nexus.api.globusonline.org/goauth/token?grant_type=client_credentials
+GLOBUS_PROFILE_URL = https://nexus.api.globusonline.org/users
+TRUST_TOKEN_SIGNERS = https://nexus.api.globusonline.org/goauth/keys
+ROLE_SERVICE_URL = https://kbase.us/services/authorization/Roles
+
+TPAGE_ARGS = --define kb_top=$(TARGET) \
+    --define kb_runtime=$(DEPLOY_RUNTIME) \
+    --define globus_token_url=$(GLOBUS_TOKEN_URL) \
+    --define globus_profile_url=$(GLOBUS_PROFILE_URL) \
+    --define "trust_token_signers=$(TRUST_TOKEN_SIGNERS)" \
+    --define role_service_url=$(ROLE_SERVICE_URL)
+
 DEPLOY_RUNTIME ?= /kb/runtime
 TARGET ?= /kb/deployment
 DEPLOY_PERL = $(addprefix $(TARGET)/bin/,$(basename $(notdir $(SRC_PERL))))
@@ -30,15 +42,16 @@ all: build-libs bin
 
 bin: $(BIN_PERL)
 
-deploy: deploy-libs deploy-docs deploy-scripts
+deploy: build-libs deploy-libs deploy-docs deploy-scripts
 
 build-libs:
-	-mkdir lib; \
+	-mkdir lib;
+	$(TPAGE) $(TPAGE_ARGS) Constants.pm.tt > Bio-KBase-Auth/lib/Bio/KBase/AuthConstants.pm
 	cd Bio-KBase-Auth; \
 	$(TOP_ABS)/runtime/bin/perl ./Build.PL ; \
 	cd ..; \
 	rsync -arvC python-libs/biokbase lib/ ; \
-	rsync -arvC Bio-KBase-Auth/lib/Bio lib/ ; \
+	rsync -arvC Bio-KBase-Auth/lib/Bio lib/ ;
 
 # this target is now included from Makefile.common.rules 
 #deploy-libs: build-libs
