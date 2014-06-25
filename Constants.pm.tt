@@ -1,0 +1,22 @@
+package Bio::KBase::AuthConstants;
+
+use constant        globus_token_url   => '[% globus_token_url %]';
+use constant        globus_profile_url   => '[% globus_profile_url %]';
+use constant	    trust_token_signers => split(/\s+/, '[% trust_token_signers %]');
+use constant	    role_service_url => '[% role_service_url %]';
+
+use base 'Exporter';
+our @EXPORT_OK = qw(globus_token_url globus_profile_url trust_token_signers role_service_url);
+our %EXPORT_TAGS = ( 
+		    globus => [ qw(globus_token_url globus_profile_url trust_token_signers) ],
+		    kbase  => [ qw(role_service_url) ],
+		   );
+{
+    my %seen;
+    
+    push @{$EXPORT_TAGS{all}},
+    grep {!$seen{$_}++} @{$EXPORT_TAGS{$_}} foreach keys %EXPORT_TAGS;
+}
+
+1;
+
