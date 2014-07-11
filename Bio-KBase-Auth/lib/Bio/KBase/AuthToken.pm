@@ -13,7 +13,6 @@ use Convert::PEM;
 use MIME::Base64;
 use URI;
 use POSIX;
-use MongoDB;
 use DateTime;
 use Bio::KBase::SSHAgent::Agent;
 
