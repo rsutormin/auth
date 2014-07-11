@@ -6,7 +6,6 @@ package Bio::KBase::Auth;
 use strict;
 use Config::Simple;
 use URI;
-use MongoDB;
 use Bio::KBase::AuthConstants qw(:kbase :globus);
 
 our $VERSION = '0.7.0';
@@ -82,6 +81,7 @@ sub LoadConfig {
 
     eval {
 	if ($Conf{'authentication.mongodb'} ) {
+	    require MongoDB;
 	    $MongoDB = MongoDB::Connection->new( host => $Conf{'authentication.mongodb'});
 	}
     };
