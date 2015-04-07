@@ -18,11 +18,13 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
+import java.net.URL;
 import java.net.URLEncoder;
 
 import javax.net.ssl.HttpsURLConnection;
@@ -390,23 +392,92 @@ public class AuthServiceTest {
 	// done with AuthUser tests.
 
 
-	//TODO test config methods.
 	// test AuthService methods
-//	@Test
-//	public void testDefaultServiceUrl() {
-//		org.junit.Assert.assertNotNull("failure - null default auth service URL", new AuthService().getServiceUrl());
-//	}
-
-//	@Test
-//	public void testValidServiceUrlChange() throws Exception{
-//		URL oldUrl = AuthService.getServiceUrl();
-//
-//		// valid url
-//		URL newUrl = new URL("https://kbase.us/services/authorization/Sessions/Login");
-//		
-//		org.junit.Assert.assertTrue("failure - setting a valid service url didn't work!", AuthService.setServiceUrl(newUrl));
-//		AuthService.setServiceUrl(oldUrl);
-//	}
+	
+	@Test
+	public void configObject() throws Exception {
+		
+		try {
+			new AuthService(null);
+			fail("init auth service with null config");
+		} catch (NullPointerException npe) {
+			assertThat("correct exception message", npe.getLocalizedMessage(),
+					is("config cannot be null"));
+		}
+		//defaults
+		AuthConfig d = new AuthConfig();
+		assertThat("correct KBase url", d.getAuthServerURL(),
+				is(new URL("https://www.kbase.us/services/authorization/")));
+		assertThat("correct globus url", d.getGlobusURL(),
+				is(new URL("https://nexus.api.globusonline.org/")));
+		assertThat("correct group id", d.getKbaseUsersGroupID(),
+				is(UUID.fromString("99d2a548-7218-11e2-adc0-12313d2d6e7f")));
+		assertThat("correct token", d.getToken(), is((RefreshingToken) null));
+		assertThat("correct full KBase url", d.getAuthLoginURL(),
+				is(new URL("https://www.kbase.us/services/authorization/Sessions/Login")));
+		assertThat("correct full globus url", d.getGlobusGroupMembersURL(),
+				is(new URL("https://nexus.api.globusonline.org/groups/99d2a548-7218-11e2-adc0-12313d2d6e7f/members/")));
+		
+		//custom
+		RefreshingToken rt = new AuthService().getRefreshingToken(
+				TEST_UID, TEST_PW, 10000);
+		AuthConfig c = new AuthConfig()
+			.withGlobusAuthURL(new URL("http://foo"))
+			.withKBaseAuthServerURL(new URL("http://bar"))
+			.withKBaseUsersGroupID(UUID.fromString(
+					"9c72867d-8c90-4f9b-a472-d7759d606471"))
+			.withRefreshingToken(rt);
+		
+		assertThat("correct KBase url", c.getAuthServerURL(), is(new URL("http://bar/")));
+		assertThat("correct globus url", c.getGlobusURL(), is(new URL("http://foo/")));
+		assertThat("correct group id", c.getKbaseUsersGroupID(),
+				is(UUID.fromString("9c72867d-8c90-4f9b-a472-d7759d606471")));
+		assertThat("correct token", c.getToken(), is(rt));
+		assertThat("correct full KBase url", c.getAuthLoginURL(),
+				is(new URL("http://bar/Sessions/Login")));
+		assertThat("correct full globus url", c.getGlobusGroupMembersURL(),
+				is(new URL("http://foo/groups/9c72867d-8c90-4f9b-a472-d7759d606471/members/")));
+		
+		//urls with trailing slashes
+		AuthConfig stdurl = new AuthConfig()
+		.withGlobusAuthURL(new URL("http://foo/"))
+		.withKBaseAuthServerURL(new URL("http://bar/"));
+		
+		assertThat("correct KBase url", stdurl.getAuthServerURL(), is(new URL("http://bar/")));
+		assertThat("correct globus url", stdurl.getGlobusURL(), is(new URL("http://foo/")));
+		
+		try {
+			new AuthConfig().withGlobusAuthURL(null);
+			fail("made config with bad args");
+		} catch (NullPointerException npe) {
+			assertThat("correct exception message", npe.getLocalizedMessage(),
+					is("globusAuth cannot be null"));
+		}
+		
+		try {
+			new AuthConfig().withKBaseAuthServerURL(null);
+			fail("made config with bad args");
+		} catch (NullPointerException npe) {
+			assertThat("correct exception message", npe.getLocalizedMessage(),
+					is("authServer cannot be null"));
+		}
+		
+		try {
+			new AuthConfig().withKBaseUsersGroupID(null);
+			fail("made config with bad args");
+		} catch (NullPointerException npe) {
+			assertThat("correct exception message", npe.getLocalizedMessage(),
+					is("groupID cannot be null"));
+		}
+		
+		try {
+			new AuthConfig().withRefreshingToken(null);
+			fail("made config with bad args");
+		} catch (NullPointerException npe) {
+			assertThat("correct exception message", npe.getLocalizedMessage(),
+					is("token cannot be null"));
+		}
+	}
 
 	@Test
 	public void testGetUserFromTokenObject() throws Exception {
@@ -529,7 +600,38 @@ public class AuthServiceTest {
 		Thread.sleep(4000); //wait 4s
 		AuthToken t4 = rt.getToken();
 		assertTrue("token different after 6s", !t4.toString().equals(t1.toString()));
-		//TODO bad args tests for refreshing token
+	}
+	
+	@Test
+	public void refreshTokenWithBadArgs() throws Exception {
+		failMakeRefreshToken(TEST_UID, TEST_PW, -1,
+				new IllegalArgumentException(
+						"refreshInterval must be 0 or greater"));
+		failMakeRefreshToken(null, TEST_PW, 0,
+				new IllegalArgumentException(
+						"user cannot be null or the empty string"));
+		failMakeRefreshToken("", TEST_PW, 0,
+				new IllegalArgumentException(
+						"user cannot be null or the empty string"));
+		failMakeRefreshToken(TEST_UID, null, 0,
+				new IllegalArgumentException(
+						"password cannot be null or the empty string"));
+		failMakeRefreshToken(TEST_UID, "", 0,
+				new IllegalArgumentException(
+						"password cannot be null or the empty string"));
+		
+	}
+
+	private void failMakeRefreshToken(String testUid, String testPw,
+			int interval, Exception expected) {
+		try {
+			new AuthService().getRefreshingToken(testUid, testPw, interval);
+			fail("Made refreshing token with bad args");
+		} catch (Exception got) {
+			assertThat("correct exception", got.getLocalizedMessage(),
+					is(expected.getLocalizedMessage()));
+			assertThat("correct exception type", got, is(expected.getClass()));
+		}
 	}
 	
 	// finished with AuthService methods

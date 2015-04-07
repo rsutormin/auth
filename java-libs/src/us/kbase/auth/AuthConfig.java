@@ -54,10 +54,17 @@ public class AuthConfig {
 	 * @throws URISyntaxException if the URL is not a valid URI. In general
 	 * this should never happen.
 	 */
-	public AuthConfig withKBaseAuthServerURL(final URL authServer)
+	public AuthConfig withKBaseAuthServerURL(URL authServer)
 			throws URISyntaxException {
 		if (authServer == null) {
 			throw new NullPointerException("authServer cannot be null");
+		}
+		if (!authServer.toString().endsWith("/")) {
+			try {
+				authServer = new URL(authServer.toString() + "/");
+			} catch (MalformedURLException e) {
+				throw new RuntimeException("This can't happen");
+			}
 		}
 		authServerURL = authServer.toURI();
 		return this;
@@ -69,10 +76,17 @@ public class AuthConfig {
 	 * @throws URISyntaxException if the URL is not a valid URI. In general
 	 * this should never happen.
 	 */
-	public AuthConfig withGlobusAuthURL(final URL globusAuth)
+	public AuthConfig withGlobusAuthURL(URL globusAuth)
 			throws URISyntaxException {
 		if (globusAuth == null) {
 			throw new NullPointerException("globusAuth cannot be null");
+		}
+		if (!globusAuth.toString().endsWith("/")) {
+			try {
+				globusAuth = new URL(globusAuth.toString() + "/");
+			} catch (MalformedURLException e) {
+				throw new RuntimeException("This can't happen");
+			}
 		}
 		globusURL = globusAuth.toURI();
 		return this;
@@ -102,6 +116,7 @@ public class AuthConfig {
 		if (token == null) {
 			throw new NullPointerException("token cannot be null");
 		}
+		this.token = token;
 		return this;
 	}
 
