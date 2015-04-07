@@ -44,7 +44,6 @@
       <formatter type="plain" usefile="false" />
       <sysproperty key="test.user.password" value="${test.user.password}"/>
       <test name="AuthServiceTest"/>
-      <test name="RefreshingTokenTest"/>
     </junit>
     <fail message="Test failure detected, check test results." if="test.failed" />
   </target>
