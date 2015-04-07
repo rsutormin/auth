@@ -42,7 +42,7 @@ public class AuthServiceTest {
 	private static final String TEST_PW = System.getProperty("test.user.password");
 
 	private static final String FULL_NAME = "KBase Test Account";
-	private static final String EMAIL = "sychan@lbl.gov";
+	private static final String EMAIL = "kbasetest.globus@gmail.com";
 	private static final boolean IS_SYSADMIN = false;
 	private static final boolean IS_OPT_IN = false;
 	private static final String[] GROUPS = { "kbase_test", "kbase_test_users", "kbase_users2", "kbase_staff", "kbase_users" };
@@ -345,7 +345,8 @@ public class AuthServiceTest {
 
 	@Test
 	public void testGetUserFullName() {
-		org.junit.Assert.assertEquals("failure - incorrect user name", FULL_NAME, testUser.getFullName());
+		org.junit.Assert.assertEquals("failure - incorrect user name",
+				FULL_NAME, testUser.getFullName());
 	}
 
 	@Test
@@ -365,7 +366,8 @@ public class AuthServiceTest {
 
 	@Test
 	public void testUserEmail() {
-		org.junit.Assert.assertEquals("failure - incorrect email address", EMAIL, testUser.getEmail());
+		org.junit.Assert.assertEquals("failure - incorrect email address",
+				EMAIL, testUser.getEmail());
 	}
 
 	@Test
