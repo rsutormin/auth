@@ -14,7 +14,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -48,10 +47,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class AuthService {
 	private static URL AUTH_URL;
 	
-	private static String GLOBUS_USER_URL_STRING =
-			"https://nexus.api.globusonline.org/search?query=type%3A+user+";
+	//TODO make configurable, check md5
+	private static String GLOBUS_KBASE_USERS_GROUP_ID =
+			"99d2a548-7218-11e2-adc0-12313d2d6e7f";
 	
-	private static String AUTH_URL_STRING = "https://www.kbase.us/services/authorization/Sessions/Login";
+	private static String GLOBUS_USER_URL_STRING =
+			"https://nexus.api.globusonline.org/groups/" + 
+					GLOBUS_KBASE_USERS_GROUP_ID + "/members/";
+	
+	private static String AUTH_URL_STRING =
+			"https://www.kbase.us/services/authorization/Sessions/Login";
 	private static TokenCache tc = new TokenCache();
 	private static StringCache uc = new StringCache();
 	private static Pattern INVALID_USERNAME = Pattern.compile("[^a-zA-Z0-9_-]");
@@ -76,8 +81,8 @@ public class AuthService {
 	 * @throws AuthException if the credentials are invalid
 	 * @throws IOException if there is a problem communicating with the server.
 	 */
-	public static AuthUser login(String userName, String password, long expiry) throws AuthException,
-																					   IOException {
+	public static AuthUser login(String userName, String password, long expiry)
+			throws AuthException, IOException {
 		// This is the data that will be POSTed to the service.
 		// By default (not sure if we *really* need to change it), it fetches all the fields.
 		try {
@@ -184,44 +189,51 @@ public class AuthService {
 		if (result.keySet().isEmpty()) {
 			return result;
 		}
-		URL query = null;
-		try {
-			query = new URL(GLOBUS_USER_URL_STRING + join(result.keySet(), ","));
-		} catch (MalformedURLException mue) {
-			throw new IllegalArgumentException("username has illegal characters");
-		}
-		final HttpsURLConnection conn = (HttpsURLConnection) query.openConnection();
-		conn.setRequestProperty("X-Globus-Goauthtoken", token.toString());
-		conn.setRequestMethod("GET");
-		conn.setDoOutput(true);
-		conn.setUseCaches(false);
-		
-		int responseCode = conn.getResponseCode();
-		if (responseCode != 200) {
-			conn.disconnect();
-			throw new AuthException("User detail retrieval failed! Server responded with code " + responseCode + " " + conn.getResponseMessage());
-		}
-
-		/** Encoding the HTTP response into JSON format */
-		final BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-		String responseText = readFromReaderAndClose(br);
-		
-		final Map<String, Object> userd;
-		try {
-			userd = (Map<String, Object>) new ObjectMapper().readValue(responseText, Map.class);
-		} catch (Exception ex) {
-			throw new AuthException(ex.getMessage(), ex, responseText);
-		}
-		
-		final List<Map<String, Object>> results = (List<Map<String, Object>>) userd.get("results");
-		for (Map<String, Object> res: results) {
-//			System.out.println(res);
-			final String user = (String) res.get("username");
-			if (result.containsKey(user)) {
-				uc.putString(user);
-				result.put(user, new UserDetail(user, (String) res.get("email"), (String) res.get("fullname")));
+		for (final String name: result.keySet()) {
+			URL query = null;
+			try {
+				query = new URL(GLOBUS_USER_URL_STRING + name);
+			} catch (MalformedURLException mue) {
+				throw new RuntimeException("globus url " +
+						GLOBUS_USER_URL_STRING + 
+						" magically has illegal characters", mue);
 			}
+			final HttpsURLConnection conn = (HttpsURLConnection) query.openConnection();
+			conn.setRequestProperty("X-Globus-Goauthtoken", token.toString());
+			conn.setRequestMethod("GET");
+			conn.setDoOutput(true);
+			conn.setUseCaches(false);
 			
+			int responseCode = conn.getResponseCode();
+			// 200 = found, 403 = private, 404 = doesn't exist
+			if (responseCode != 200 && responseCode != 403
+					&& responseCode != 404) {
+				conn.disconnect();
+				throw new AuthException(
+						"User detail retrieval failed for user " +
+						name + "! Server responded with code " + responseCode +
+						" " + conn.getResponseMessage());
+			}
+			if (responseCode == 200) { //otherwise skip & return null for user
+				/** Encoding the HTTP response into JSON format */
+				final BufferedReader br = new BufferedReader(
+						new InputStreamReader(conn.getInputStream()));
+				String responseText = readFromReaderAndClose(br);
+
+				final Map<String, Object> userdetail;
+				try {
+					userdetail = (Map<String, Object>) new ObjectMapper()
+					.readValue(responseText, Map.class);
+				} catch (Exception ex) {
+					throw new AuthException(ex.getMessage(), ex, responseText);
+				}
+				final String user = (String) userdetail.get("username");
+				uc.putString(user);
+				result.put(user, new UserDetail(user,
+						(String) userdetail.get("email"),
+						(String) userdetail.get("name")));
+			}
+
 		}
 		return result;
 	}
@@ -236,21 +248,6 @@ public class AuthService {
 		}
 		br.close();
 		return ret.toString();
-	}
-	
-	private static String join(Set<String> list, String conjunction) {
-		StringBuilder sb = new StringBuilder();
-		boolean first = true;
-		for (String item : list)
-		{
-			if (first) {
-				first = false;
-			} else {
-				sb.append(conjunction);
-			}
-			sb.append(item);
-		}
-		return sb.toString();
 	}
 	
 	/**

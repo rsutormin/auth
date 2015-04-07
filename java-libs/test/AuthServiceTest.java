@@ -464,7 +464,7 @@ public class AuthServiceTest {
 		assertThat("no users doesn't return empty hash", AuthService.fetchUserDetail(new ArrayList<String>(), token).size(), is(0));
 		List<String> users = new ArrayList<String>();
 		users.add("kbasetest");
-		users.add("kbauthorz");
+		users.add("kbasetest2");
 		users.add(null); // should ignore nulls
 		users.add("ahfueafavafueafhealuefhalfuafeuauflaef");
 		Map<String, UserDetail> res = AuthService.fetchUserDetail(users, token);
@@ -472,17 +472,17 @@ public class AuthServiceTest {
 		assertNull("bad user found somehow", res.get("ahfueafavafueafhealuefhalfuafeuauflaef"));
 		UserDetail ud = res.get("kbasetest");
 		assertThat("username doesn't match", ud.getUserName(), is("kbasetest"));
-		assertThat("email doesn't match", ud.getEmail(), is("sychan@lbl.gov"));
+		assertThat("email doesn't match", ud.getEmail(), is("kbasetest.globus@gmail.com"));
 		assertThat("full name doesn't match", ud.getFullName(), is("KBase Test Account"));
-		ud = res.get("kbauthorz");
-		assertThat("username doesn't match", ud.getUserName(), is("kbauthorz"));
-		assertThat("email doesn't match", ud.getEmail(), is("sychan@lbl.gov"));
-		assertThat("full name doesn't match", ud.getFullName(), is("KBase Authorization"));
-		users.remove("kbauthorz");
-		users.add("kbase");
+		ud = res.get("kbasetest2");
+		assertThat("username doesn't match", ud.getUserName(), is("kbasetest2"));
+		assertThat("email doesn't match", ud.getEmail(), is("gaprice@lbl.gov"));
+		assertThat("full name doesn't match", ud.getFullName(), is("kbase test account #2"));
+		users.remove("kbasetest2");
+		users.add("kbasetest8");
 		Map<String, Boolean> valid = AuthService.isValidUserName(users, token);
 		assertThat("validates already seen name", valid.get("kbasetest"), is(true));
-		assertThat("validates new name", valid.get("kbase"), is(true));
+		assertThat("validates new name", valid.get("kbasetest8"), is(true));
 		assertThat("can't validate bad name", valid.get("ahfueafavafueafhealuefhalfuafeuauflaef"), is(false));
 		users.add("\\foo");
 		try {
