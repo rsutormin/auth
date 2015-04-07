@@ -264,6 +264,7 @@ public class AuthService {
 		// Start with a null user - if the mapper fails for some reason, we know it's
 		// still null (and not uninitialized), and can throw a proper exception.
 
+		//TODO add retries
 		try {
 			// Build the connection project and set it up.
 			final HttpsURLConnection conn = (HttpsURLConnection) AUTH_URL.openConnection();
