@@ -37,6 +37,7 @@ import us.kbase.auth.AuthException;
 import us.kbase.auth.RefreshingToken;
 import us.kbase.auth.StringCache;
 import us.kbase.auth.TokenCache;
+import us.kbase.auth.TokenException;
 import us.kbase.auth.TokenExpiredException;
 import us.kbase.auth.TokenFormatException;
 import us.kbase.auth.UserDetail;
@@ -574,6 +575,62 @@ public class AuthServiceTest {
 		} catch (IllegalArgumentException iae) {
 			assertThat("incorrect exception message", iae.getLocalizedMessage(),
 					is("username \\foo has invalid character: \\"));
+		}
+	}
+	
+	@Test
+	public void testGetUserDetailsWithRefreshingToken() throws Exception {
+		AuthConfig c = new AuthConfig();
+		AuthService as = new AuthService(c);
+		c.withRefreshingToken(as.getRefreshingToken(TEST_UID, TEST_PW, 10000));
+		
+		List<String> users = new ArrayList<String>();
+		users.add("kbasetest");
+		Map<String, UserDetail> res = as.fetchUserDetail(users);
+		UserDetail ud = res.get("kbasetest");
+		assertThat("username doesn't match", ud.getUserName(), is("kbasetest"));
+		assertThat("email doesn't match", ud.getEmail(), is("kbasetest.globus@gmail.com"));
+		assertThat("full name doesn't match", ud.getFullName(), is("KBase Test Account"));
+		assertThat("user verifies", as.isValidUserName(users).get("kbasetest"),
+				is(true));
+		
+		res = as.fetchUserDetail(users, null);
+		ud = res.get("kbasetest");
+		assertThat("username doesn't match", ud.getUserName(), is("kbasetest"));
+		assertThat("email doesn't match", ud.getEmail(), is("kbasetest.globus@gmail.com"));
+		assertThat("full name doesn't match", ud.getFullName(), is("KBase Test Account"));
+		assertThat("user verifies", as.isValidUserName(users, null).get("kbasetest"),
+				is(true));
+		
+		try {
+			new AuthService().fetchUserDetail(users);
+			fail("got user detail w/o token");
+		} catch (TokenException te) {
+			assertThat("correct exception message", te.getLocalizedMessage(),
+					is("No token specified in the auth client configuration"));
+		}
+		try {
+			new AuthService().fetchUserDetail(users, null);
+			fail("got user detail w/o token");
+		} catch (NullPointerException npe) {
+			assertThat("correct exception message", npe.getLocalizedMessage(),
+					is("If no token is specified in the auth client configuration a token must be provided"));
+		}
+		
+		try {
+			new AuthService().isValidUserName(users);
+			fail("validated user w/o token");
+		} catch (TokenException te) {
+			assertThat("correct exception message", te.getLocalizedMessage(),
+					is("No token specified in the auth client configuration"));
+		}
+		
+		try {
+			new AuthService().isValidUserName(users, null);
+			fail("validated user w/o token");
+		} catch (NullPointerException npe) {
+			assertThat("correct exception message", npe.getLocalizedMessage(),
+					is("If no token is specified in the auth client configuration a token must be provided"));
 		}
 	}
 	

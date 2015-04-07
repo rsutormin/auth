@@ -133,8 +133,8 @@ public class AuthService {
 	}
 
 	/**
-	 * Given an AuthToken object for a logged in user, this returns the AuthUser object representing that user's
-	 * profile.
+	 * Given an AuthToken object for a logged in user, this returns the
+	 * AuthUser object representing that user's profile.
 	 * 
 	 * @param token the token
 	 * @return an AuthUser associated with the given token.
@@ -150,7 +150,30 @@ public class AuthService {
 	}
 	
 	/**
-	 * Checks whether strings are a valid user names.
+	 * Checks whether strings are a valid user names. This method relies
+	 * on the token provided in the configuration object passed to the
+	 * AuthService constructor.
+	 * Checks the local cache first to avoid an http call.
+	 * @param usernames the usernames
+	 * @return a mapping of username to validity.
+	 * @throws AuthException if the credentials are invalid
+	 * @throws IOException if there is a problem communicating with the server.
+	 * @throws IllegalArgumentException if a username is invalid.
+	 */
+	public Map<String, Boolean> isValidUserName(List<String> usernames)
+			throws IOException, AuthException {
+		if (config.getToken() == null) {
+			throw new TokenException(
+					"No token specified in the auth client configuration");
+		}
+		return isValidUserName(usernames, config.getToken().getToken());
+	}
+	
+	/**
+	 * Checks whether strings are a valid user names. Note that in order to see
+	 * all users in the specified group, the user the provided token
+	 * represents must be an administrator of the group. Otherwise users with
+	 * private profiles will not be visible.
 	 * Checks the local cache first to avoid an http call.
 	 * @param usernames the usernames
 	 * @param token a valid token
@@ -181,10 +204,32 @@ public class AuthService {
 		return result;
 	}
 	
-	/**
-	 * Get information about users.
+	/** Get information about users. This method relies on the token provided
+	 * in the configuration object passed to the AuthService constructor.
 	 * @param usernames the user names of the users that are the subject of the request
-	 * @param token a valid token.
+	 * @return a mapping of username to user details.
+	 * @throws AuthException if the credentials are invalid
+	 * @throws IOException if there is a problem communicating with the server.
+	 * @throws IllegalArgumentException if a username is invalid.
+	 */
+	public Map<String, UserDetail> fetchUserDetail(List<String> usernames)
+			throws IOException, AuthException {
+		if (config.getToken() == null) {
+			throw new TokenException(
+					"No token specified in the auth client configuration");
+		}
+		return fetchUserDetail(usernames, config.getToken().getToken());
+	}
+	
+	/**
+	 * Get information about users. Note that in order to see all users in the
+	 * specified group, the user the provided token
+	 * represents must be an administrator of the group. Otherwise users with
+	 * private profiles will not be visible.
+	 * @param usernames the user names of the users that are the subject of the request
+	 * @param token a valid token. If none is provided the method will use the
+	 * token from the configuration object used to initialize the AuthService,
+	 * if any.
 	 * @return a mapping of username to user details.
 	 * @throws AuthException if the credentials are invalid
 	 * @throws IOException if there is a problem communicating with the server.
@@ -192,8 +237,15 @@ public class AuthService {
 	 */
 	@SuppressWarnings("unchecked")
 	public Map<String, UserDetail> fetchUserDetail(List<String> usernames,
-			AuthToken token) throws IOException, AuthException { //TODO token use refreshing token
-		//TODO method w/o token
+			AuthToken token) throws IOException, AuthException {
+		if (token == null) {
+			if (config.getToken() == null) {
+				throw new NullPointerException(
+						"If no token is specified in the auth client configuration a token must be provided");
+			} else {
+				token = config.getToken().getToken();
+			}
+		}
 		//TODO WAIT when auth service supports, just query auth service for this
 		final Map<String, UserDetail> result = new HashMap<String, UserDetail>();
 		for (String un: usernames) {
@@ -245,7 +297,7 @@ public class AuthService {
 				final Map<String, Object> userdetail;
 				try {
 					userdetail = (Map<String, Object>) new ObjectMapper()
-					.readValue(responseText, Map.class);
+							.readValue(responseText, Map.class);
 				} catch (Exception ex) {
 					throw new AuthException(ex.getMessage(), ex, responseText);
 				}
@@ -255,7 +307,6 @@ public class AuthService {
 						(String) userdetail.get("email"),
 						(String) userdetail.get("name")));
 			}
-
 		}
 		return result;
 	}
