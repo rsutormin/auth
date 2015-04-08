@@ -17,15 +17,23 @@ public class RefreshingToken {
 	final private String user;
 	final private String password;
 	final private int refreshIntervalMSec;
-	final private AuthService auth;
+	final private ConfigurableAuthService auth;
 	private AuthToken token;
 	private Date refreshDate;
 	
 	RefreshingToken(
 			final String user,
 			final String password,
+			final int refreshIntervalSeconds) 
+			throws AuthException, IOException {
+		this(user, password, refreshIntervalSeconds, null);
+	}
+	
+	RefreshingToken(
+			final String user,
+			final String password,
 			final int refreshIntervalSeconds,
-			final AuthService auth)
+			final ConfigurableAuthService auth)
 			throws AuthException, IOException {
 		checkString(user, "user");
 		checkString(password, "password");
@@ -33,15 +41,21 @@ public class RefreshingToken {
 			throw new IllegalArgumentException(
 					"refreshInterval must be 0 or greater");
 		}
-		if (auth == null) {
-			throw new NullPointerException("auth cannot be null");
-		}
 		this.user = user;
 		this.password = password;
 		this.refreshIntervalMSec = refreshIntervalSeconds * 1000;
 		this.auth = auth;
-		this.token = auth.login(user, password).getToken();
+		this.token = login(user, password);
 		this.refreshDate = new Date();
+	}
+	
+	private AuthToken login(final String user, final String password)
+			throws AuthException, IOException {
+		if (auth == null) {
+			return AuthService.login(user, password).getToken();
+		} else {
+			return auth.login(user, password).getToken();
+		}
 	}
 	
 	/** Returns the token.
@@ -52,7 +66,7 @@ public class RefreshingToken {
 	public AuthToken getToken() throws AuthException, IOException {
 		if (new Date().getTime() - refreshDate.getTime()
 				> refreshIntervalMSec) {
-			this.token = auth.login(user, password).getToken();
+			this.token = login(user, password);
 			this.refreshDate = new Date();
 		}
 		return token;
