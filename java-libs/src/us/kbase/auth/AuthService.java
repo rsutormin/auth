@@ -116,7 +116,7 @@ public class AuthService {
 	 * expires, as long as the credentials are correct.
 	 * @param userName the user name of the user who the token will represent.
 	 * @param password the password of the user.
-	 * @param refreshInvervalInSeconds the how frequently the token should
+	 * @param refreshIntervalInSeconds the how frequently the token should
 	 * refresh itself, in seconds. 24 * 24 * 60 is generally reasonable.
 	 * @return a auto-refreshing token.
 	 * @throws AuthException if the credentials are invalid.
@@ -125,10 +125,10 @@ public class AuthService {
 	public RefreshingToken getRefreshingToken(
 			final String userName,
 			final String password,
-			final int refreshInvervalInSeconds)
+			final int refreshIntervalInSeconds)
 			throws AuthException, IOException {
 		return new RefreshingToken(userName, password,
-				refreshInvervalInSeconds, this);
+				refreshIntervalInSeconds, this);
 		
 	}
 
