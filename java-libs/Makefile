@@ -4,7 +4,9 @@ VER := $(shell git rev-parse --short HEAD)
 
 EPOCH := $(shell date +%s)
 
-AUTH-JAR = kbase-auth-$(EPOCH)-$(VER).jar
+FINAL_VER := $(shell python translate_version.py $(VER) $(EPOCH))
+
+AUTH-JAR = kbase-auth-$(FINAL_VER).jar
 
 all: test-java
 

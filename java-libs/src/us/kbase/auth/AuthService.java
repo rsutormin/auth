@@ -14,7 +14,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -31,8 +30,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * A fairly simple Auth service client for KBase.
  * Usage:
  * 
- * AuthUser user = AuthService.login(user, password);
- * if (AuthService.validateToken(user.getToken())) {
+ * AuthUser user = new AuthService().login(user, password);
+ * if (new AuthService().validateToken(user.getToken())) {
  * 		// There's a valid token! Return the valid user, or just the token, and move along.
  * }
  * 
@@ -46,23 +45,29 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * @author gaprice@lbl.gov
  */
 public class AuthService {
-	private static URL AUTH_URL;
 	
-	private static String GLOBUS_USER_URL_STRING =
-			"https://nexus.api.globusonline.org/search?query=type%3A+user+";
-	
-	private static String AUTH_URL_STRING = "https://www.kbase.us/services/authorization/Sessions/Login";
+	private final AuthConfig config;
 	private static TokenCache tc = new TokenCache();
 	private static StringCache uc = new StringCache();
 	private static Pattern INVALID_USERNAME = Pattern.compile("[^a-zA-Z0-9_-]");
 
-	static {
-		try {
-			AUTH_URL = new URL(AUTH_URL_STRING);
+	/** Create an authorization service client with the default configuration.
+	 * @throws IOException if an IO error occurs.
+	 */
+	public AuthService() throws IOException {
+		this(new AuthConfig());
+	}
+	
+	/** Create an authorization service client with a custom configuration.
+	 * @param config the configuration for the auth client.
+	 * @throws IOException if an IO error occurs.
+	 */
+	public AuthService(final AuthConfig config) throws IOException {
+		if (config == null) {
+			throw new NullPointerException("config cannot be null");
 		}
-		catch (MalformedURLException e) {
-			throw new RuntimeException("Something that should never occur, has occurred. Look for nearby holes in reality.");
-		}
+		this.config = config;
+		checkServiceUrl(this.config.getAuthLoginURL());
 	}
 	
 	/**
@@ -76,8 +81,8 @@ public class AuthService {
 	 * @throws AuthException if the credentials are invalid
 	 * @throws IOException if there is a problem communicating with the server.
 	 */
-	public static AuthUser login(String userName, String password, long expiry) throws AuthException,
-																					   IOException {
+	public AuthUser login(String userName, String password, long expiry)
+			throws AuthException, IOException {
 		// This is the data that will be POSTed to the service.
 		// By default (not sure if we *really* need to change it), it fetches all the fields.
 		try {
@@ -102,21 +107,41 @@ public class AuthService {
 	 * @throws AuthException if the credentials are invalid
 	 * @throws IOException if there is a problem communicating with the server.
 	 */
-	public static AuthUser login(String userName, String password) throws AuthException,
+	public AuthUser login(String userName, String password) throws AuthException,
 																		  IOException {
 		return login(userName, password, AuthToken.DEFAULT_EXPIRES);
 	}
+	
+	/** Returns a token that continually refreshes itself and thus never
+	 * expires, as long as the credentials are correct.
+	 * @param userName the user name of the user who the token will represent.
+	 * @param password the password of the user.
+	 * @param refreshIntervalInSeconds the how frequently the token should
+	 * refresh itself, in seconds. 24 * 24 * 60 is generally reasonable.
+	 * @return a auto-refreshing token.
+	 * @throws AuthException if the credentials are invalid.
+	 * @throws IOException if an IO error occurs.
+	 */
+	public RefreshingToken getRefreshingToken(
+			final String userName,
+			final String password,
+			final int refreshIntervalInSeconds)
+			throws AuthException, IOException {
+		return new RefreshingToken(userName, password,
+				refreshIntervalInSeconds, this);
+		
+	}
 
 	/**
-	 * Given an AuthToken object for a logged in user, this returns the AuthUser object representing that user's
-	 * profile.
+	 * Given an AuthToken object for a logged in user, this returns the
+	 * AuthUser object representing that user's profile.
 	 * 
 	 * @param token the token
 	 * @return an AuthUser associated with the given token.
 	 * @throws AuthException if the credentials are invalid
 	 * @throws IOException if there is a problem communicating with the server.
 	 */
-	public static AuthUser getUserFromToken(AuthToken token) throws AuthException,
+	public AuthUser getUserFromToken(AuthToken token) throws AuthException,
 																	IOException {
 		String dataStr = "token=" + token.toString() +
 				 "&fields=user_id,name,email,groups,kbase_sessionid,token,verified,opt_in,system_admin";
@@ -125,7 +150,30 @@ public class AuthService {
 	}
 	
 	/**
-	 * Checks whether strings are a valid user names.
+	 * Checks whether strings are a valid user names. This method relies
+	 * on the token provided in the configuration object passed to the
+	 * AuthService constructor.
+	 * Checks the local cache first to avoid an http call.
+	 * @param usernames the usernames
+	 * @return a mapping of username to validity.
+	 * @throws AuthException if the credentials are invalid
+	 * @throws IOException if there is a problem communicating with the server.
+	 * @throws IllegalArgumentException if a username is invalid.
+	 */
+	public Map<String, Boolean> isValidUserName(List<String> usernames)
+			throws IOException, AuthException {
+		if (config.getToken() == null) {
+			throw new TokenException(
+					"No token specified in the auth client configuration");
+		}
+		return isValidUserName(usernames, config.getToken().getToken());
+	}
+	
+	/**
+	 * Checks whether strings are a valid user names. Note that in order to see
+	 * all users in the specified group, the user the provided token
+	 * represents must be an administrator of the group. Otherwise users with
+	 * private profiles will not be visible.
 	 * Checks the local cache first to avoid an http call.
 	 * @param usernames the usernames
 	 * @param token a valid token
@@ -134,7 +182,7 @@ public class AuthService {
 	 * @throws IOException if there is a problem communicating with the server.
 	 * @throws IllegalArgumentException if a username is invalid.
 	 */
-	public static Map<String, Boolean> isValidUserName(List<String> usernames,
+	public Map<String, Boolean> isValidUserName(List<String> usernames,
 			AuthToken token) throws IOException, AuthException {
 		//TODO WAIT when auth service supports, just query auth service for this
 		final List<String> badlist = new ArrayList<String>();
@@ -156,18 +204,48 @@ public class AuthService {
 		return result;
 	}
 	
-	/**
-	 * Get information about users.
+	/** Get information about users. This method relies on the token provided
+	 * in the configuration object passed to the AuthService constructor.
 	 * @param usernames the user names of the users that are the subject of the request
-	 * @param token a valid token.
+	 * @return a mapping of username to user details.
+	 * @throws AuthException if the credentials are invalid
+	 * @throws IOException if there is a problem communicating with the server.
+	 * @throws IllegalArgumentException if a username is invalid.
+	 */
+	public Map<String, UserDetail> fetchUserDetail(List<String> usernames)
+			throws IOException, AuthException {
+		if (config.getToken() == null) {
+			throw new TokenException(
+					"No token specified in the auth client configuration");
+		}
+		return fetchUserDetail(usernames, config.getToken().getToken());
+	}
+	
+	/**
+	 * Get information about users. Note that in order to see all users in the
+	 * specified group, the user the provided token
+	 * represents must be an administrator of the group. Otherwise users with
+	 * private profiles will not be visible.
+	 * @param usernames the user names of the users that are the subject of the request
+	 * @param token a valid token. If none is provided the method will use the
+	 * token from the configuration object used to initialize the AuthService,
+	 * if any.
 	 * @return a mapping of username to user details.
 	 * @throws AuthException if the credentials are invalid
 	 * @throws IOException if there is a problem communicating with the server.
 	 * @throws IllegalArgumentException if a username is invalid.
 	 */
 	@SuppressWarnings("unchecked")
-	public static Map<String, UserDetail> fetchUserDetail(List<String> usernames,
+	public Map<String, UserDetail> fetchUserDetail(List<String> usernames,
 			AuthToken token) throws IOException, AuthException {
+		if (token == null) {
+			if (config.getToken() == null) {
+				throw new NullPointerException(
+						"If no token is specified in the auth client configuration a token must be provided");
+			} else {
+				token = config.getToken().getToken();
+			}
+		}
 		//TODO WAIT when auth service supports, just query auth service for this
 		final Map<String, UserDetail> result = new HashMap<String, UserDetail>();
 		for (String un: usernames) {
@@ -184,44 +262,51 @@ public class AuthService {
 		if (result.keySet().isEmpty()) {
 			return result;
 		}
-		URL query = null;
-		try {
-			query = new URL(GLOBUS_USER_URL_STRING + join(result.keySet(), ","));
-		} catch (MalformedURLException mue) {
-			throw new IllegalArgumentException("username has illegal characters");
-		}
-		final HttpsURLConnection conn = (HttpsURLConnection) query.openConnection();
-		conn.setRequestProperty("X-Globus-Goauthtoken", token.toString());
-		conn.setRequestMethod("GET");
-		conn.setDoOutput(true);
-		conn.setUseCaches(false);
-		
-		int responseCode = conn.getResponseCode();
-		if (responseCode != 200) {
-			conn.disconnect();
-			throw new AuthException("User detail retrieval failed! Server responded with code " + responseCode + " " + conn.getResponseMessage());
-		}
-
-		/** Encoding the HTTP response into JSON format */
-		final BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-		String responseText = readFromReaderAndClose(br);
-		
-		final Map<String, Object> userd;
-		try {
-			userd = (Map<String, Object>) new ObjectMapper().readValue(responseText, Map.class);
-		} catch (Exception ex) {
-			throw new AuthException(ex.getMessage(), ex, responseText);
-		}
-		
-		final List<Map<String, Object>> results = (List<Map<String, Object>>) userd.get("results");
-		for (Map<String, Object> res: results) {
-//			System.out.println(res);
-			final String user = (String) res.get("username");
-			if (result.containsKey(user)) {
-				uc.putString(user);
-				result.put(user, new UserDetail(user, (String) res.get("email"), (String) res.get("fullname")));
+		for (final String name: result.keySet()) {
+			URL query = null;
+			try {
+				query = new URL(config.getGlobusGroupMembersURL().toString()
+						+ name);
+			} catch (MalformedURLException mue) {
+				throw new RuntimeException("globus url " +
+						config.getGlobusGroupMembersURL() + 
+						" magically has illegal characters", mue);
 			}
+			final HttpsURLConnection conn = (HttpsURLConnection) query.openConnection();
+			conn.setRequestProperty("X-Globus-Goauthtoken", token.toString());
+			conn.setRequestMethod("GET");
+			conn.setDoOutput(true);
+			conn.setUseCaches(false);
 			
+			int responseCode = conn.getResponseCode();
+			// 200 = found, 403 = private, 404 = doesn't exist
+			if (responseCode != 200 && responseCode != 403
+					&& responseCode != 404) {
+				conn.disconnect();
+				throw new AuthException(
+						"User detail retrieval failed for user " +
+						name + "! Server responded with code " + responseCode +
+						" " + conn.getResponseMessage());
+			}
+			if (responseCode == 200) { //otherwise skip & return null for user
+				/** Encoding the HTTP response into JSON format */
+				final BufferedReader br = new BufferedReader(
+						new InputStreamReader(conn.getInputStream()));
+				String responseText = readFromReaderAndClose(br);
+
+				final Map<String, Object> userdetail;
+				try {
+					userdetail = (Map<String, Object>) new ObjectMapper()
+							.readValue(responseText, Map.class);
+				} catch (Exception ex) {
+					throw new AuthException(ex.getMessage(), ex, responseText);
+				}
+				final String user = (String) userdetail.get("username");
+				uc.putString(user);
+				result.put(user, new UserDetail(user,
+						(String) userdetail.get("email"),
+						(String) userdetail.get("name")));
+			}
 		}
 		return result;
 	}
@@ -238,21 +323,6 @@ public class AuthService {
 		return ret.toString();
 	}
 	
-	private static String join(Set<String> list, String conjunction) {
-		StringBuilder sb = new StringBuilder();
-		boolean first = true;
-		for (String item : list)
-		{
-			if (first) {
-				first = false;
-			} else {
-				sb.append(conjunction);
-			}
-			sb.append(item);
-		}
-		return sb.toString();
-	}
-	
 	/**
 	 * Given a data str, describing URL-encoded fields for the auth server, this attempts to authenticate the user
 	 * with KBase servers.
@@ -262,14 +332,16 @@ public class AuthService {
 	 * @throws AuthException if the credentials are invalid
 	 * @throws IOException if there is a problem communicating with the server.
 	 */
-	private static AuthUser fetchUser(String dataStr, long expiry) throws AuthException,
+	private AuthUser fetchUser(String dataStr, long expiry) throws AuthException,
 																		  IOException {
 		// Start with a null user - if the mapper fails for some reason, we know it's
 		// still null (and not uninitialized), and can throw a proper exception.
 
+		//TODO add retries
 		try {
 			// Build the connection project and set it up.
-			final HttpsURLConnection conn = (HttpsURLConnection) AUTH_URL.openConnection();
+			final HttpsURLConnection conn = (HttpsURLConnection)
+					config.getAuthLoginURL().openConnection();
 			conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
 			conn.setRequestProperty("Content-Length", String.valueOf(dataStr.getBytes().length));
 			conn.setRequestProperty("Content-Language", "en-US");
@@ -334,7 +406,7 @@ public class AuthService {
 	 * @throws AuthException if the credentials are invalid
 	 * @throws IOException if there is a problem communicating with the server.
 	 */
-	public static boolean validateToken(String tokenStr) throws TokenFormatException,
+	public boolean validateToken(String tokenStr) throws TokenFormatException,
 																TokenExpiredException, 
 																IOException {
 		AuthToken token = new AuthToken(tokenStr);
@@ -350,7 +422,7 @@ public class AuthService {
 	 * @throws TokenExpiredException if the token is expired (it might be otherwise valid)
 	 * @throws IOException if there's a problem communicating with the back end validator.
 	 */
-	public static boolean validateToken(AuthToken token) throws TokenExpiredException,
+	public boolean validateToken(AuthToken token) throws TokenExpiredException,
 																IOException {		
 
 		// If it's expired, then it's invalid, and we throw an exception
@@ -418,14 +490,6 @@ public class AuthService {
 	}
 	
 	/**
-	 * Returns the current URL to which the service is pointing.
-	 * @return the current URL for the service
-	 */
-	public static URL getServiceUrl() {
-		return AUTH_URL;
-	}
-	
-	/**
 	 * Sets the URL that the service should point to. This is the URL that points to the login service:
 	 * https://kbase.us/services/authorization/Sessions/Login
 	 * 
@@ -436,7 +500,7 @@ public class AuthService {
 	 * @param url the new URL for the service
 	 * @throws IOException if something goes wrong with the connection test.
 	 */
-	public static boolean setServiceUrl(URL url) throws IOException {
+	private static void checkServiceUrl(URL url) throws IOException {
 
 		HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
 
@@ -454,12 +518,9 @@ public class AuthService {
 			reader.close();
 			conn.disconnect();
 
-			if (result.contains("\"user_id\": null")) {
-				AUTH_URL = url;
-				return true;
+			if (!result.contains("\"user_id\": null")) {
+				throw new IOException("Auth service URL invalid");
 			}
 		}
-
-		return false;
 	}
 }

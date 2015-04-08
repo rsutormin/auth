@@ -12,11 +12,13 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.junit.matchers.JUnitMatchers.*;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -27,12 +29,15 @@ import java.net.URLEncoder;
 
 import javax.net.ssl.HttpsURLConnection;
 
+import us.kbase.auth.AuthConfig;
 import us.kbase.auth.AuthService;
 import us.kbase.auth.AuthToken;
 import us.kbase.auth.AuthUser;
 import us.kbase.auth.AuthException;
+import us.kbase.auth.RefreshingToken;
 import us.kbase.auth.StringCache;
 import us.kbase.auth.TokenCache;
+import us.kbase.auth.TokenException;
 import us.kbase.auth.TokenExpiredException;
 import us.kbase.auth.TokenFormatException;
 import us.kbase.auth.UserDetail;
@@ -42,7 +47,7 @@ public class AuthServiceTest {
 	private static final String TEST_PW = System.getProperty("test.user.password");
 
 	private static final String FULL_NAME = "KBase Test Account";
-	private static final String EMAIL = "sychan@lbl.gov";
+	private static final String EMAIL = "kbasetest.globus@gmail.com";
 	private static final boolean IS_SYSADMIN = false;
 	private static final boolean IS_OPT_IN = false;
 	private static final String[] GROUPS = { "kbase_test", "kbase_test_users", "kbase_users2", "kbase_staff", "kbase_users" };
@@ -61,11 +66,11 @@ public class AuthServiceTest {
 	public static void loginTestUser() throws UnsupportedEncodingException {
 		System.out.println("Setting up test user for AuthUser and AuthToken testing...");
 		try {
-			testUser = AuthService.login(TEST_UID, TEST_PW);
+			testUser = new AuthService().login(TEST_UID, TEST_PW);
 			int tokens = 5;
 			for(int i = 0; i < tokens; i++) {
 				System.out.println("Getting token " + (i + 1) + "/" + tokens);
-				someTokens.add(AuthService.login(TEST_UID, TEST_PW).getToken());
+				someTokens.add(new AuthService().login(TEST_UID, TEST_PW).getToken());
 			}
 			tokens = 2;
 			for(int i = 0; i < tokens; i++) {
@@ -96,7 +101,8 @@ public class AuthServiceTest {
 		String dataStr = "user_id=" + URLEncoder.encode(TEST_UID, "UTF-8") + 
 				 "&password=" + URLEncoder.encode(TEST_PW, "UTF-8") + 
 				 "&cookie=1&fields=user_id,name,email,groups,kbase_sessionid,token,verified,opt_in,system_admin";
-		HttpsURLConnection conn = (HttpsURLConnection) AuthService.getServiceUrl().openConnection();
+		HttpsURLConnection conn = (HttpsURLConnection)
+				new AuthConfig().getAuthLoginURL().openConnection();
 		conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
 		conn.setRequestProperty("Content-Length", String.valueOf(dataStr.getBytes().length));
 		conn.setRequestProperty("Content-Language", "en-US");
@@ -310,7 +316,7 @@ public class AuthServiceTest {
 		int tokenLifespan = SHORT_TOKEN_LIFESPAN; // sec (initial, will be modified by skew)
 
 		// Fetch a token with default lifespan.
-		AuthToken token = AuthService.login(TEST_UID, TEST_PW).getToken();
+		AuthToken token = new AuthService().login(TEST_UID, TEST_PW).getToken();
 
 		// Estimate clock skew by getting it's creation date and comparing with the system clock.
 		int clockSkew = (int)(token.getIssueDate().getTime() - new Date().getTime()) / 1000; // sec 
@@ -320,7 +326,7 @@ public class AuthServiceTest {
 			tokenLifespan -= clockSkew;
 
 		// Get a fresh token with a short expiry time.
-		token = AuthService.login(TEST_UID, TEST_PW, tokenLifespan).getToken();
+		token = new AuthService().login(TEST_UID, TEST_PW, tokenLifespan).getToken();
 		long remainingLifespan = getRemainingLifespan(token); //token.getIssueDate().getTime() - new Date().getTime() + token.getExpiryTime()*1000;
 		if (remainingLifespan > 0) {
 			System.out.println("testTokenExpires: Sleeping for " + (remainingLifespan+10) + " ms to deal with clock skew vs. GlobusOnline");
@@ -345,7 +351,8 @@ public class AuthServiceTest {
 
 	@Test
 	public void testGetUserFullName() {
-		org.junit.Assert.assertEquals("failure - incorrect user name", FULL_NAME, testUser.getFullName());
+		org.junit.Assert.assertEquals("failure - incorrect user name",
+				FULL_NAME, testUser.getFullName());
 	}
 
 	@Test
@@ -365,7 +372,8 @@ public class AuthServiceTest {
 
 	@Test
 	public void testUserEmail() {
-		org.junit.Assert.assertEquals("failure - incorrect email address", EMAIL, testUser.getEmail());
+		org.junit.Assert.assertEquals("failure - incorrect email address",
+				EMAIL, testUser.getEmail());
 	}
 
 	@Test
@@ -386,68 +394,142 @@ public class AuthServiceTest {
 
 
 	// test AuthService methods
+	
 	@Test
-	public void testDefaultServiceUrl() {
-		org.junit.Assert.assertNotNull("failure - null default auth service URL", AuthService.getServiceUrl());
-	}
-
-	@Test
-	public void testValidServiceUrlChange() throws Exception{
-		URL oldUrl = AuthService.getServiceUrl();
-
-		// valid url
-		URL newUrl = new URL("https://kbase.us/services/authorization/Sessions/Login");
+	public void configObject() throws Exception {
 		
-		org.junit.Assert.assertTrue("failure - setting a valid service url didn't work!", AuthService.setServiceUrl(newUrl));
-		AuthService.setServiceUrl(oldUrl);
+		try {
+			new AuthService(null);
+			fail("init auth service with null config");
+		} catch (NullPointerException npe) {
+			assertThat("correct exception message", npe.getLocalizedMessage(),
+					is("config cannot be null"));
+		}
+		//defaults
+		AuthConfig d = new AuthConfig();
+		assertThat("correct KBase url", d.getAuthServerURL(),
+				is(new URL("https://www.kbase.us/services/authorization/")));
+		assertThat("correct globus url", d.getGlobusURL(),
+				is(new URL("https://nexus.api.globusonline.org/")));
+		assertThat("correct group id", d.getKbaseUsersGroupID(),
+				is(UUID.fromString("99d2a548-7218-11e2-adc0-12313d2d6e7f")));
+		assertThat("correct token", d.getToken(), is((RefreshingToken) null));
+		assertThat("correct full KBase url", d.getAuthLoginURL(),
+				is(new URL("https://www.kbase.us/services/authorization/Sessions/Login")));
+		assertThat("correct full globus url", d.getGlobusGroupMembersURL(),
+				is(new URL("https://nexus.api.globusonline.org/groups/99d2a548-7218-11e2-adc0-12313d2d6e7f/members/")));
+		
+		//custom
+		RefreshingToken rt = new AuthService().getRefreshingToken(
+				TEST_UID, TEST_PW, 10000);
+		AuthConfig c = new AuthConfig()
+			.withGlobusAuthURL(new URL("http://foo"))
+			.withKBaseAuthServerURL(new URL("http://bar"))
+			.withKBaseUsersGroupID(UUID.fromString(
+					"9c72867d-8c90-4f9b-a472-d7759d606471"))
+			.withRefreshingToken(rt);
+		
+		assertThat("correct KBase url", c.getAuthServerURL(), is(new URL("http://bar/")));
+		assertThat("correct globus url", c.getGlobusURL(), is(new URL("http://foo/")));
+		assertThat("correct group id", c.getKbaseUsersGroupID(),
+				is(UUID.fromString("9c72867d-8c90-4f9b-a472-d7759d606471")));
+		assertThat("correct token", c.getToken(), is(rt));
+		assertThat("correct full KBase url", c.getAuthLoginURL(),
+				is(new URL("http://bar/Sessions/Login")));
+		assertThat("correct full globus url", c.getGlobusGroupMembersURL(),
+				is(new URL("http://foo/groups/9c72867d-8c90-4f9b-a472-d7759d606471/members/")));
+		
+		//urls with trailing slashes
+		AuthConfig stdurl = new AuthConfig()
+		.withGlobusAuthURL(new URL("http://foo/"))
+		.withKBaseAuthServerURL(new URL("http://bar/"));
+		
+		assertThat("correct KBase url", stdurl.getAuthServerURL(), is(new URL("http://bar/")));
+		assertThat("correct globus url", stdurl.getGlobusURL(), is(new URL("http://foo/")));
+		
+		try {
+			new AuthConfig().withGlobusAuthURL(null);
+			fail("made config with bad args");
+		} catch (NullPointerException npe) {
+			assertThat("correct exception message", npe.getLocalizedMessage(),
+					is("globusAuth cannot be null"));
+		}
+		
+		try {
+			new AuthConfig().withKBaseAuthServerURL(null);
+			fail("made config with bad args");
+		} catch (NullPointerException npe) {
+			assertThat("correct exception message", npe.getLocalizedMessage(),
+					is("authServer cannot be null"));
+		}
+		
+		try {
+			new AuthConfig().withKBaseUsersGroupID(null);
+			fail("made config with bad args");
+		} catch (NullPointerException npe) {
+			assertThat("correct exception message", npe.getLocalizedMessage(),
+					is("groupID cannot be null"));
+		}
+		
+		try {
+			new AuthConfig().withRefreshingToken(null);
+			fail("made config with bad args");
+		} catch (NullPointerException npe) {
+			assertThat("correct exception message", npe.getLocalizedMessage(),
+					is("token cannot be null"));
+		}
 	}
 
 	@Test
 	public void testGetUserFromTokenObject() throws Exception {
 		AuthToken t = new AuthToken(testUser.getToken().toString(), 400);
-		AuthUser user = AuthService.getUserFromToken(t);
+		AuthUser user = new AuthService().getUserFromToken(t);
 		org.junit.Assert.assertNotNull("failure - getting user from a token object returned a null user", user);
 		assertEquals("failure - token expiration wasn't maintained", 400, user.getToken().getExpiryTime());
 	}
 
 	@Test
 	public void testLogin() throws Exception {
-		AuthUser user = AuthService.login(TEST_UID, TEST_PW);
+		AuthUser user = new AuthService().login(TEST_UID, TEST_PW);
 		org.junit.Assert.assertNotNull("failure - logging in returned a null user", user);
 	}
 	
 	@Test
 	public void testLoginWithExpiry() throws Exception {
-		AuthUser user = AuthService.login(TEST_UID, TEST_PW, 300);
+		AuthUser user = new AuthService().login(TEST_UID, TEST_PW, 300);
 		assertEquals("fail - wrong expiration lifetime", 300, user.getToken().getExpiryTime());
 	}
 	
 	@Test
 	public void testValidateTokenStr() throws AuthException, IOException {
 		String tokenStr = testUser.getTokenString();
-		org.junit.Assert.assertTrue("failure - valid token string didn't validate", AuthService.validateToken(tokenStr));
+		org.junit.Assert.assertTrue("failure - valid token string didn't validate",
+				new AuthService().validateToken(tokenStr));
 		tokenStr = uncachedTokens.get(0).toString();
-		org.junit.Assert.assertTrue("failure - valid token object didn't validate", AuthService.validateToken(tokenStr));
+		org.junit.Assert.assertTrue("failure - valid token object didn't validate",
+				new AuthService().validateToken(tokenStr));
 	}
 
 	@Test
 	public void testValidateTokenObject() throws AuthException, IOException {
 		AuthToken token = testUser.getToken();
-		org.junit.Assert.assertTrue("failure - valid token object didn't validate", AuthService.validateToken(token));
+		org.junit.Assert.assertTrue("failure - valid token object didn't validate",
+				new AuthService().validateToken(token));
 		token = uncachedTokens.get(1);
-		org.junit.Assert.assertTrue("failure - valid token object didn't validate", AuthService.validateToken(token));
+		org.junit.Assert.assertTrue("failure - valid token object didn't validate",
+				new AuthService().validateToken(token));
 	}
 
 	// login with bad user/pw
 	@Test(expected = AuthException.class)
 	public void testFailLogin() throws Exception {
-		AuthService.login("asdf", "asdf");
+		new AuthService().login("asdf", "asdf");
 	}
 
 	// try to verify a bad token
 	@Test(expected = AuthException.class)
 	public void testFailValidate() throws AuthException, IOException {
-		AuthService.validateToken("asdf");
+		new AuthService().validateToken("asdf");
 	}
 
 	// try to parse a bad token
@@ -459,32 +541,36 @@ public class AuthServiceTest {
 	@Test
 	public void testGetUserDetails() throws Exception {
 		AuthToken token = testUser.getToken();
-		assertThat("no users doesn't return empty hash", AuthService.fetchUserDetail(new ArrayList<String>(), token).size(), is(0));
+		assertThat("no users doesn't return empty hash",
+				new AuthService().fetchUserDetail(
+						new ArrayList<String>(), token).size(), is(0));
 		List<String> users = new ArrayList<String>();
 		users.add("kbasetest");
-		users.add("kbauthorz");
+		users.add("kbasetest2");
 		users.add(null); // should ignore nulls
 		users.add("ahfueafavafueafhealuefhalfuafeuauflaef");
-		Map<String, UserDetail> res = AuthService.fetchUserDetail(users, token);
+		Map<String, UserDetail> res =
+				new AuthService().fetchUserDetail(users, token);
 		assertFalse("still has a null user", res.containsKey(null));
 		assertNull("bad user found somehow", res.get("ahfueafavafueafhealuefhalfuafeuauflaef"));
 		UserDetail ud = res.get("kbasetest");
 		assertThat("username doesn't match", ud.getUserName(), is("kbasetest"));
-		assertThat("email doesn't match", ud.getEmail(), is("sychan@lbl.gov"));
+		assertThat("email doesn't match", ud.getEmail(), is("kbasetest.globus@gmail.com"));
 		assertThat("full name doesn't match", ud.getFullName(), is("KBase Test Account"));
-		ud = res.get("kbauthorz");
-		assertThat("username doesn't match", ud.getUserName(), is("kbauthorz"));
-		assertThat("email doesn't match", ud.getEmail(), is("sychan@lbl.gov"));
-		assertThat("full name doesn't match", ud.getFullName(), is("KBase Authorization"));
-		users.remove("kbauthorz");
-		users.add("kbase");
-		Map<String, Boolean> valid = AuthService.isValidUserName(users, token);
+		ud = res.get("kbasetest2");
+		assertThat("username doesn't match", ud.getUserName(), is("kbasetest2"));
+		assertThat("email doesn't match", ud.getEmail(), is("gaprice@lbl.gov"));
+		assertThat("full name doesn't match", ud.getFullName(), is("kbase test account #2"));
+		users.remove("kbasetest2");
+		users.add("kbasetest8");
+		Map<String, Boolean> valid =
+				new AuthService().isValidUserName(users, token);
 		assertThat("validates already seen name", valid.get("kbasetest"), is(true));
-		assertThat("validates new name", valid.get("kbase"), is(true));
+		assertThat("validates new name", valid.get("kbasetest8"), is(true));
 		assertThat("can't validate bad name", valid.get("ahfueafavafueafhealuefhalfuafeuauflaef"), is(false));
 		users.add("\\foo");
 		try {
-			AuthService.isValidUserName(users, token);
+			new AuthService().isValidUserName(users, token);
 			fail("auth service accepted invalid username");
 		} catch (IllegalArgumentException iae) {
 			assertThat("incorrect exception message", iae.getLocalizedMessage(),
@@ -493,14 +579,118 @@ public class AuthServiceTest {
 	}
 	
 	@Test
+	public void testGetUserDetailsWithRefreshingToken() throws Exception {
+		AuthConfig c = new AuthConfig();
+		AuthService as = new AuthService(c);
+		c.withRefreshingToken(as.getRefreshingToken(TEST_UID, TEST_PW, 10000));
+		
+		List<String> users = new ArrayList<String>();
+		users.add("kbasetest");
+		Map<String, UserDetail> res = as.fetchUserDetail(users);
+		UserDetail ud = res.get("kbasetest");
+		assertThat("username doesn't match", ud.getUserName(), is("kbasetest"));
+		assertThat("email doesn't match", ud.getEmail(), is("kbasetest.globus@gmail.com"));
+		assertThat("full name doesn't match", ud.getFullName(), is("KBase Test Account"));
+		assertThat("user verifies", as.isValidUserName(users).get("kbasetest"),
+				is(true));
+		
+		res = as.fetchUserDetail(users, null);
+		ud = res.get("kbasetest");
+		assertThat("username doesn't match", ud.getUserName(), is("kbasetest"));
+		assertThat("email doesn't match", ud.getEmail(), is("kbasetest.globus@gmail.com"));
+		assertThat("full name doesn't match", ud.getFullName(), is("KBase Test Account"));
+		assertThat("user verifies", as.isValidUserName(users, null).get("kbasetest"),
+				is(true));
+		
+		try {
+			new AuthService().fetchUserDetail(users);
+			fail("got user detail w/o token");
+		} catch (TokenException te) {
+			assertThat("correct exception message", te.getLocalizedMessage(),
+					is("No token specified in the auth client configuration"));
+		}
+		try {
+			new AuthService().fetchUserDetail(users, null);
+			fail("got user detail w/o token");
+		} catch (NullPointerException npe) {
+			assertThat("correct exception message", npe.getLocalizedMessage(),
+					is("If no token is specified in the auth client configuration a token must be provided"));
+		}
+		
+		try {
+			new AuthService().isValidUserName(users);
+			fail("validated user w/o token");
+		} catch (TokenException te) {
+			assertThat("correct exception message", te.getLocalizedMessage(),
+					is("No token specified in the auth client configuration"));
+		}
+		
+		try {
+			new AuthService().isValidUserName(users, null);
+			fail("validated user w/o token");
+		} catch (NullPointerException npe) {
+			assertThat("correct exception message", npe.getLocalizedMessage(),
+					is("If no token is specified in the auth client configuration a token must be provided"));
+		}
+	}
+	
+	@Test
 	public void throwMangledTokenAtServer() throws Exception {
 		try {
-			AuthService.validateToken(testUser.getToken() + "a");
+			new AuthService().validateToken(testUser.getToken() + "a");
 		} catch (AuthException ae) {
 			assertThat("correct exception message", ae.getLocalizedMessage(),
 					is("Login failed! Server responded with code 401 Unauthorized"));
 		}
 	}
+	
+	@Test
+	public void refreshToken() throws Exception {
+		RefreshingToken rt = new AuthService().getRefreshingToken(
+				TEST_UID, TEST_PW, 5);
+		AuthToken t1 = rt.getToken();
+		AuthToken t2 = rt.getToken();
+		assertThat("got same token immediately", t2.toString(), is(t1.toString()));
+		Thread.sleep(2000); //wait 2s
+		AuthToken t3 = rt.getToken();
+		assertThat("got same token after 2s", t3.toString(), is(t1.toString()));
+		Thread.sleep(4000); //wait 4s
+		AuthToken t4 = rt.getToken();
+		assertTrue("token different after 6s", !t4.toString().equals(t1.toString()));
+	}
+	
+	@Test
+	public void refreshTokenWithBadArgs() throws Exception {
+		failMakeRefreshToken(TEST_UID, TEST_PW, -1,
+				new IllegalArgumentException(
+						"refreshInterval must be 0 or greater"));
+		failMakeRefreshToken(null, TEST_PW, 0,
+				new IllegalArgumentException(
+						"user cannot be null or the empty string"));
+		failMakeRefreshToken("", TEST_PW, 0,
+				new IllegalArgumentException(
+						"user cannot be null or the empty string"));
+		failMakeRefreshToken(TEST_UID, null, 0,
+				new IllegalArgumentException(
+						"password cannot be null or the empty string"));
+		failMakeRefreshToken(TEST_UID, "", 0,
+				new IllegalArgumentException(
+						"password cannot be null or the empty string"));
+		
+	}
+
+	private void failMakeRefreshToken(String testUid, String testPw,
+			int interval, Exception expected) {
+		try {
+			new AuthService().getRefreshingToken(testUid, testPw, interval);
+			fail("Made refreshing token with bad args");
+		} catch (Exception got) {
+			assertThat("correct exception", got.getLocalizedMessage(),
+					is(expected.getLocalizedMessage()));
+			assertThat("correct exception type", got, is(expected.getClass()));
+		}
+	}
+	
 	// finished with AuthService methods
 }
 

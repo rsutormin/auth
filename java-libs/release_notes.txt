@@ -1,0 +1,33 @@
+OVERVIEW
+--------
+
+Java client for the KBase authorization service (and Globus Online directly
+where the KBase auth service doesn't yet have the required functionality).
+See the versions file for a mapping of git commit -> version.
+
+VERSION 0.2.0 (Released TBD)
+------------------------------------------
+
+NEW FEATURES
+- The auth client is now instantiable rather than static.
+- The auth client may now be configured with endpoint URLs and the Globus group
+  to query for users.
+- The client can now produce a token that refreshes itself periodically.
+- The client can be configured with a token to use for all user queries. In
+  most cases this should be an administrator of the kbase group, since if users
+  set their profiles to private they are invisible to standard users.
+
+UPDATED FEATURES / BUG FIXES
+- Fix tests to deal with kbasetest user status changes.
+- Account for change in Globus token lifetime (-1 day).
+- Use alternative API to get user details since the current API no longer
+  works the way we use it. The new API was recommended by Globus.
+- Users outside of the kbase_users group will now no longer show up in user
+  validation or details queries.
+
+VERSION 0.1.0 (Released 4/25/2014)
+------------------------------------------
+This is the most recent version that exists in http://github.com/kbase/jars 
+(kbase-auth-1398468950-3552bb2.jar).
+No release notes existed at this point, so this version will serve as the 
+baseline for future changes.
