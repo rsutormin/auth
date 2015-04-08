@@ -20,10 +20,13 @@ ifeq ($(TAG), )
 AUTH-JAR = $(JAR-PREFIX)-$(EPOCH)-$(GITCOMMIT).jar
 endif
 
-all: test-java
+all: test-java javadoc
 
 compile-java:
 	$(ANT) compile -Dcompile.jarfile=$(AUTH-JAR)
+	
+javadoc:
+	$(ANT) javadoc
 
 test-java:
 	@# ant runs compile for the test target
