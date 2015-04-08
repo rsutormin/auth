@@ -1,12 +1,24 @@
+JAR-PREFIX = kbase-auth
+
 ANT = ant
 
-VER := $(shell git rev-parse --short HEAD)
-
+GITCOMMIT := $(shell git rev-parse --short HEAD)
 EPOCH := $(shell date +%s)
+#TODO use --points-at vs. --contains when git 1.7.10 available
+TAGS := $(shell git tag --contains $(GITCOMMIT))
+TAG := $(shell python checktags.py $(TAGS))
 
-FINAL_VER := $(shell python translate_version.py $(VER) $(EPOCH))
+ERR := $(findstring Two valid tags for this commit, $(TAG))
 
-AUTH-JAR = kbase-auth-$(FINAL_VER).jar
+ifneq ($(ERR), )
+$(error Tags are ambiguous for this commit: $(TAG))
+endif 
+
+AUTH-JAR = $(JAR-PREFIX)-$(TAG).jar
+
+ifeq ($(TAG), )
+AUTH-JAR = $(JAR-PREFIX)-$(EPOCH)-$(GITCOMMIT).jar
+endif
 
 all: test-java
 
