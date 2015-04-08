@@ -117,7 +117,7 @@ public class AuthService {
 	 * @param userName the user name of the user who the token will represent.
 	 * @param password the password of the user.
 	 * @param refreshIntervalInSeconds the how frequently the token should
-	 * refresh itself, in seconds. 24 * 24 * 60 is generally reasonable.
+	 * refresh itself, in seconds. 24 * 60 * 60 is generally reasonable.
 	 * @return a auto-refreshing token.
 	 * @throws AuthException if the credentials are invalid.
 	 * @throws IOException if an IO error occurs.
@@ -417,7 +417,7 @@ public class AuthService {
 	 * This validates a KBase Auth token, and returns true or if valid or false if not.
 	 * If the token has expired, it throws a TokenExpiredException.
 	 *
-	 * @param token
+	 * @param token the token to validate
 	 * @return true if the token's valid, false otherwise
 	 * @throws TokenExpiredException if the token is expired (it might be otherwise valid)
 	 * @throws IOException if there's a problem communicating with the back end validator.

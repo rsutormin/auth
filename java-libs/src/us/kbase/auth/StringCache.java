@@ -95,7 +95,7 @@ public class StringCache {
 	/**
 	 * Determine whether a string is in the cache. Does not reset the
 	 * expiration time for the string.
-	 * @param token the string to check
+	 * @param string the string to check
 	 * @return <code>true</code> if the string is in the cache, <code>false</code>
 	 * otherwise.
 	 */

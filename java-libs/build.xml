@@ -8,6 +8,7 @@
   <property name="src" location="src"/>
   <property name="jardir" location="../../jars/lib/jars/"/>
   <property name="test" location="test"/>
+  <property name="docs" location="docs"/>
 
   <fileset dir="${jardir}" id="jars">
     <include name="junit/junit-4.9.jar"/>
@@ -19,6 +20,11 @@
   <path id="compile.classpath">
     <fileset refid="jars"/>
   </path>
+	
+  <target name="init" description="make directories">
+    <!-- Create the output directory structure-->
+    <mkdir dir="${docs}"/>
+  </target>
 
   <target name="compile" description="compile the source">
     <fail unless="compile.jarfile" message="property compile.jarfile not set."/>
@@ -33,6 +39,19 @@
       <classpath refid="compile.classpath"/>
       <classpath path="${compile.jarfile}"/>
     </javac>
+  </target>
+
+  <target name="javadoc" depends="init" description="build javadocs">
+    <javadoc access="protected" author="false" classpathref="compile.classpath"
+      destdir="${docs}/javadoc" nodeprecated="false" nodeprecatedlist="false"
+      noindex="false" nonavbar="false" notree="false"
+      source="1.7" splitindex="true" use="true" version="true">
+      <link href="http://download.oracle.com/javase/7/docs/api/"/>
+    <packageset dir="src" defaultexcludes="yes">
+      <include name="**"/>
+      <exclude name="**/test/*"/>
+    </packageset>
+    </javadoc>
   </target>
 
   <target name="test" depends="compile" description="run tests">
