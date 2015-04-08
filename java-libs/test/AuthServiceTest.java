@@ -23,7 +23,6 @@ import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.UnsupportedEncodingException;
 import java.net.URL;
 import java.net.URLEncoder;
 
@@ -63,7 +62,7 @@ public class AuthServiceTest {
 
 
 	@BeforeClass
-	public static void loginTestUser() throws UnsupportedEncodingException {
+	public static void loginTestUser() throws Exception {
 		System.out.println("Setting up test user for AuthUser and AuthToken testing...");
 		try {
 			testUser = new AuthService().login(TEST_UID, TEST_PW);
@@ -81,8 +80,7 @@ public class AuthServiceTest {
 		catch (Exception e) {
 			System.out.println("Setup failed to log in a test user for AuthUser and AuthToken tests!");
 			System.out.println("Not running any tests!");
-			System.out.println(e);
-			System.exit(0);
+			throw e;
 		}
 		testStrings = Arrays.asList("string1", "string2", "string3", "string4", "string5");
 		System.out.println("Done! Beginning testing....");
