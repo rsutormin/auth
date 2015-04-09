@@ -5,7 +5,14 @@ Java client for the KBase authorization service (and Globus Online directly
 where the KBase auth service doesn't yet have the required functionality).
 See the versions file for a mapping of git commit -> version.
 
-VERSION 0.2.0 (Released 4/8/15)
+VERSION 0.3.0 (Released 4/8/15)
+------------------------------------------
+
+NEW FEATURES
+- Added a new class, ConfigurableAuthService, that is instantiable and
+  configurable. Restored the prior behavior to the AuthService class.
+
+VERSION 0.2.0 (Released 4/8/15) DEPRECATED - use 0.3.0
 ------------------------------------------
 
 NEW FEATURES
