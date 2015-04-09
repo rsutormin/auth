@@ -30,8 +30,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * A fairly simple Auth service client for KBase.
  * Usage:
  * 
- * AuthUser user = new AuthService().login(user, password);
- * if (new AuthService().validateToken(user.getToken())) {
+ * AuthUser user = AuthService.login(user, password);
+ * if (AuthService.validateToken(user.getToken())) {
  * 		// There's a valid token! Return the valid user, or just the token, and move along.
  * }
  * 
@@ -49,8 +49,8 @@ public class AuthService {
 	private AuthService() {};
 	
 	private final static AuthConfig DEFAULT_CONFIG = new AuthConfig();
-	final static TokenCache tc = new TokenCache();
-	final static StringCache uc = new StringCache();
+	final static TokenCache TOKEN_CACHE = new TokenCache();
+	final static StringCache USER_CACHE = new StringCache();
 	final static Pattern INVALID_USERNAME =
 			Pattern.compile("[^a-zA-Z0-9_-]");
 	
@@ -65,7 +65,19 @@ public class AuthService {
 	 * @throws AuthException if the credentials are invalid
 	 * @throws IOException if there is a problem communicating with the server.
 	 */
-	public static AuthUser login(String userName, String password, long expiry)
+	public static AuthUser login(
+			final String userName,
+			final String password,
+			final long expiry)
+			throws AuthException, IOException {
+		return login(userName, password, expiry, DEFAULT_CONFIG);
+	}
+	
+	static AuthUser login(
+			final String userName,
+			final String password,
+			final long expiry,
+			final AuthConfig config)
 			throws AuthException, IOException {
 		// This is the data that will be POSTed to the service.
 		// By default (not sure if we *really* need to change it), it fetches all the fields.
@@ -73,7 +85,7 @@ public class AuthService {
 			String dataStr = "user_id=" + URLEncoder.encode(userName, "UTF-8") + 
 							 "&password=" + URLEncoder.encode(password, "UTF-8") + 
 							 "&cookie=1&fields=user_id,name,email,groups,kbase_sessionid,token,verified,opt_in,system_admin";
-			return fetchUser(dataStr, expiry);
+			return fetchUser(dataStr, expiry, config);
 		}
 		catch (UnsupportedEncodingException e) {
 			throw new RuntimeException("An unexpected URL encoding exception occurred: " + e.getLocalizedMessage());
@@ -91,9 +103,10 @@ public class AuthService {
 	 * @throws AuthException if the credentials are invalid
 	 * @throws IOException if there is a problem communicating with the server.
 	 */
-	public static AuthUser login(String userName, String password) throws AuthException,
-																		  IOException {
-		return login(userName, password, AuthToken.DEFAULT_EXPIRES);
+	public static AuthUser login(String userName, String password)
+			throws AuthException, IOException {
+		return login(userName, password, AuthToken.DEFAULT_EXPIRES,
+				DEFAULT_CONFIG);
 	}
 	
 	/** Returns a token that continually refreshes itself and thus never
@@ -125,12 +138,17 @@ public class AuthService {
 	 * @throws AuthException if the credentials are invalid
 	 * @throws IOException if there is a problem communicating with the server.
 	 */
-	public static AuthUser getUserFromToken(AuthToken token) throws AuthException,
-																	IOException {
+	public static AuthUser getUserFromToken(AuthToken token)
+			throws AuthException, IOException {
+		return getUserFromToken(token, DEFAULT_CONFIG);
+	}
+	
+	static AuthUser getUserFromToken(AuthToken token, AuthConfig config)
+			throws AuthException, IOException {
 		String dataStr = "token=" + token.toString() +
 				 "&fields=user_id,name,email,groups,kbase_sessionid,token,verified,opt_in,system_admin";
 
-		return fetchUser(dataStr, token.getExpiryTime());
+		return fetchUser(dataStr, token.getExpiryTime(), config);
 	}
 	
 	/**
@@ -148,6 +166,13 @@ public class AuthService {
 	 */
 	public static Map<String, Boolean> isValidUserName(List<String> usernames,
 			AuthToken token) throws IOException, AuthException {
+		return isValidUserName(usernames, token, DEFAULT_CONFIG);
+	}
+	
+	static Map<String, Boolean> isValidUserName(
+			final List<String> usernames,
+			final AuthToken token,
+			final AuthConfig config) throws IOException, AuthException {
 		//TODO WAIT when auth service supports, just query auth service for this
 		final List<String> badlist = new ArrayList<String>();
 		final Map<String, Boolean> result = new HashMap<String, Boolean>();
@@ -155,13 +180,13 @@ public class AuthService {
 			if (user == null) {
 				continue;
 			}
-			if (uc.hasString(user)) {
+			if (USER_CACHE.hasString(user)) {
 				result.put(user, true);
 			} else {
 				badlist.add(user);
 			}
 		}
-		Map<String, UserDetail> uds = fetchUserDetail(badlist, token);
+		Map<String, UserDetail> uds = fetchUserDetail(badlist, token, config);
 		for (String user: uds.keySet()) {
 			result.put(user, uds.get(user) != null);
 		}
@@ -255,7 +280,7 @@ public class AuthService {
 					throw new AuthException(ex.getMessage(), ex, responseText);
 				}
 				final String user = (String) userdetail.get("username");
-				uc.putString(user);
+				USER_CACHE.putString(user);
 				result.put(user, new UserDetail(user,
 						(String) userdetail.get("email"),
 						(String) userdetail.get("name")));
@@ -281,18 +306,13 @@ public class AuthService {
 	 * Given a data str, describing URL-encoded fields for the auth server, this attempts to authenticate the user
 	 * with KBase servers.
 	 * 
-	 * @param dataStr 
+	 * @param dataStr the data string passed to the auth server.
+	 * @param expiry the desired expiration time for the token
+	 * @param config the configuration to use
 	 * @return an AuthUser that has been authenticated with KBase
 	 * @throws AuthException if the credentials are invalid
 	 * @throws IOException if there is a problem communicating with the server.
 	 */
-	private static AuthUser fetchUser(
-			final String dataStr,
-			final long expiry)
-			throws AuthException, IOException {
-		return fetchUser(dataStr, expiry, DEFAULT_CONFIG);
-	}
-	
 	static AuthUser fetchUser(
 			final String dataStr,
 			final long expiry,
@@ -347,7 +367,7 @@ public class AuthService {
 			}
 			if (user.getToken() != null) {
 				user.getToken().setExpiryTime(expiry);
-				tc.putValidToken(user.getToken());
+				TOKEN_CACHE.putValidToken(user.getToken());
 			}
 
 			br.close();
@@ -387,14 +407,18 @@ public class AuthService {
 	 */
 	public static boolean validateToken(AuthToken token)
 			throws TokenExpiredException, IOException {
+		return validateToken(token, DEFAULT_CONFIG);
+	}
 
+	static boolean validateToken(AuthToken token, AuthConfig config)
+			throws TokenExpiredException, IOException {
 		// If it's expired, then it's invalid, and we throw an exception
 		if(token.isExpired()) {
 			throw new TokenExpiredException("token expired");
 		}
 		
 		// If it's in the cache, then it's valid.
-		if(tc.hasToken(token)) {
+		if(TOKEN_CACHE.hasToken(token)) {
 			return true;
 		}
 
@@ -403,8 +427,8 @@ public class AuthService {
 		try {
 			// if we get a user back (and not an exception), then the token is valid.
 			String dataStr = "token=" + token.toString() + "&fields=user_id";
-			fetchUser(dataStr, token.getExpiryTime());
-			tc.putValidToken(token);
+			fetchUser(dataStr, token.getExpiryTime(), config);
+			TOKEN_CACHE.putValidToken(token);
 			return true;
 		} catch (AuthException e) {
 			// if we get an exception, then an authentication error happened - that's an invalid token.
