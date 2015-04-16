@@ -1,7 +1,6 @@
 package us.kbase.auth.fakesrv;
 
 import java.io.IOException;
-import java.net.URL;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -24,13 +23,11 @@ import org.eclipse.jetty.servlet.ServletHolder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 
-import us.kbase.auth.AuthConfig;
 import us.kbase.auth.AuthToken;
-import us.kbase.auth.AuthUser;
-import us.kbase.auth.ConfigurableAuthService;
-import us.kbase.auth.UserDetail;
 
 public class AuthFakeService extends HttpServlet {
+    private static final long serialVersionUID = -1L;
+    private static final boolean PRINT_DEBUG = false;
     private static final String HEXES = "0123456789abcdef";
     
     private static Server jettyServerSingleton = null;
@@ -62,6 +59,8 @@ public class AuthFakeService extends HttpServlet {
         try {
             String ret = null;
             String urlPath = request.getPathInfo();
+            if (PRINT_DEBUG)
+                System.out.println("Request: " + urlPath + ", " + request.getParameterMap());
             if (urlPath.contains("Sessions/Login")) {
                 String userId = request.getParameter("user_id");
                 String password = request.getParameter("password");
@@ -133,11 +132,16 @@ public class AuthFakeService extends HttpServlet {
             } else {
                 throw new Exception("Url path is not supported: " + urlPath);
             }
+            if (PRINT_DEBUG)
+                System.out.println("Response: " + ret);
             response.getWriter().write(ret);
         } catch (Exception ex) {
             String msg = ex.getMessage();
             if (msg == null)
                 msg = "Unknown error";
+            if (PRINT_DEBUG) {
+                ex.printStackTrace();
+            }
             response.setStatus(401);
             response.getWriter().write(msg);
         }
