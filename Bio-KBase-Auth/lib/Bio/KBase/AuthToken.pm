@@ -318,6 +318,13 @@ sub get {
 	my $headers;
 	if ( $self->{'user_id'} && $self->{'password'}) {
 	    $headers = HTTP::Headers->new;
+	    if ( $self->{'auth_service_url'}) {
+	        my $user_map = $self->auth_service_fetch_user(
+	            "auth_service_url" => $self->{'auth_service_url'},
+	            "path" => '/Sessions/Login', "body" => 'user_id=' . $self->{'user_id'} . 
+	            '&password=' . $self->{'password'} . '&fields=token');
+	        return($self->token( $user_map->{'token'}));
+	    }
 	    $headers->authorization_basic( $self->{'user_id'}, $self->{'password'});
 	    $headers{'Authorization'} = $headers->header('Authorization');
 	} else {
@@ -486,6 +493,13 @@ sub validate {
 	if ( $cached && $cached eq $vars{'un'} ) {
 	    $verify = 1;
 	} else {
+	    if ( $self->{'auth_service_url'}) {
+	        my $user_map = $self->auth_service_fetch_user(
+	            "auth_service_url" => $self->{'auth_service_url'},
+	            "path" => '/Sessions/Login', "body" => 'token=' . $self->{'token'} . 
+	            '&fields=user_id');
+	        $verify = exists($user_map->{'user_id'})
+	    } else {
 	    # Check cache for signer public key
 	    my($response, $binary_sig, $client);
 	    $binary_sig = pack('H*',$vars{'sig'});
@@ -513,6 +527,7 @@ sub validate {
 	    $rsa->use_sha1_hash();
 
 	    $verify = $rsa->verify($sig_data,$binary_sig);
+	    }
 	    if ($verify) {
 		# write the sha1 hash of the token into the cache
 		# we don't actually want to store the tokens themselves
@@ -584,6 +599,42 @@ sub go_request {
     }
 
 }
+
+sub auth_service_fetch_user {
+    my $self = shift @_;
+    my %p = @_;
+    my $json;
+    eval {
+	my $baseurl = $p{'auth_service_url'};
+	my %headers;
+	unless ($p{'path'}) {
+	    die "No path specified";
+	}
+	$headers{'Content-Type'} = 'application/x-www-form-urlencoded';
+	my $headers = HTTP::Headers->new( %headers);
+	my $client = LWP::UserAgent->new(default_headers => $headers);
+	$client->timeout(5);
+	$client->ssl_opts(verify_hostname => 0);
+	my $method = $p{'method'} ? $p{'method'} : "POST";
+	my $url = sprintf('%s%s', $baseurl,$p{'path'});
+	my $req = HTTP::Request->new($method, $url);
+	if ($p{'body'}) {
+	    $req->content( $p{'body'});
+	}
+	my $response = $client->request( $req);
+	unless ($response->is_success) {
+	    die $response->status_line;
+	}
+	$json = decode_json( $response->content());
+	#$json = $self->_SquashJSONBool( $json);
+    };
+    if ($@) {
+	die "Failed to query Globus Online: $@";
+    } else {
+	return( $json);
+    }
+}
+
 
 sub _SquashJSONBool {
     # Walk an object ref returned by from_json() and squash references

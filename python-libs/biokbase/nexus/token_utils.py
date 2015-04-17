@@ -106,7 +106,7 @@ class LoggingCacheWrapper(object):
         log.debug(message.format(self.cache.__class__.__name__, key_id))
         return self.cache.get_public_key(key_id)
 
-def validate_token(token, cache=InMemoryCache(), verify=True):
+def validate_token(token, cache=InMemoryCache(), verify=True, auth_service_url=None):
     """
     Given a request or access token validate it.
 
@@ -121,7 +121,20 @@ def validate_token(token, cache=InMemoryCache(), verify=True):
     for entry in unencoded_token.split('|'):
         key, value = entry.split('=')
         token_map[key] = value
-
+    if auth_service_url:
+        now = time.mktime(datetime.utcnow().timetuple())
+        if token_map['expiry'] < now:
+            raise ValueError('TokenExpired')
+        headers = {'Content-type': 'application/x-www-form-urlencoded'}
+        url = auth_service_url + '/Sessions/Login'
+        data = 'token=' + unencoded_token + '&fields=user_id'
+        ret = requests.post(url, headers = headers, data = data)
+        status = ret.status_code
+        if status >= 200 and status <= 299:
+            user_map = json.loads(ret.text)
+        else:
+            raise ValueError('Failed to verify token: ' + ret.text)
+        return (token_map['un'], user_map['user_id'], '')
     # If the public key is not already in the cache, cache it keyed by the signing subject.
     if not cache.has_public_key(token_map['SigningSubject']):
         response = requests.get(token_map['SigningSubject'], verify=verify)
