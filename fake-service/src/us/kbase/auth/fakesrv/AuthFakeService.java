@@ -79,11 +79,11 @@ public class AuthFakeService extends HttpServlet {
                     long exp = cal.getTime().getTime() / 1000;
                     token = new AuthToken("un=" + userId + "|tokenid=3be5a452-0d97-11e2-81d0-12313809f035|" +
                             "expiry=" + exp + "|client_id=" + userId + "|token_type=Bearer|SigningSubject=" +
-                            "http://localhost/nowhere|sig=" + stringToHex(password));
+                            "https://nexus.api.globusonline.org/|sig=" + stringToHex(addSpaces(password, 128)));
                 } else if (tokenText != null) {
                     token = new AuthToken(tokenText);
                     userId = token.getClientId();
-                    password = hexToString(token.getSignature());
+                    password = hexToString(token.getSignature()).trim();
                 } else {
                     ret = "{\"user_id\": null}";
                 }
@@ -103,7 +103,7 @@ public class AuthFakeService extends HttpServlet {
                 }
             } else if (urlPath.contains("groups/") && urlPath.contains("/members/")) {
                 AuthToken token = new AuthToken(request.getHeader("X-Globus-Goauthtoken"));
-                checkUserPassword(token.getClientId(), hexToString(token.getSignature()));
+                checkUserPassword(token.getClientId(), hexToString(token.getSignature()).trim());
                 String userId = urlPath.substring(urlPath.lastIndexOf('/') + 1);
                 if (!checkUserExists(userId)) {
                     response.setStatus(404);
@@ -147,6 +147,12 @@ public class AuthFakeService extends HttpServlet {
         }
     }
 
+    private static String addSpaces(String text, int neededLength) {
+        char[] suffix = new char[neededLength - text.length()];
+        Arrays.fill(suffix, ' ');
+        return text + new String(suffix);
+    }
+    
     private static void putMapPropIfNeeded(Set<String> fieldSet, Map<String, Object> map, String prop, Object value) {
         if (fieldSet != null && !fieldSet.contains(prop))
             return;
