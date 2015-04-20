@@ -73,6 +73,12 @@ class NexusClient(object):
         the server in the SigningSubject.
 
         :param token: An authentication token provided by the client.
+        
+        :param auth_service_url: An optional url of KBase auth_service; In case 
+        auth_service_url is defined we're going to make authentication request 
+        to '/Sessions/Login' function of KBase auth_service (communicating with 
+        GlobusOnline on service side) rather than communicate with GlobusOnline 
+        directly.
 
         :return: username, client id and the server that issued the token.
         

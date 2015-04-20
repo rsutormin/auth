@@ -318,7 +318,13 @@ sub get {
 	my $headers;
 	if ( $self->{'user_id'} && $self->{'password'}) {
 	    $headers = HTTP::Headers->new;
+	    # In case there is 'auth_service_url' defined in constructor we're going to
+	    # make authentication call to '/Sessions/Login' function of KBase auth_service
+	    # (communicating with GlobusOnline on service side) rather than communicate 
+	    # with GlobusOnline directly from here. 
 	    if ( $self->{'auth_service_url'}) {
+	        # Here we use '/Sessions/Login' function of KBase auth_service sending
+	        # user_id and password there and getting valid token back.
 	        my $user_map = $self->auth_service_fetch_user(
 	            "auth_service_url" => $self->{'auth_service_url'},
 	            "path" => '/Sessions/Login', "body" => 'user_id=' . $self->{'user_id'} . 
@@ -493,7 +499,13 @@ sub validate {
 	if ( $cached && $cached eq $vars{'un'} ) {
 	    $verify = 1;
 	} else {
+	    # In case there is 'auth_service_url' defined in constructor we're going to
+	    # make authentication call to '/Sessions/Login' function of KBase auth_service
+	    # (communicating with GlobusOnline on service side) rather than communicate
+	    # with GlobusOnline directly from here.
 	    if ( $self->{'auth_service_url'}) {
+	        # Here we use '/Sessions/Login' function of KBase auth_service sending
+	        # token there for validation and getting user_id back.
 	        my $user_map = $self->auth_service_fetch_user(
 	            "auth_service_url" => $self->{'auth_service_url'},
 	            "path" => '/Sessions/Login', "body" => 'token=' . $self->{'token'} . 
@@ -599,6 +611,20 @@ sub go_request {
     }
 
 }
+
+# function that handles KBase auth_service requests
+# takes the following params in hash
+# auth_service_url => auth_service end-point
+# path => relative service path part of the URL, 
+#         doesn't include service end-point
+# method => (GET|PUT|POST|DELETE) defaults to POST
+# body => string for http content; Content-Type will be
+#         set to application/x-www-form-urlencoded
+#         automatically
+#
+# Returns a hashref to the json data that was returned
+# throw an exception if there is an error, make sure you
+# trap this with an eval{}!
 
 sub auth_service_fetch_user {
     my $self = shift @_;
