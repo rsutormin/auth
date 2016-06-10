@@ -5,6 +5,14 @@ Java client for the KBase authorization service (and Globus Online directly
 where the KBase auth service doesn't yet have the required functionality).
 See the versions file for a mapping of git commit -> version.
 
+VERSION 0.3.2 (Released TBD)
+----------------------------
+
+BUG FIXES
+- Globus token lifetime changed back to previous value, so duplicated in
+  Authtoken class.
+- Made RefreshingToken.getToken() synchronized.
+
 VERSION 0.3.1 (Released 5/15/15)
 ------------------------------------------
 
