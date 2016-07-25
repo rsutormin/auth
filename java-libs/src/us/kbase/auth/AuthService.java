@@ -118,6 +118,8 @@ public class AuthService {
 	 * @return a auto-refreshing token.
 	 * @throws AuthException if the credentials are invalid.
 	 * @throws IOException if an IO error occurs.
+	 * 
+	 * @deprecated This method will fail once the new auth server is deployed.
 	 */
 	public static RefreshingToken getRefreshingToken(
 			final String userName,
@@ -477,15 +479,14 @@ public class AuthService {
 	}
 	
 	/**
-	 * Sets the URL that the service should point to. This is the URL that points to the login service:
+	 * Checks the provided login service url. The default is:
 	 * https://kbase.us/services/authorization/Sessions/Login
 	 * 
-	 * Before setting the URL, this checks to see if a service exists there with a simple GET request.
-	 * If it sees something resembling the KBase auth service, it will set the URL and return 'true'. 
-	 * Otherwise, no change is made and 'false' is returned.
+	 * Checks to see if a service exists there with a simple GET request.
 	 *
 	 * @param url the new URL for the service
-	 * @throws IOException if something goes wrong with the connection test.
+	 * @throws IOException if something goes wrong with the connection test or
+	 * the URL is not a valid auth service url.
 	 */
 	static void checkServiceUrl(URL url) throws IOException {
 

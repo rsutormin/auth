@@ -92,6 +92,8 @@ public class ConfigurableAuthService {
 	 * @return a auto-refreshing token.
 	 * @throws AuthException if the credentials are invalid.
 	 * @throws IOException if an IO error occurs.
+	 * 
+	 * @deprecated This method will fail once the new auth service is deployed.
 	 */
 	public RefreshingToken getRefreshingToken(
 			final String userName,
@@ -132,7 +134,7 @@ public class ConfigurableAuthService {
 	public Map<String, Boolean> isValidUserName(List<String> usernames)
 			throws IOException, AuthException {
 		checkToken();
-		return isValidUserName(usernames, config.getToken().getToken());
+		return isValidUserName(usernames, config.getToken());
 	}
 	
 	/**
@@ -166,10 +168,10 @@ public class ConfigurableAuthService {
 	public Map<String, UserDetail> fetchUserDetail(List<String> usernames)
 			throws IOException, AuthException {
 		checkToken();
-		return fetchUserDetail(usernames, config.getToken().getToken());
+		return fetchUserDetail(usernames, config.getToken());
 	}
 
-	private void checkToken() throws TokenException {
+	private void checkToken() throws AuthException, IOException {
 		if (config.getToken() == null) {
 			throw new TokenException(
 					"No token specified in the auth client configuration");
@@ -204,14 +206,15 @@ public class ConfigurableAuthService {
 				throw new NullPointerException(
 						"If no token is specified in the auth client configuration a token must be provided");
 			} else {
-				token = config.getToken().getToken();
+				return config.getToken();
 			}
 		}
 		return token;
 	}
 	
 	/**
-	 * Given a String representation of an auth token, this validates it against its source in Globus Online.
+	 * Given a String representation of an auth token, this validates it
+	 * against its source in Globus Online.
 	 * 
 	 * @param tokenStr the token string retrieved from KBase
 	 * @return true if the token's valid, false otherwise
@@ -225,7 +228,7 @@ public class ConfigurableAuthService {
 	}
 	
 	/**
-	 * This validates a KBase Auth token, and returns true or if valid or false if not.
+	 * This validates a KBase Auth token, and returns true if valid or false if not.
 	 * If the token has expired, it throws a TokenExpiredException.
 	 *
 	 * @param token the token to validate

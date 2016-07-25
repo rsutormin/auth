@@ -5,8 +5,22 @@ Java client for the KBase authorization service (and Globus Online directly
 where the KBase auth service doesn't yet have the required functionality).
 See the versions file for a mapping of git commit -> version.
 
-VERSION 0.3.2 (Released TBD)
-----------------------------
+VERSION 0.4.0 (Released TBD)
+---------------------------
+
+BACKWARDS INCOMPATIBILITIES:
+- All RefreshingToken methods and classes are deprecated. They will fail once
+  the new auth service is released.
+- AuthConfig.getToken now returns an AuthToken from the RefreshingToken or
+  standard token, depending on which one is set.
+  
+NEW FEATURES:
+- The AuthConfig object now has a withToken method, which can be used to set
+  a standard token instead of a refreshing token for querying users.
+
+
+VERSION 0.3.2 (Released 6/9/16)
+-------------------------------
 
 BUG FIXES
 - Globus token lifetime changed back to previous value, so duplicated in

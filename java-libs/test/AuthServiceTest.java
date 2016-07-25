@@ -34,7 +34,6 @@ import us.kbase.auth.AuthToken;
 import us.kbase.auth.AuthUser;
 import us.kbase.auth.AuthException;
 import us.kbase.auth.ConfigurableAuthService;
-import us.kbase.auth.RefreshingToken;
 import us.kbase.auth.StringCache;
 import us.kbase.auth.TokenCache;
 import us.kbase.auth.TokenException;
@@ -406,6 +405,103 @@ public class AuthServiceTest {
 
 	// test AuthService methods
 	
+	//TODO TEST LATER delete this when refreshing tokens are removed
+	@SuppressWarnings("deprecation")
+	@Test
+	public void configObjectWithRefreshingToken() throws Exception {
+		
+		try {
+			new ConfigurableAuthService(null);
+			fail("init auth service with null config");
+		} catch (NullPointerException npe) {
+			assertThat("correct exception message", npe.getLocalizedMessage(),
+					is("config cannot be null"));
+		}
+		//defaults
+		AuthConfig d = new AuthConfig();
+		assertThat("correct KBase url", d.getAuthServerURL(),
+				is(new URL("https://www.kbase.us/services/authorization/")));
+		assertThat("correct globus url", d.getGlobusURL(),
+				is(new URL("https://nexus.api.globusonline.org/")));
+		assertThat("correct group id", d.getKbaseUsersGroupID(),
+				is(UUID.fromString("99d2a548-7218-11e2-adc0-12313d2d6e7f")));
+		assertThat("correct token", d.getRefreshingToken(), is((us.kbase.auth.RefreshingToken) null));
+		assertThat("correct full KBase url", d.getAuthLoginURL(),
+				is(new URL("https://www.kbase.us/services/authorization/Sessions/Login")));
+		assertThat("correct full globus url", d.getGlobusGroupMembersURL(),
+				is(new URL("https://nexus.api.globusonline.org/groups/99d2a548-7218-11e2-adc0-12313d2d6e7f/members/")));
+		
+		//custom
+		us.kbase.auth.RefreshingToken rt = AuthService.getRefreshingToken(
+				TEST_UID, TEST_PW, 10000);
+		AuthConfig c = new AuthConfig()
+				.withGlobusAuthURL(new URL("http://foo"))
+				.withKBaseAuthServerURL(new URL("http://bar"))
+				.withKBaseUsersGroupID(UUID.fromString(
+						"9c72867d-8c90-4f9b-a472-d7759d606471"))
+				.withRefreshingToken(rt);
+		
+		assertThat("correct KBase url", c.getAuthServerURL(), is(new URL("http://bar/")));
+		assertThat("correct globus url", c.getGlobusURL(), is(new URL("http://foo/")));
+		assertThat("correct group id", c.getKbaseUsersGroupID(),
+				is(UUID.fromString("9c72867d-8c90-4f9b-a472-d7759d606471")));
+		assertThat("correct token", c.getRefreshingToken(), is(rt));
+		assertThat("correct full KBase url", c.getAuthLoginURL(),
+				is(new URL("http://bar/Sessions/Login")));
+		assertThat("correct full globus url", c.getGlobusGroupMembersURL(),
+				is(new URL("http://foo/groups/9c72867d-8c90-4f9b-a472-d7759d606471/members/")));
+		
+		//urls with trailing slashes
+		AuthConfig stdurl = new AuthConfig()
+				.withGlobusAuthURL(new URL("http://foo/"))
+				.withKBaseAuthServerURL(new URL("http://bar/"));
+		
+		assertThat("correct KBase url", stdurl.getAuthServerURL(), is(new URL("http://bar/")));
+		assertThat("correct globus url", stdurl.getGlobusURL(), is(new URL("http://foo/")));
+		
+		// setting one token removes the other
+		AuthToken t = AuthService.login(TEST_UID, TEST_PW).getToken();
+		c.withToken(t);
+		assertThat("Didn't remove authtoken", c.getRefreshingToken(),
+				is((us.kbase.auth.RefreshingToken) null));
+		assertThat("incorrect token", c.getToken(), is (t));
+		
+		c.withRefreshingToken(rt);
+		assertThat("incorrect token", c.getToken(), is (rt.getToken()));
+		
+		try {
+			new AuthConfig().withGlobusAuthURL(null);
+			fail("made config with bad args");
+		} catch (NullPointerException npe) {
+			assertThat("correct exception message", npe.getLocalizedMessage(),
+					is("globusAuth cannot be null"));
+		}
+		
+		try {
+			new AuthConfig().withKBaseAuthServerURL(null);
+			fail("made config with bad args");
+		} catch (NullPointerException npe) {
+			assertThat("correct exception message", npe.getLocalizedMessage(),
+					is("authServer cannot be null"));
+		}
+		
+		try {
+			new AuthConfig().withKBaseUsersGroupID(null);
+			fail("made config with bad args");
+		} catch (NullPointerException npe) {
+			assertThat("correct exception message", npe.getLocalizedMessage(),
+					is("groupID cannot be null"));
+		}
+		
+		try {
+			new AuthConfig().withRefreshingToken(null);
+			fail("made config with bad args");
+		} catch (NullPointerException npe) {
+			assertThat("correct exception message", npe.getLocalizedMessage(),
+					is("token cannot be null"));
+		}
+	}
+
 	@Test
 	public void configObject() throws Exception {
 		
@@ -424,27 +520,26 @@ public class AuthServiceTest {
 				is(new URL("https://nexus.api.globusonline.org/")));
 		assertThat("correct group id", d.getKbaseUsersGroupID(),
 				is(UUID.fromString("99d2a548-7218-11e2-adc0-12313d2d6e7f")));
-		assertThat("correct token", d.getToken(), is((RefreshingToken) null));
+		assertThat("correct token", d.getToken(), is((AuthToken) null));
 		assertThat("correct full KBase url", d.getAuthLoginURL(),
 				is(new URL("https://www.kbase.us/services/authorization/Sessions/Login")));
 		assertThat("correct full globus url", d.getGlobusGroupMembersURL(),
 				is(new URL("https://nexus.api.globusonline.org/groups/99d2a548-7218-11e2-adc0-12313d2d6e7f/members/")));
 		
 		//custom
-		RefreshingToken rt = AuthService.getRefreshingToken(
-				TEST_UID, TEST_PW, 10000);
+		AuthToken t = AuthService.login(TEST_UID, TEST_PW, 10000).getToken();
 		AuthConfig c = new AuthConfig()
 				.withGlobusAuthURL(new URL("http://foo"))
 				.withKBaseAuthServerURL(new URL("http://bar"))
 				.withKBaseUsersGroupID(UUID.fromString(
 						"9c72867d-8c90-4f9b-a472-d7759d606471"))
-				.withRefreshingToken(rt);
+				.withToken(t);
 		
 		assertThat("correct KBase url", c.getAuthServerURL(), is(new URL("http://bar/")));
 		assertThat("correct globus url", c.getGlobusURL(), is(new URL("http://foo/")));
 		assertThat("correct group id", c.getKbaseUsersGroupID(),
 				is(UUID.fromString("9c72867d-8c90-4f9b-a472-d7759d606471")));
-		assertThat("correct token", c.getToken(), is(rt));
+		assertThat("correct token", c.getToken(), is(t));
 		assertThat("correct full KBase url", c.getAuthLoginURL(),
 				is(new URL("http://bar/Sessions/Login")));
 		assertThat("correct full globus url", c.getGlobusGroupMembersURL(),
@@ -483,14 +578,15 @@ public class AuthServiceTest {
 		}
 		
 		try {
-			new AuthConfig().withRefreshingToken(null);
+			new AuthConfig().withToken(null);
 			fail("made config with bad args");
 		} catch (NullPointerException npe) {
 			assertThat("correct exception message", npe.getLocalizedMessage(),
 					is("token cannot be null"));
 		}
 	}
-
+	
+	
 	@Test
 	public void testGetUserFromTokenObject() throws Exception {
 		AuthToken t = new AuthToken(testUser.getToken().toString(), 400);
@@ -644,11 +740,69 @@ public class AuthServiceTest {
 		}
 	}
 	
+	//TODO TEST LATER delete this when refreshing tokens are removed
+	@SuppressWarnings("deprecation")
 	@Test
 	public void testGetUserDetailsWithRefreshingToken() throws Exception {
 		AuthConfig c = new AuthConfig();
 		ConfigurableAuthService cas = new ConfigurableAuthService(c);
 		c.withRefreshingToken(cas.getRefreshingToken(TEST_UID, TEST_PW, 10000));
+		
+		List<String> users = new ArrayList<String>();
+		users.add("kbasetest");
+		Map<String, UserDetail> res = cas.fetchUserDetail(users);
+		UserDetail ud = res.get("kbasetest");
+		assertThat("username doesn't match", ud.getUserName(), is("kbasetest"));
+		assertThat("email doesn't match", ud.getEmail(), is("kbasetest.globus@gmail.com"));
+		assertThat("full name doesn't match", ud.getFullName(), is("KBase Test Account"));
+		assertThat("user verifies", cas.isValidUserName(users).get("kbasetest"),
+				is(true));
+		
+		res = cas.fetchUserDetail(users, null);
+		ud = res.get("kbasetest");
+		assertThat("username doesn't match", ud.getUserName(), is("kbasetest"));
+		assertThat("email doesn't match", ud.getEmail(), is("kbasetest.globus@gmail.com"));
+		assertThat("full name doesn't match", ud.getFullName(), is("KBase Test Account"));
+		assertThat("user verifies", cas.isValidUserName(users, null).get("kbasetest"),
+				is(true));
+		
+		try {
+			new ConfigurableAuthService().fetchUserDetail(users);
+			fail("got user detail w/o token");
+		} catch (TokenException te) {
+			assertThat("correct exception message", te.getLocalizedMessage(),
+					is("No token specified in the auth client configuration"));
+		}
+		try {
+			new ConfigurableAuthService().fetchUserDetail(users, null);
+			fail("got user detail w/o token");
+		} catch (NullPointerException npe) {
+			assertThat("correct exception message", npe.getLocalizedMessage(),
+					is("If no token is specified in the auth client configuration a token must be provided"));
+		}
+		
+		try {
+			new ConfigurableAuthService().isValidUserName(users);
+			fail("validated user w/o token");
+		} catch (TokenException te) {
+			assertThat("correct exception message", te.getLocalizedMessage(),
+					is("No token specified in the auth client configuration"));
+		}
+		
+		try {
+			new ConfigurableAuthService().isValidUserName(users, null);
+			fail("validated user w/o token");
+		} catch (NullPointerException npe) {
+			assertThat("correct exception message", npe.getLocalizedMessage(),
+					is("If no token is specified in the auth client configuration a token must be provided"));
+		}
+	}
+	
+	@Test
+	public void testGetUserDetailsWithConfigToken() throws Exception {
+		AuthConfig c = new AuthConfig();
+		ConfigurableAuthService cas = new ConfigurableAuthService(c);
+		c.withToken(AuthService.login(TEST_UID, TEST_PW, 10000).getToken());
 		
 		List<String> users = new ArrayList<String>();
 		users.add("kbasetest");
@@ -717,9 +871,11 @@ public class AuthServiceTest {
 		}
 	}
 	
+	//TODO TEST LATER delete this when refreshing tokens are removed
+	@SuppressWarnings("deprecation")
 	@Test
 	public void refreshToken() throws Exception {
-		RefreshingToken rt = AuthService.getRefreshingToken(
+		us.kbase.auth.RefreshingToken rt = AuthService.getRefreshingToken(
 				TEST_UID, TEST_PW, 5);
 		AuthToken t1 = rt.getToken();
 		AuthToken t2 = rt.getToken();
@@ -744,6 +900,7 @@ public class AuthServiceTest {
 		assertTrue("token different after 6s", !t4.toString().equals(t1.toString()));
 	}
 	
+	//TODO TEST LATER delete this when refreshing tokens are removed
 	@Test
 	public void refreshTokenWithBadArgs() throws Exception {
 		failMakeRefreshToken(TEST_UID, TEST_PW, -1,
@@ -764,6 +921,8 @@ public class AuthServiceTest {
 		
 	}
 
+	//TODO TEST LATER delete this when refreshing tokens are removed
+	@SuppressWarnings("deprecation")
 	private void failMakeRefreshToken(String testUid, String testPw,
 			int interval, Exception expected) {
 		try {
