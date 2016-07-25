@@ -24,6 +24,8 @@ BACKWARDS INCOMPATIBILITIES:
   object. Use getToken() to retrieve the token string.
 - Tokens are now cached for at most 5 minutes and getting a token does not
   reset the expiration time.
+- Many getters are removed from AuthUser. Only those fields compatible with
+  the new auth service remain.
   
 NEW FEATURES:
 - The AuthConfig object now has a withToken method, which can be used to set

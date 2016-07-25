@@ -80,7 +80,7 @@ public class AuthService {
 		try {
 			String dataStr = "user_id=" + URLEncoder.encode(userName, "UTF-8") + 
 							 "&password=" + URLEncoder.encode(password, "UTF-8") + 
-							 "&cookie=1&fields=user_id,name,email,groups,kbase_sessionid,token,verified,opt_in,system_admin";
+							 "&fields=user_id,name,email,token";
 			return fetchUser(dataStr, config);
 		}
 		catch (UnsupportedEncodingException e) {
@@ -128,7 +128,7 @@ public class AuthService {
 	static AuthUser getUserFromToken(AuthToken token, AuthConfig config)
 			throws AuthException, IOException {
 		String dataStr = "token=" + token.getToken() +
-				 "&fields=user_id,name,email,groups,kbase_sessionid,token,verified,opt_in,system_admin";
+				 "&fields=user_id,name,email,token";
 
 		return fetchUser(dataStr, config);
 	}

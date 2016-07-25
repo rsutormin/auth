@@ -12,7 +12,6 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.junit.matchers.JUnitMatchers.*;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -47,10 +46,6 @@ public class AuthServiceTest {
 
 	private static final String FULL_NAME = "KBase Test Account";
 	private static final String EMAIL = "kbasetest.globus@gmail.com";
-	private static final boolean IS_SYSADMIN = false;
-	private static final boolean IS_OPT_IN = false;
-	private static final String[] GROUPS = { "kbase_test", "kbase_test_users", "kbase_users2", "kbase_staff", "kbase_users" };
-	private static final boolean EMAIL_VALID = true;
 	private static final List<AuthToken> TEST_TOKENS = new ArrayList<AuthToken>();
 	private static final List<AuthToken> uncachedTokens = new ArrayList<AuthToken>();
 	private static List<String> testStrings;
@@ -91,7 +86,7 @@ public class AuthServiceTest {
 	public static AuthToken getUncachedToken() throws Exception {
 		String dataStr = "user_id=" + URLEncoder.encode(TEST_UID, "UTF-8") + 
 				 "&password=" + URLEncoder.encode(TEST_PW, "UTF-8") + 
-				 "&cookie=1&fields=user_id,name,email,groups,kbase_sessionid,token,verified,opt_in,system_admin";
+				 "&cookie=1&fields=user_id,name,email,token";
 		HttpsURLConnection conn = (HttpsURLConnection)
 				new AuthConfig().getAuthLoginURL().openConnection();
 		conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
@@ -273,7 +268,6 @@ public class AuthServiceTest {
 	@Test
 	public void checkUserSame() throws Exception {
 		assertThat("users have same id", testUser.getUserId(), is(testUser2.getUserId()));
-		assertThat("users have same groups", testUser.getGroups(), is(testUser2.getGroups()));
 		assertThat("users have same full name", testUser.getFullName(), is(testUser2.getFullName()));
 		assertThat("users have same email", testUser.getEmail(), is(testUser2.getEmail()));
 	}
@@ -294,21 +288,6 @@ public class AuthServiceTest {
 	}
 
 	@Test
-	public void testIsUserSysAdmin() {
-		org.junit.Assert.assertTrue("failure - incorrect SysAdmin status", testUser.isSystemAdmin() == IS_SYSADMIN);
-	}
-
-	@Test
-	public void testIsUserOptIn() {
-		org.junit.Assert.assertTrue("failure - incorrect OptIn status", testUser.hasOptIn() == IS_OPT_IN);
-	}
-
-	@Test
-	public void testUserHasValidatedEmail() {
-		org.junit.Assert.assertTrue("failure - incorrect email validation status", testUser.isEmailValidated() == EMAIL_VALID);
-	}
-
-	@Test
 	public void testUserEmail() {
 		org.junit.Assert.assertEquals("failure - incorrect email address",
 				EMAIL, testUser.getEmail());
@@ -319,15 +298,6 @@ public class AuthServiceTest {
 		org.junit.Assert.assertNotNull("failure - user doesn't have a token", testUser.getToken());
 	}
 
-	@Test
-	public void testUserHasSessionId() {
-		org.junit.Assert.assertNotNull("failure - user doesn't have a session id", testUser.getSessionId());
-	}
-
-	@Test
-	public void testUserGroups() {
-		org.junit.Assert.assertThat(testUser.getGroups(), hasItems(GROUPS));
-	}
 	// done with AuthUser tests.
 
 
