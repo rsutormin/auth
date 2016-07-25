@@ -8,6 +8,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -15,7 +16,6 @@ import static org.junit.matchers.JUnitMatchers.*;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -23,6 +23,8 @@ import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLEncoder;
 
@@ -37,8 +39,6 @@ import us.kbase.auth.ConfigurableAuthService;
 import us.kbase.auth.StringCache;
 import us.kbase.auth.TokenCache;
 import us.kbase.auth.TokenException;
-import us.kbase.auth.TokenExpiredException;
-import us.kbase.auth.TokenFormatException;
 import us.kbase.auth.UserDetail;
 
 public class AuthServiceTest {
@@ -51,11 +51,10 @@ public class AuthServiceTest {
 	private static final boolean IS_OPT_IN = false;
 	private static final String[] GROUPS = { "kbase_test", "kbase_test_users", "kbase_users2", "kbase_staff", "kbase_users" };
 	private static final boolean EMAIL_VALID = true;
-	private static final List<AuthToken> someTokens = new ArrayList<AuthToken>();
+	private static final List<AuthToken> TEST_TOKENS = new ArrayList<AuthToken>();
 	private static final List<AuthToken> uncachedTokens = new ArrayList<AuthToken>();
 	private static List<String> testStrings;
 
-	private static final int SHORT_TOKEN_LIFESPAN = 15;       // seconds
 
 	// Fetched before any tests are run - this test user is then used in the various POJO tests.
 	private static AuthUser testUser;
@@ -72,7 +71,7 @@ public class AuthServiceTest {
 			int tokens = 5;
 			for(int i = 0; i < tokens; i++) {
 				System.out.println("Getting token " + (i + 1) + "/" + tokens);
-				someTokens.add(AuthService.login(TEST_UID, TEST_PW).getToken());
+				TEST_TOKENS.add(AuthService.login(TEST_UID, TEST_PW).getToken());
 			}
 			tokens = 4;
 			for(int i = 0; i < tokens; i++) {
@@ -89,16 +88,7 @@ public class AuthServiceTest {
 		System.out.println("Done! Beginning testing....");
 	}
 	
-	/**
-	 * Returns the remaining lifespan of a token in milliseconds.
-	 * @param token the token of interest
-	 * @return long number of remaining milliseconds before the token becomes invalid
-	 */
-	public static long getRemainingLifespan(AuthToken token) {
-		return (token.getExpiryTime() * 1000) - (new Date().getTime() - token.getIssueDate().getTime());
-	}
-
-	public static AuthToken getUncachedToken() throws IOException, AuthException {
+	public static AuthToken getUncachedToken() throws Exception {
 		String dataStr = "user_id=" + URLEncoder.encode(TEST_UID, "UTF-8") + 
 				 "&password=" + URLEncoder.encode(TEST_PW, "UTF-8") + 
 				 "&cookie=1&fields=user_id,name,email,groups,kbase_sessionid,token,verified,opt_in,system_admin";
@@ -128,7 +118,12 @@ public class AuthServiceTest {
 		/** Encoding the HTTP response into JSON format */
 		BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()));
 
-		return new ObjectMapper().readValue(br, AuthUser.class).getToken();
+		AuthToken t = new ObjectMapper().readValue(br, AuthUser.class)
+				.getToken();
+		Method m = t.getClass().getDeclaredMethod("setUserName", String.class);
+		m.setAccessible(true);
+		m.invoke(t, TEST_UID);
+		return t;
 	}
 
 	@AfterClass
@@ -138,65 +133,82 @@ public class AuthServiceTest {
 	
 	//test tokencache
 	@Test
-	public void tokenCacheDropsOldTokens() throws TokenExpiredException, InterruptedException {
-		TokenCache tc = new TokenCache(2, 4);
-		tc.putValidToken(someTokens.get(0));
-		Thread.sleep(50);
-		tc.putValidToken(someTokens.get(1));
-		Thread.sleep(50);
-		assertTrue("failure - cache missing tokens", tc.hasToken(someTokens.get(0)));
-		tc.putValidToken(someTokens.get(2));
-		Thread.sleep(50);
-		tc.putValidToken(someTokens.get(3));
-		Thread.sleep(50);
-		assertTrue("failure - cache missing tokens", tc.hasToken(someTokens.get(0)));
-		tc.putValidToken(someTokens.get(4));
-		boolean[] expected = {true, false, false, false, true};
-		for (int i = 0; i < expected.length; i++) {
-			assertEquals("failure - cache retained wrong tokens", expected[i], tc.hasToken(someTokens.get(i)));
-			
-		}
+	public void authTokenConstruction() throws Exception {
+		AuthToken t = new AuthToken("foo", "bar");
+		assertThat("incorrect token", t.getToken(), is("foo"));
+		assertThat("incorrect user", t.getUserName(), is("bar"));
+		
+		failMakeToken(null, "user", "token cannot be null or empty");
+		failMakeToken("", "user", "token cannot be null or empty");
+		failMakeToken("bar", null, "user cannot be null or empty");
+		failMakeToken("bar", "", "user cannot be null or empty");
 	}
 	
-	@Test(expected = TokenExpiredException.class)
-	public void tokenCacheRejectsExpiredTokens() throws Exception {
-		TokenCache tc = new TokenCache(1, 2);
-		AuthToken token = new AuthToken(testUser.getToken().toString(), 0);
-
-		// If the token still has some life in it, as issued, then sleep until it's gone.
-		long remainingLife = getRemainingLifespan(token);
-		if (remainingLife > 0) {
-			System.out.println("tokenCacheRejectsExpiredTokens: sleeping for " + (remainingLife+10) + " ms to deal with clock skew vs. GlobusOnline");
-			Thread.sleep(remainingLife+10);
+	private void failMakeToken(String token, String user, String exp) {
+		try {
+			new AuthToken(token, user);
+			fail("created bad token");
+		} catch (IllegalArgumentException got) {
+			assertThat("incorrect exception message", got.getMessage(),
+					is(exp));
 		}
+	}
 
-		tc.putValidToken(token);
+	//test tokencache
+	@Test
+	public void tokenCacheDropsOldTokensOnResize() throws Exception {
+		TokenCache tc = new TokenCache(2, 4);
+		tc.putValidToken(TEST_TOKENS.get(0));
+		Thread.sleep(2);
+		tc.putValidToken(TEST_TOKENS.get(1));
+		Thread.sleep(2);
+		tc.putValidToken(TEST_TOKENS.get(2));
+		Thread.sleep(2);
+		tc.putValidToken(TEST_TOKENS.get(3));
+		Thread.sleep(2);
+		tc.putValidToken(TEST_TOKENS.get(0)); // reset the timer
+		assertThat("failure - cache missing tokens",
+				tc.getToken(TEST_TOKENS.get(0).getToken()),
+				is(TEST_TOKENS.get(0)));
+		//make sure oldest token still there
+		assertThat("failure - cache missing tokens",
+				tc.getToken(TEST_TOKENS.get(1).getToken()),
+				is(TEST_TOKENS.get(1)));
+		Thread.sleep(2);
+		tc.putValidToken(TEST_TOKENS.get(4));
+		boolean[] hasToken = {true, false, false, false, true};
+		for (int i = 0; i < hasToken.length; i++) {
+			if (hasToken[i]) {
+				assertNotNull("cache missing token " + i,
+						tc.getToken(TEST_TOKENS.get(i).getToken()));
+			} else {
+				assertNull("cache contains token " + i,
+						tc.getToken(TEST_TOKENS.get(i).getToken()));
+			}
+		}
 	}
 	
 	@Test
 	public void tokenCacheDropsExpiredTokens() throws Exception {
 		TokenCache tc = new TokenCache(2, 3);
-		tc.putValidToken(someTokens.get(0));
-		Thread.sleep(50);
-		tc.putValidToken(someTokens.get(1));
-		Thread.sleep(50);
-		tc.putValidToken(someTokens.get(2));
-		Thread.sleep(50);
-		AuthToken t = new AuthToken(someTokens.get(0).toString(), 0);
-		long remainingLife = getRemainingLifespan(t);
-		if (remainingLife > 0) {
-			System.out.println("tokenCacheDropsExpiredTokens: sleeping for " + (remainingLife+10) + " ms to deal with clock skew vs. GlobusOnline");
-			Thread.sleep(remainingLife+10);
+		Field f = tc.getClass().getDeclaredField("MAX_AGE_MS");
+		f.setAccessible(true);
+		f.set(tc, 70);
+		for (int i = 0; i <= 2; i++) {
+			tc.putValidToken(TEST_TOKENS.get(i));
+			Thread.sleep(50);
 		}
-		try {
-			tc.hasToken(t);
-		} catch (TokenExpiredException e) {}
-		tc.putValidToken(someTokens.get(3));
-		boolean[] expected = {false, false, true, true};
-		for (int i = 0; i < expected.length; i++) {
-			assertEquals("failure - cache retained wrong tokens", expected[i], tc.hasToken(someTokens.get(i)));
-			
+		boolean[] hasToken = {false, false, true};
+		for (int i = 0; i < hasToken.length; i++) {
+			if (hasToken[i]) {
+				assertNotNull("cache missing token " + i,
+						tc.getToken(TEST_TOKENS.get(i).getToken()));
+			} else {
+				assertNull("cache contains token " + i,
+						tc.getToken(TEST_TOKENS.get(i).getToken()));
+			}
 		}
+		f.set(tc, 5 * 60 * 1000); //reset to default
 	}
 	
 	//test StringCache
@@ -266,90 +278,6 @@ public class AuthServiceTest {
 		assertThat("users have same email", testUser.getEmail(), is(testUser2.getEmail()));
 	}
 	
-	@Test
-	public void testCreateTokenFromString() throws TokenFormatException {
-		AuthToken token = new AuthToken(testUser.getTokenString());
-		org.junit.Assert.assertNotNull("failure - unable to create a token from a string", token);
-	}
-
-	@Test
-	public void testGetTokenUserName() {
-		org.junit.Assert.assertNotNull("failure - user name is null", testUser.getToken().getUserName());
-	}
-
-	@Test
-	public void testGetTokenId() {
-		org.junit.Assert.assertNotNull("failure - token ID is null", testUser.getToken().getTokenId());
-	}
-
-	@Test
-	public void testGetTokenClientId() {
-		org.junit.Assert.assertNotNull("failure - client ID is null", testUser.getToken().getClientId());
-	}
-
-	@Test
-	public void testGetTokenSigningSubject() {
-		org.junit.Assert.assertNotNull("failure - signing subject is null", testUser.getToken().getSigningSubject());
-	}
-
-	@Test
-	public void testGetTokenSignature() {
-		org.junit.Assert.assertNotNull("failure - token signature is null", testUser.getToken().getSignature());
-	}
-
-	@Test
-	public void testGetTokenIssue() {
-		org.junit.Assert.assertFalse("failure - issue time is zero", testUser.getToken().getIssueDate().getTime() == 0);
-	}
-
-	@Test
-	public void testGetTokenType() {
-		org.junit.Assert.assertNotNull("failure - token type is null", testUser.getToken().getTokenType());
-	}
-
-	@Test
-	public void testGetTokenData() {
-		org.junit.Assert.assertNotNull("failure - token data is null", testUser.getToken().getTokenData());
-	}
-
-	@Test
-	public void testIsTokenExpired() {
-		// This is a brand new token. It shouldn't be expired.
-		org.junit.Assert.assertFalse("failure - new token is expired", testUser.getToken().isExpired());
-	}
-	
-	@Test
-	public void testTokenExpires() throws Exception {
-		// Test that a token expires properly when created with a short lifespan.
-		// Uses some trickery to get around clock skew vs. Globus.
-		int tokenLifespan = SHORT_TOKEN_LIFESPAN; // sec (initial, will be modified by skew)
-
-		// Fetch a token with default lifespan.
-		AuthToken token = AuthService.login(TEST_UID, TEST_PW).getToken();
-
-		// Estimate clock skew by getting it's creation date and comparing with the system clock.
-		int clockSkew = (int)(token.getIssueDate().getTime() - new Date().getTime()) / 1000; // sec 
-
-		// If that clockSkew is < 0, flip the sign and add it to the short lifespan
-		if (clockSkew < 0) {
-			tokenLifespan -= clockSkew;
-		}
-
-		// Get a fresh token with a short expiry time.
-		token = AuthService.login(TEST_UID, TEST_PW, tokenLifespan).getToken();
-		long remainingLifespan = getRemainingLifespan(token); //token.getIssueDate().getTime() - new Date().getTime() + token.getExpiryTime()*1000;
-		if (remainingLifespan > 0) {
-			System.out.println("testTokenExpires: Sleeping for " + (remainingLifespan+10) + " ms to deal with clock skew vs. GlobusOnline");
-			Thread.sleep(remainingLifespan+10);
-		}
-
-		org.junit.Assert.assertTrue("failure - token should be expired by now", token.isExpired());
-	}
-
-	@Test
-	public void testToString() {
-		org.junit.Assert.assertNotNull("failure - token string is null", testUser.getToken().toString());
-	}
 	// done with AuthToken POJO tests.
 
 
@@ -527,7 +455,7 @@ public class AuthServiceTest {
 				is(new URL("https://nexus.api.globusonline.org/groups/99d2a548-7218-11e2-adc0-12313d2d6e7f/members/")));
 		
 		//custom
-		AuthToken t = AuthService.login(TEST_UID, TEST_PW, 10000).getToken();
+		AuthToken t = AuthService.login(TEST_UID, TEST_PW).getToken();
 		AuthConfig c = new AuthConfig()
 				.withGlobusAuthURL(new URL("http://foo"))
 				.withKBaseAuthServerURL(new URL("http://bar"))
@@ -589,14 +517,13 @@ public class AuthServiceTest {
 	
 	@Test
 	public void testGetUserFromTokenObject() throws Exception {
-		AuthToken t = new AuthToken(testUser.getToken().toString(), 400);
+		AuthToken t = new AuthToken(testUser.getToken().getToken(),
+				testUser.getUserId());
 		AuthUser user = AuthService.getUserFromToken(t);
 		org.junit.Assert.assertNotNull("failure - getting user from a token object returned a null user", user);
-		assertEquals("failure - token expiration wasn't maintained", 400, user.getToken().getExpiryTime());
 		
 		user = new ConfigurableAuthService().getUserFromToken(t);
 		org.junit.Assert.assertNotNull("failure - getting user from a token object returned a null user", user);
-		assertEquals("failure - token expiration wasn't maintained", 400, user.getToken().getExpiryTime());
 	}
 
 	@Test
@@ -609,46 +536,34 @@ public class AuthServiceTest {
 	}
 	
 	@Test
-	public void testLoginWithExpiry() throws Exception {
-		AuthUser user = AuthService.login(TEST_UID, TEST_PW, 300);
-		assertEquals("fail - wrong expiration lifetime", 300, user.getToken().getExpiryTime());
-		
-		user = new ConfigurableAuthService().login(TEST_UID, TEST_PW, 300);
-		assertEquals("fail - wrong expiration lifetime", 300, user.getToken().getExpiryTime());
-	}
-	
-	@Test
-	public void testValidateTokenStr() throws AuthException, IOException {
+	public void testValidateToken() throws AuthException, IOException {
 		String tokenStr = testUser.getTokenString();
-		String tokenStr2 = uncachedTokens.get(0).toString();
-		String tokenStr3 = uncachedTokens.get(1).toString();
+		String tokenStr2 = uncachedTokens.get(0).getToken();
+		String tokenStr3 = uncachedTokens.get(1).getToken();
 		
-		org.junit.Assert.assertTrue("failure - valid token string didn't validate",
-				AuthService.validateToken(tokenStr));
-		org.junit.Assert.assertTrue("failure - valid token object didn't validate",
-				AuthService.validateToken(tokenStr2));
+		assertThat("token validation failed",
+				AuthService.validateToken(tokenStr), is(testUser.getToken()));
+		assertThat("token validation failed",
+				AuthService.validateToken(tokenStr2),
+				is(uncachedTokens.get(0)));
+		//tests getting tokens from the cache. Unnoticable other than in
+		//coverage report.
+		assertThat("token validation failed",
+				AuthService.validateToken(tokenStr2),
+				is(uncachedTokens.get(0)));
 		
-		org.junit.Assert.assertTrue("failure - valid token string didn't validate",
-				new ConfigurableAuthService().validateToken(tokenStr));
-		org.junit.Assert.assertTrue("failure - valid token object didn't validate",
-				new ConfigurableAuthService().validateToken(tokenStr3));
-	}
-
-	@Test
-	public void testValidateTokenObject() throws AuthException, IOException {
-		AuthToken token = testUser.getToken();
-		AuthToken token2 = uncachedTokens.get(2);
-		AuthToken token3 = uncachedTokens.get(3);
 		
-		org.junit.Assert.assertTrue("failure - valid token object didn't validate",
-				AuthService.validateToken(token));
-		org.junit.Assert.assertTrue("failure - valid token object didn't validate",
-				AuthService.validateToken(token2));
-		
-		org.junit.Assert.assertTrue("failure - valid token object didn't validate",
-				new ConfigurableAuthService().validateToken(token));
-		org.junit.Assert.assertTrue("failure - valid token object didn't validate",
-				new ConfigurableAuthService().validateToken(token3));
+		assertThat("token validation failed",
+				new ConfigurableAuthService().validateToken(tokenStr),
+				is(testUser.getToken()));
+		assertThat("token validation failed",
+				new ConfigurableAuthService().validateToken(tokenStr3),
+				is(uncachedTokens.get(1)));
+		//tests getting tokens from the cache. Unnoticable other than in
+		//coverage report.
+		assertThat("token validation failed",
+				new ConfigurableAuthService().validateToken(tokenStr3),
+				is(uncachedTokens.get(1)));
 	}
 
 	// login with bad user/pw
@@ -671,12 +586,6 @@ public class AuthServiceTest {
 	@Test(expected = AuthException.class)
 	public void testFailValidateConfigurable() throws AuthException, IOException {
 		new ConfigurableAuthService().validateToken("asdf");
-	}
-
-	// try to parse a bad token
-	@Test(expected = TokenFormatException.class)
-	public void testFailCreateToken() throws TokenFormatException {
-		new AuthToken("bad token!");
 	}
 
 	@Test
@@ -802,7 +711,7 @@ public class AuthServiceTest {
 	public void testGetUserDetailsWithConfigToken() throws Exception {
 		AuthConfig c = new AuthConfig();
 		ConfigurableAuthService cas = new ConfigurableAuthService(c);
-		c.withToken(AuthService.login(TEST_UID, TEST_PW, 10000).getToken());
+		c.withToken(AuthService.login(TEST_UID, TEST_PW).getToken());
 		
 		List<String> users = new ArrayList<String>();
 		users.add("kbasetest");
@@ -860,14 +769,14 @@ public class AuthServiceTest {
 			AuthService.validateToken(testUser.getToken() + "a");
 		} catch (AuthException ae) {
 			assertThat("correct exception message", ae.getLocalizedMessage(),
-					is("Login failed! Server responded with code 401 Unauthorized"));
+					is("Login failed! Invalid token"));
 		}
 		try {
 			new ConfigurableAuthService().validateToken(
 					testUser.getToken() + "a");
 		} catch (AuthException ae) {
 			assertThat("correct exception message", ae.getLocalizedMessage(),
-					is("Login failed! Server responded with code 401 Unauthorized"));
+					is("Login failed! Invalid token"));
 		}
 	}
 	

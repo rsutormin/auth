@@ -13,6 +13,17 @@ BACKWARDS INCOMPATIBILITIES:
   the new auth service is released.
 - AuthConfig.getToken now returns an AuthToken from the RefreshingToken or
   standard token, depending on which one is set.
+- The validateToken methods now only take a string for the token and return an
+  AuthToken. Validation errors now throw an exception rather than returning
+  false.
+- All references to token expiration times have been removed.
+- All getters in AuthToken have been removed other than getUserName and
+  getToken() (a new method).
+- The AuthToken constructor now takes a username and a token string.
+- AuthToken.toString() now returns a string representation of the AuthToken
+  object. Use getToken() to retrieve the token string.
+- Tokens are now cached for at most 5 minutes and getting a token does not
+  reset the expiration time.
   
 NEW FEATURES:
 - The AuthConfig object now has a withToken method, which can be used to set

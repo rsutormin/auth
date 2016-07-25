@@ -56,31 +56,13 @@ public class ConfigurableAuthService {
 	 * 
 	 * @param userName the username
 	 * @param password the password
-	 * @param expiry the desired expiration time for the token in seconds.
-	 * @return an AuthUser that has been successfully logged in.
-	 * @throws AuthException if the credentials are invalid
-	 * @throws IOException if there is a problem communicating with the server.
-	 */
-	public AuthUser login(String userName, String password, long expiry)
-			throws AuthException, IOException {
-		return AuthService.login(userName, password, expiry, config);
-	}
-	
-
-	/**
-	 * Logs in a user and returns an AuthUser object, which is more or less a POJO containing basic user attributes,
-	 * along with the generated AuthToken.
-	 * 
-	 * @param userName the username
-	 * @param password the password
 	 * @return an AuthUser that has been successfully logged in.
 	 * @throws AuthException if the credentials are invalid
 	 * @throws IOException if there is a problem communicating with the server.
 	 */
 	public AuthUser login(String userName, String password)
 			throws AuthException, IOException {
-		return AuthService.login(userName, password, AuthToken.DEFAULT_EXPIRES,
-				config);
+		return AuthService.login(userName, password, config);
 	}
 	
 	/** Returns a token that continually refreshes itself and thus never
@@ -213,31 +195,16 @@ public class ConfigurableAuthService {
 	}
 	
 	/**
-	 * Given a String representation of an auth token, this validates it
-	 * against its source in Globus Online.
+	 * Validates a token and returns a validated token.
 	 * 
-	 * @param tokenStr the token string retrieved from KBase
-	 * @return true if the token's valid, false otherwise
-	 * @throws AuthException if the credentials are invalid
+	 * @param tokenStr the token string to validate.
+	 * @return a validated token
 	 * @throws IOException if there is a problem communicating with the server.
+	 * @throws AuthException if the token is invalid.
 	 */
-	public boolean validateToken(String tokenStr)
-			throws TokenFormatException, TokenExpiredException, IOException {
-		AuthToken token = new AuthToken(tokenStr);
-		return AuthService.validateToken(token, config);
+	public AuthToken validateToken(final String tokenStr)
+			throws IOException, AuthException {
+		return AuthService.validateToken(tokenStr, config);
 	}
 	
-	/**
-	 * This validates a KBase Auth token, and returns true if valid or false if not.
-	 * If the token has expired, it throws a TokenExpiredException.
-	 *
-	 * @param token the token to validate
-	 * @return true if the token's valid, false otherwise
-	 * @throws TokenExpiredException if the token is expired (it might be otherwise valid)
-	 * @throws IOException if there's a problem communicating with the back end validator.
-	 */
-	public boolean validateToken(AuthToken token)
-			throws TokenExpiredException, IOException {
-		return AuthService.validateToken(token, config);
-	}
 }

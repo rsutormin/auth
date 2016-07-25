@@ -70,7 +70,7 @@ public class AuthUser {
 	 * @return an authentication token String.
 	 */
 	public String getTokenString() {
-		return token.toString();
+		return token.getToken();
 	}
 	
 	@JsonProperty("groups")
