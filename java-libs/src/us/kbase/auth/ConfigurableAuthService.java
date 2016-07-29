@@ -50,6 +50,13 @@ public class ConfigurableAuthService {
 		AuthService.checkServiceUrl(this.config.getAuthLoginURL());
 	}
 	
+	/** Returns the configuration of the auth client.
+	 * @return the authorization configuration.
+	 */
+	public AuthConfig getConfig() {
+		return config;
+	}
+	
 	/**
 	 * Logs in a user and returns an AuthUser object, which is more or less a POJO containing basic user attributes,
 	 * along with the generated AuthToken.

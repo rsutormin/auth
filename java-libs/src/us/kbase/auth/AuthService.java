@@ -463,6 +463,7 @@ public class AuthService {
 	 */
 	static void checkServiceUrl(URL url) throws IOException {
 
+		//TODO LATER need to support HTTP connections for testing purposes, but need to make it very explicit that's happening (like the SDK java clients)
 		HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
 
 		int response = conn.getResponseCode();

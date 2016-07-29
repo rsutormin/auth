@@ -35,6 +35,28 @@ public class AuthConfig {
 	private RefreshingToken refreshingToken = null;
 	private AuthToken token = null;
 	
+	/** Get the default authorization URL.
+	 * @return the default authorization URL.
+	 */
+	public static URL getDefaultAuthURL() {
+		try {
+			return new URL(DEFAULT_KBASE_AUTH_SERVER_URL);
+		} catch (MalformedURLException e) {
+			throw new RuntimeException("The impossible just happened");
+		}
+	}
+	
+	/** Get the default Globus URL.
+	 * @return the default Globus URL.
+	 */
+	public static URL getDefaultGlobusURL() {
+		try {
+			return new URL(DEFAULT_GLOBUS_AUTH_URL);
+		} catch (MalformedURLException e) {
+			throw new RuntimeException("The impossible just happened");
+		}
+	}
+	
 	/**
 	 * Create a configuration object with default settings. In this case the
 	 * token is null.

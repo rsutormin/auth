@@ -51,6 +51,8 @@ public class AuthServiceTest {
 	private static List<String> testStrings;
 
 
+	//TODO LATER will need to make the tests take a token vs. uid/pwd
+	
 	// Fetched before any tests are run - this test user is then used in the various POJO tests.
 	private static AuthUser testUser;
 	private static AuthUser testUser2;
@@ -399,9 +401,17 @@ public class AuthServiceTest {
 					is("token cannot be null"));
 		}
 	}
-
+	
 	@Test
 	public void configObject() throws Exception {
+		
+		assertThat("incorrect default auth url",
+				AuthConfig.getDefaultAuthURL(),
+				is(new URL("https://www.kbase.us/services/authorization/")));
+		
+		assertThat("incorrect default globus url",
+				AuthConfig.getDefaultGlobusURL(),
+				is(new URL("https://nexus.api.globusonline.org/")));
 		
 		try {
 			new ConfigurableAuthService(null);
@@ -412,36 +422,45 @@ public class AuthServiceTest {
 		}
 		//defaults
 		AuthConfig d = new AuthConfig();
-		assertThat("correct KBase url", d.getAuthServerURL(),
-				is(new URL("https://www.kbase.us/services/authorization/")));
-		assertThat("correct globus url", d.getGlobusURL(),
-				is(new URL("https://nexus.api.globusonline.org/")));
-		assertThat("correct group id", d.getKbaseUsersGroupID(),
-				is(UUID.fromString("99d2a548-7218-11e2-adc0-12313d2d6e7f")));
-		assertThat("correct token", d.getToken(), is((AuthToken) null));
-		assertThat("correct full KBase url", d.getAuthLoginURL(),
-				is(new URL("https://www.kbase.us/services/authorization/Sessions/Login")));
-		assertThat("correct full globus url", d.getGlobusGroupMembersURL(),
-				is(new URL("https://nexus.api.globusonline.org/groups/99d2a548-7218-11e2-adc0-12313d2d6e7f/members/")));
+		checkDefaultConfig(d);
+		AuthConfig d2 = new ConfigurableAuthService(d).getConfig();
+		checkDefaultConfig(d2);
+		
 		
 		//custom
 		AuthToken t = AuthService.login(TEST_UID, TEST_PW).getToken();
 		AuthConfig c = new AuthConfig()
-				.withGlobusAuthURL(new URL("http://foo"))
-				.withKBaseAuthServerURL(new URL("http://bar"))
+				.withGlobusAuthURL(new URL("https://foo"))
+				.withKBaseAuthServerURL(new URL("https://bar"))
 				.withKBaseUsersGroupID(UUID.fromString(
 						"9c72867d-8c90-4f9b-a472-d7759d606471"))
 				.withToken(t);
 		
-		assertThat("correct KBase url", c.getAuthServerURL(), is(new URL("http://bar/")));
-		assertThat("correct globus url", c.getGlobusURL(), is(new URL("http://foo/")));
+		assertThat("correct KBase url", c.getAuthServerURL(), is(new URL("https://bar/")));
+		assertThat("correct globus url", c.getGlobusURL(), is(new URL("https://foo/")));
 		assertThat("correct group id", c.getKbaseUsersGroupID(),
 				is(UUID.fromString("9c72867d-8c90-4f9b-a472-d7759d606471")));
 		assertThat("correct token", c.getToken(), is(t));
 		assertThat("correct full KBase url", c.getAuthLoginURL(),
-				is(new URL("http://bar/Sessions/Login")));
+				is(new URL("https://bar/Sessions/Login")));
 		assertThat("correct full globus url", c.getGlobusGroupMembersURL(),
-				is(new URL("http://foo/groups/9c72867d-8c90-4f9b-a472-d7759d606471/members/")));
+				is(new URL("https://foo/groups/9c72867d-8c90-4f9b-a472-d7759d606471/members/")));
+		
+		// can't set a bogus url when passing the config to the config auth
+		// service
+		c.withKBaseAuthServerURL(AuthConfig.getDefaultAuthURL());
+		AuthConfig c2 = new ConfigurableAuthService(c).getConfig();
+		assertThat("correct KBase url", c2.getAuthServerURL(),
+				is(new URL("https://www.kbase.us/services/authorization/")));
+		assertThat("correct globus url", c2.getGlobusURL(), is(new URL("https://foo/")));
+		assertThat("correct group id", c2.getKbaseUsersGroupID(),
+				is(UUID.fromString("9c72867d-8c90-4f9b-a472-d7759d606471")));
+		assertThat("correct token", c2.getToken(), is(t));
+		assertThat("correct full KBase url", c2.getAuthLoginURL(),
+				is(new URL("https://www.kbase.us/services/authorization/Sessions/Login")));
+		assertThat("correct full globus url", c2.getGlobusGroupMembersURL(),
+				is(new URL("https://foo/groups/9c72867d-8c90-4f9b-a472-d7759d606471/members/")));
+		
 		
 		//urls with trailing slashes
 		AuthConfig stdurl = new AuthConfig()
@@ -482,6 +501,20 @@ public class AuthServiceTest {
 			assertThat("correct exception message", npe.getLocalizedMessage(),
 					is("token cannot be null"));
 		}
+	}
+
+	private void checkDefaultConfig(AuthConfig d) throws Exception {
+		assertThat("correct KBase url", d.getAuthServerURL(),
+				is(new URL("https://www.kbase.us/services/authorization/")));
+		assertThat("correct globus url", d.getGlobusURL(),
+				is(new URL("https://nexus.api.globusonline.org/")));
+		assertThat("correct group id", d.getKbaseUsersGroupID(),
+				is(UUID.fromString("99d2a548-7218-11e2-adc0-12313d2d6e7f")));
+		assertThat("correct token", d.getToken(), is((AuthToken) null));
+		assertThat("correct full KBase url", d.getAuthLoginURL(),
+				is(new URL("https://www.kbase.us/services/authorization/Sessions/Login")));
+		assertThat("correct full globus url", d.getGlobusGroupMembersURL(),
+				is(new URL("https://nexus.api.globusonline.org/groups/99d2a548-7218-11e2-adc0-12313d2d6e7f/members/")));
 	}
 	
 	
