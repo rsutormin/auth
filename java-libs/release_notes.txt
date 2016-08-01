@@ -5,7 +5,7 @@ Java client for the KBase authorization service (and Globus Online directly
 where the KBase auth service doesn't yet have the required functionality).
 See the versions file for a mapping of git commit -> version.
 
-VERSION 0.4.0 (Released TBD)
+VERSION 0.4.0 (Released 7/31/16)
 ---------------------------
 
 BACKWARDS INCOMPATIBILITIES:
