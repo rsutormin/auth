@@ -1,5 +1,8 @@
 package us.kbase.auth;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
@@ -88,7 +91,7 @@ public class TokenCache {
 			throw new IllegalArgumentException(
 					"token cannot be null or empty");
 		}
-		final UserDate ud = cache.get(token);
+		final UserDate ud = cache.get(getTokenDigest(token));
 		if (ud == null) {
 			return null;
 		}
@@ -96,6 +99,22 @@ public class TokenCache {
 			return null;
 		}
 		return new AuthToken(token, ud.user);
+	}
+	
+	private String getTokenDigest(final String token) {
+		final MessageDigest digest;
+		try {
+			digest = MessageDigest.getInstance("SHA-256");
+		} catch (NoSuchAlgorithmException e) {
+			throw new RuntimeException("Pretty sure SHA-256 is known, " +
+					"something is very broken here", e);
+		}
+		final byte[] d = digest.digest(token.getBytes(StandardCharsets.UTF_8));
+		final StringBuilder sb = new StringBuilder();
+		for (final byte b : d) {
+			sb.append(String.format("%02x", b));
+		}
+		return sb.toString();
 	}
 	
 	/**
@@ -106,7 +125,8 @@ public class TokenCache {
 		if (token == null) {
 			throw new NullPointerException("token cannot be null");
 		}
-		cache.put(token.getToken(), new UserDate(token.getUserName()));
+		cache.put(getTokenDigest(token.getToken()),
+				new UserDate(token.getUserName()));
 		synchronized (cache) { // block here otherwise all threads may start sorting
 			if (cache.size() <= maxsize) {
 				return;

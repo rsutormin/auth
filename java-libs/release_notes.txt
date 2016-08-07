@@ -10,6 +10,8 @@ VERSION 0.4.1 (Released 7/31/16)
 
 BUG FIXES
 - Fixed a bug that allowed configuration of incorrect urls.
+- Token cache now stores a SHA-256 digest of the token rather than the token
+  itself.
 
 VERSION 0.4.0 (Released 7/31/16)
 --------------------------------
