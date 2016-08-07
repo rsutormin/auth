@@ -31,8 +31,6 @@ public class TokenCache {
 	 * Strings at some point or another.
 	 */
 	
-	//TODO NOW digest the token before putting it in a map
-	
 	/**
 	 * Default nominal size of the cache.
 	 */
