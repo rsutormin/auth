@@ -403,9 +403,9 @@ public class AuthService {
 			final AuthConfig config)
 			throws IOException, AuthException {
 		if (token == null || token.isEmpty()) {
-			throw new IllegalArgumentException("token cannot be null or empty");
+			throw new IllegalArgumentException(
+					"token cannot be null or empty");
 		}
-		//TODO NOW throw npe if token is null
 		
 		// If it's in the cache, then it's valid.
 		final AuthToken t = TOKEN_CACHE.getToken(token);
@@ -475,25 +475,33 @@ public class AuthService {
 
 		//TODO AUTH2 need to support HTTP connections for testing purposes, but need to make it very explicit that's happening (like the SDK java clients)
 		
-		HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
+		final HttpsURLConnection conn =
+				(HttpsURLConnection) url.openConnection();
 
-		int response = conn.getResponseCode();
+		final int response = conn.getResponseCode();
 
 		// we want to check for a 401 error with this text (or something like it):
 		// {"user_id": null, "error_msg": "Must specify user_id and password in POST message body"}
 		if (response == 401) {
-			BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getErrorStream()));
-			String line;
 			String result = "";
-			while ((line = reader.readLine()) != null) {
-				result += line;
+			try (final BufferedReader reader = new BufferedReader(
+					new InputStreamReader(conn.getErrorStream()))) {
+				String line;
+				while ((line = reader.readLine()) != null) {
+					result += line;
+				}
 			}
-			reader.close();
 			conn.disconnect();
 
 			if (!result.contains("\"user_id\": null")) {
-				throw new IOException("Auth service URL invalid");
+				throw new IOException(String.format(
+						"Auth service URL %s is invalid", url));
 			}
-		} //TODO NOW uh... should be throwing an error here
+		} else {
+			conn.disconnect();
+			throw new IOException(String.format(
+					"Auth service URL %s is invalid. Server said: %s %s",
+					url, response, conn.getResponseMessage()));
+		}
 	}
 }

@@ -128,6 +128,25 @@ public class AuthServiceTest {
 		System.out.println("Done testing!");
 	}
 	
+	@Test
+	public void badAuthUrl() throws Exception {
+		failSetUrl("https://kbase.us/authorizations",
+				"Auth service URL https://kbase.us/authorizations/Sessions/Login is invalid. Server said: 404 Not Found");
+		failSetUrl("https://foobarbazbangfakefakefake.com/authorization",
+				"foobarbazbangfakefakefake.com"); // unknown host
+	}
+	
+	private void failSetUrl(final String url, final String exp)
+			throws Exception {
+		final URL u = new URL(url);
+		final AuthConfig ac = new AuthConfig().withKBaseAuthServerURL(u);
+		try {
+			new ConfigurableAuthService(ac);
+		} catch (IOException ioe) {
+			assertThat("incorrect exception", ioe.getMessage(), is(exp));
+		}
+	}
+
 	//test tokencache
 	@Test
 	public void authTokenConstruction() throws Exception {
