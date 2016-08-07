@@ -186,6 +186,33 @@ public class AuthServiceTest {
 	}
 	
 	@Test
+	public void tokenCachePutValidTokenBadArgs() throws Exception {
+		final TokenCache tc = new TokenCache();
+		try {
+			tc.putValidToken(null);
+		} catch (NullPointerException npe) {
+			assertThat("incorrect exception", npe.getMessage(),
+					is("token cannot be null"));
+		}
+	}
+	
+	@Test
+	public void tokenCacheGetTokenBadArgs() throws Exception {
+		failGetToken("");
+		failGetToken(null);
+	}
+	
+	private void failGetToken(final String token) {
+		final TokenCache tc = new TokenCache();
+		try {
+			tc.getToken(token);
+		} catch (IllegalArgumentException iae) {
+			assertThat("incorrect exception", iae.getMessage(),
+					is("token cannot be null or empty"));
+		}
+	}
+
+	@Test
 	public void tokenCacheDropsExpiredTokens() throws Exception {
 		TokenCache tc = new TokenCache(2, 3);
 		Field f = tc.getClass().getDeclaredField("MAX_AGE_MS");
@@ -586,6 +613,28 @@ public class AuthServiceTest {
 		AuthService.validateToken("asdf");
 	}
 	
+	@Test
+	public void validateTokenBadArgs() throws Exception {
+		failValidate("");
+		failValidate(null);
+	}
+	
+	private void failValidate(String token) throws Exception {
+		try {
+			AuthService.validateToken(token);
+		} catch (IllegalArgumentException iae) {
+			assertThat("incorrect exception", iae.getMessage(),
+					is("token cannot be null or empty"));
+		}
+		final ConfigurableAuthService cas = new ConfigurableAuthService();
+		try {
+			cas.validateToken(token);
+		} catch (IllegalArgumentException iae) {
+			assertThat("incorrect exception", iae.getMessage(),
+					is("token cannot be null or empty"));
+		}
+	}
+
 	@Test(expected = AuthException.class)
 	public void testFailValidateConfigurable() throws AuthException, IOException {
 		new ConfigurableAuthService().validateToken("asdf");

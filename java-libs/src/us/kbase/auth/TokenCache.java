@@ -22,6 +22,14 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class TokenCache {
 	
+	/* should really handle tokens as char[] instead of String so the
+	 * char[] can be wiped when it's no longer needed. But since they're going
+	 * over the wire they're probably already strings or will be converted to
+	 * Strings at some point or another.
+	 */
+	
+	//TODO NOW digest the token before putting it in a map
+	
 	/**
 	 * Default nominal size of the cache.
 	 */
@@ -76,6 +84,10 @@ public class TokenCache {
 	 * @return an AuthToken.
 	 */
 	public AuthToken getToken(final String token) {
+		if (token == null || token.isEmpty()) {
+			throw new IllegalArgumentException(
+					"token cannot be null or empty");
+		}
 		final UserDate ud = cache.get(token);
 		if (ud == null) {
 			return null;
@@ -91,6 +103,9 @@ public class TokenCache {
 	 * @param token the token to add
 	 */
 	public void putValidToken(AuthToken token) {
+		if (token == null) {
+			throw new NullPointerException("token cannot be null");
+		}
 		cache.put(token.getToken(), new UserDate(token.getUserName()));
 		synchronized (cache) { // block here otherwise all threads may start sorting
 			if (cache.size() <= maxsize) {
