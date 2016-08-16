@@ -79,18 +79,6 @@ sub LoadConfig {
     $RoleSvcURL = $Conf{'authentication.rolesvcurl'} ?
 	$Conf{'authentication.rolesvcurl'} : role_service_url;
 
-    eval {
-	if ($Conf{'authentication.mongodb'} ) {
-	    require MongoDB;
-	    $MongoDB = MongoDB::Connection->new( host => $Conf{'authentication.mongodb'});
-	}
-    };
-    
-    if ($@) {
-	die "Invalid MongoDB connection declared in ".$ConfPath." authentication.mongodb = ".
-	    $Conf{'authentication.mongodb'};
-    }
-
     %AuthConf = map { $_, $Conf{ $_} } grep /^authentication\./, keys( %Conf);
 
 }

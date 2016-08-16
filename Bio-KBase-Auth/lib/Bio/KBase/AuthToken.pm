@@ -5,7 +5,6 @@ use Bio::KBase::AuthConstants ':all';
 use strict;
 use warnings;
 use JSON;
-use Bio::KBase::Auth;
 use LWP::UserAgent;
 use Digest::SHA1 qw(sha1_base64);
 use Crypt::OpenSSL::RSA;
@@ -14,6 +13,9 @@ use MIME::Base64;
 use URI;
 use POSIX;
 use DateTime;
+use Data::Dumper;
+
+use Bio::KBase::Auth;
 use Bio::KBase::SSHAgent::Agent;
 
 # We use Object::Tiny::RW to generate getters/setters for the attributes
@@ -336,9 +338,11 @@ sub get {
 	    %headers = sign_with_rsa( %p2);
 	}
 	my $path2 = sprintf('%s?%s',$path,$query);
-	$res = $self->go_request( "path" => $path2, 'headers' => \%headers);
-	unless ($res->{'access_token'}) {
-	    die "No token returned by Globus Online";
+#	$res = $self->go_request( "path" => $path2, 'headers' => \%headers);
+	$res = $self->_get_token( "path" => $path, 'user_id'=>$self->{'user_id'},
+            'password'=>$self->{'password'});
+	unless ($res->{'token'}) {
+	    die "No token returned by service";
 	}
     };
     if ($@) {
@@ -346,7 +350,7 @@ sub get {
 	$self->{'user_id'} = undef;
 	die "Failed to get auth token: $@";
     } else {
-	return($self->token( $res->{'access_token'}));
+	return($self->token( $res->{'token'}));
     }
 }
 
@@ -475,8 +479,9 @@ sub validate {
 	# signing subject has a URL that matches the URL for our
 	# Globus Nexus Rest service. A token that is signed by someone
 	# else isn't really that interesting to us.
+        warn $Bio::KBase::Auth::AuthSvcHost;
 	unless ( $vars{'SigningSubject'} =~ /^\Q$Bio::KBase::Auth::AuthSvcHost\E/) {
-	    die "Token signed by unrecognized source: ".$vars{'SigningSubject'};
+	    warn "Token signed by unrecognized source: ".$vars{'SigningSubject'};
 	}
 	unless (length($vars{'sig'}) == 256) {
 	    die "Token has malformed signature field";
@@ -495,6 +500,7 @@ sub validate {
 		$client->ssl_opts(verify_hostname => 0);
 		$client->timeout(5);
 		$response = $client->get( $vars{'SigningSubject'});
+                warn Dumper($response);
 		if ($response->is_success) {
 		    $data = from_json( $response->content());
 		    cache_set( \$SignerCache, $SignerCacheSize, $vars{'SigningSubject'}, encode_base64( $response->content(), ''));
@@ -551,6 +557,7 @@ sub go_request {
     my $json;
     eval {
 	my $baseurl = $Bio::KBase::Auth::AuthSvcHost;
+        warn $baseurl;
 	my %headers;
 	unless ($p{'path'}) {
 	    die "No path specified";
@@ -579,6 +586,54 @@ sub go_request {
     };
     if ($@) {
 	die "Failed to query Globus Online: $@";
+    } else {
+	return( $json);
+    }
+
+}
+
+sub _get_token {
+    my $self = shift @_;
+    my %p = @_;
+
+    my $json;
+    eval {
+	my $baseurl = $Bio::KBase::Auth::AuthSvcHost;
+#	my %headers;
+#        warn $p{'path'};
+	unless ($p{'path'}) {
+	    die "No path specified";
+	}
+#	$headers{'Content-Type'} = 'application/json';
+#	if (defined($p{'headers'})) {
+#	    %headers = (%headers, %{$p{'headers'}});
+#	}
+#	my $headers = HTTP::Headers->new( %headers);
+    
+#	my $client = LWP::UserAgent->new(default_headers => $headers);
+	my $client = LWP::UserAgent->new();
+	$client->timeout(5);
+	$client->ssl_opts(verify_hostname => 0);
+	my $method = $p{'method'} ? $p{'method'} : "POST";
+	my $url = sprintf('%s%s', $baseurl,$p{'path'});
+        $url=$p{'path'};
+        my $content={
+            'user_id'   =>  $p{'user_id'},
+            'password'  =>  $p{'password'},
+            'fields'    =>  'token',
+            };
+	my $response = $client->post($url, $content);
+#	if ($p{'body'}) {
+#	    $req->content( $p{'body'});
+#	}
+	unless ($response->is_success) {
+	    die $response->status_line;
+	}
+	$json = decode_json( $response->content());
+	$json = $self->_SquashJSONBool( $json);
+    };
+    if ($@) {
+	die "Failed to query KBase auth: $@";
     } else {
 	return( $json);
     }
