@@ -314,6 +314,8 @@ sub validate {
     my %p = @_;
     my $url = $Bio::KBase::Auth::AuthorizePath;
 
+    return 'No token provided' unless $self->{'token'};
+    
 # Use KBase auth service to get user (still todo: check local cache)
     eval {
 

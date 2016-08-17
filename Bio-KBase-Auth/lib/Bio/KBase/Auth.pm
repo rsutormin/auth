@@ -8,7 +8,7 @@ use Config::Simple;
 use URI;
 use Bio::KBase::AuthConstants qw(:kbase :globus);
 
-our $VERSION = '0.7.0';
+our $VERSION = '0.9.0';
 
 our $ConfPath = glob "~/.kbase_config";
 
@@ -40,15 +40,7 @@ our $AuthorizePath;
 our $ProfilePath;
 our $RoleSvcURL;
 
-# handle to a MongoDB Connection
-our $MongoDB = undef;
-
 LoadConfig();
-
-if ($@) {
-    die "Invalid MongoDB connection declared in ".$ConfPath." authentication.mongodb = ".
-	$Conf{'authentication.mongodb'};
-}
 
 # Load a new config file (or reload default config) to override the default settings
 sub LoadConfig {
