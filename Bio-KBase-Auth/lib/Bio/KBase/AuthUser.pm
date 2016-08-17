@@ -170,6 +170,10 @@ sub user_id {
 # have it added to the URL path, for updating a subpath, like
 # credentials/ssh. In general, any hash key beginning with
 # an _ will be dropped from the updates
+
+# This should probably be deprecated.  Users should probably update
+# their Globus profile at Globus, and we should use the UserProfile
+# service for local profiles.
 sub update {
     my $self = shift;
     my %p = @_;
@@ -360,6 +364,10 @@ sub go_request {
 # a user is a member of. Returns a hash keyed on
 # role_id with values as simply 1
 #
+
+# I suspect we are not using the /Roles/ endpoints, so this is
+# a candidate for deprecation
+
 sub roles_request {
     my $self = shift @_;
     my %p = @_;
