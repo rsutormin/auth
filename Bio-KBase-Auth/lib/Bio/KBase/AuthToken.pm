@@ -76,24 +76,24 @@ our $TokenEnv = exists($Conf{'authentication.tokenvar'}) ?
 
 # If we have a MongDB connection in the configs, bind $authz_db to it to , otherwise
 # leave it undef. 
-our $AuthzDB = undef;
-if (defined $Conf{'authentication.authzdb'}) {
-
-    eval {
-	my $db = quotemeta( $Conf{'authentication.authzdb'} );
-	if ( grep { /$db/ } $Bio::KBase::Auth::MongoDB->database_names() ) {
-	    $AuthzDB = $Bio::KBase::Auth::MongoDB->get_database($Conf{'authentication.authzdb'});
-	} else {
-	    die "Database $db not found on ".$Conf{'authentication.mongodb'};
-	}
-    };
-    if ($@) {
-	printf STDERR "Error connecting to MongoDB database %s on %s: %s/nSessionID lookups are *not* enabled\n",
-	$Conf{'authentication.authzdb'}, $Bio::KBase::Auth::MongoDB,
-	$@;
-	$AuthzDB = undef; # Should be undef already, just being paranoid
-    }
-}
+#our $AuthzDB = undef;
+#if (defined $Conf{'authentication.authzdb'}) {
+#
+#    eval {
+#	my $db = quotemeta( $Conf{'authentication.authzdb'} );
+#	if ( grep { /$db/ } $Bio::KBase::Auth::MongoDB->database_names() ) {
+#	    $AuthzDB = $Bio::KBase::Auth::MongoDB->get_database($Conf{'authentication.authzdb'});
+#	} else {
+#	    die "Database $db not found on ".$Conf{'authentication.mongodb'};
+#	}
+#    };
+#    if ($@) {
+#	printf STDERR "Error connecting to MongoDB database %s on %s: %s/nSessionID lookups are *not* enabled\n",
+#	$Conf{'authentication.authzdb'}, $Bio::KBase::Auth::MongoDB,
+#	$@;
+#	$AuthzDB = undef; # Should be undef already, just being paranoid
+#    }
+#}
     
 
 # Your typical constructor - takes a hash that specifies the initial values to
@@ -123,7 +123,7 @@ sub new {
 	my $def_attr = scalar( grep { exists( $c{ 'authentication.'.$_}) } @attrs);
 			    
 	# Load any available ssh-agent keys into the sshagent_keys hash
-	$self->get_agent_rsakeys();
+#	$self->get_agent_rsakeys();
 
 	# If we were given a token, try set that using the formal setter
 	# elsif we have appropriate login credentials, try to get a
@@ -140,7 +140,8 @@ sub new {
 	    # otherwise set the other attributes and fetch the token
 	    if (exists( $c{ 'authentication.token'})) {
 		$self->token( $c{'authentication.token'});
-		$self->validate();
+# the client no longer validates tokens
+#		$self->validate();
 	    } else {
 		foreach my $attr ( @attrs) {
 		    if (exists( $c{ 'authentication.'.$attr })) {
@@ -215,22 +216,38 @@ sub cache_set {
 sub token {
     my $self = shift @_;
     my $token = shift;
+    my $url = $Bio::KBase::Auth::AuthorizePath;
 
-    unless( $token) {
+    unless($token) {
 	return( $self->{'token'});
     }
 
     # parse out token and set user_id
     eval {
 	$self->{'token'} = $token;
-	($self->{'user_id'}) = $token =~ /un=(\w+)/;
-	unless ($self->{'user_id'}) {
-	    # Could this be a sessionid hash?
-	    unless ( $self->{token} =~ m/^[0-9a-fA-F]{64}$/) {
-		die "Cannot parse user_id from token - illegal token";
-	    }
+#	($self->{'user_id'}) = $token =~ /un=(\w+)/;
+#	unless ($self->{'user_id'}) {
+#	    # Could this be a sessionid hash?
+#	    unless ( $self->{token} =~ m/^[0-9a-fA-F]{64}$/) {
+#		die "Cannot parse user_id from token - illegal token";
+#	    }
+#	}
+# Use KBase auth service to get user (still todo: check local cache)
+	my $client = LWP::UserAgent->new();
+	$client->timeout(5);
+        my $content={
+            'token'     =>  $self->{'token'},
+            'fields'    =>  'user_id',
+            };
+	my $response = $client->post($url, $content);
+	unless ($response->is_success) {
+	    die $response->status_line;
 	}
+	my $json = decode_json( $response->content());
+#	$json = $self->_SquashJSONBool($json);
+        $self->{'user_id'} = $json->{'user_id'};
     };
+
     if ($@) {
 	$self->error_message("Invalid token: $@");
 	return( undef);
@@ -240,17 +257,11 @@ sub token {
     }
 }
 
-# Get a nexus token, using either user_id, password or user_id, rsakey.
+# Get a nexus token, using user_id, password
 # Parameters looked for within $self:
 # body => body of the http message, if any, can be undefined
 # user_id => user name recognized on globus online for login
-# client_id => user name recognized on globus online for login
-# client_secret => the RSA private key used for signing
 # password => Globus online password
-# sshagent_name => the comment associated with the key in the ssh-agent to use for
-#           authentication. Typically this is the path to the private key
-# sshagent_name => the keyname associated with an ssh-agent loaded key. Must be a
-#           a key in the $self->ssh_keys hash
 # Throws an exception if either invalid set of creds or failed login
 
 sub get {
@@ -263,49 +274,50 @@ sub get {
     my $res;
 
     eval {
-	# If we are given a path to a private key
-	# try to load that, using a passphrase to decrypt if
-	# provided
-	if ( defined( $p{'keyfile'}) ) {
-	    $self->{'keyfile'} = $p{'keyfile'};
-	}						     
-	if ( defined( $p{'keyfile_passphrase'}) ) {
-	    $self->{'keyfile_passphrase'} = $p{'keyfile_passphrase'};
-	}						     
-
-	# read in the decrypted private key if it was specified
-	if ( $self->{'keyfile'} ) {
-	    if ($self->{'keyfile_passphrase'}) {
-		$self->client_secret (decryptPEM( $self->{'keyfile'},
-						  $self->{'keyfile_passphrase'}));
-	    } else {
-		open( KEY, $self->{'keyfile'});
-		read( KEY, $self->{'client_secret'}, -s KEY);
-		close( KEY);
-	    }
-	}
+# Deprecating ssh key auth
+#	# If we are given a path to a private key
+#	# try to load that, using a passphrase to decrypt if
+#	# provided
+#	if ( defined( $p{'keyfile'}) ) {
+#	    $self->{'keyfile'} = $p{'keyfile'};
+#	}						     
+#	if ( defined( $p{'keyfile_passphrase'}) ) {
+#	    $self->{'keyfile_passphrase'} = $p{'keyfile_passphrase'};
+#	}						     
+#
+#	# read in the decrypted private key if it was specified
+#	if ( $self->{'keyfile'} ) {
+#	    if ($self->{'keyfile_passphrase'}) {
+#		$self->client_secret (decryptPEM( $self->{'keyfile'},
+#						  $self->{'keyfile_passphrase'}));
+#	    } else {
+#		open( KEY, $self->{'keyfile'});
+#		read( KEY, $self->{'client_secret'}, -s KEY);
+#		close( KEY);
+#	    }
+#	}
 
 	if ($p{'user_id'}) {
 	    $self->user_id($p{'user_id'});
-	}
-
-	# Note the side effect - if a client secret is explicitly specified, it
-	# will override anything specified with the keyfile argument
-	if ($p{'client_secret'}) {
-	    $self->client_secret($p{'client_secret'});
-	}
-	if ($p{sshagent_keyname}) {
-	    $self->{sshagent_keyname} = $p{sshagent_keyname};
 	}
 	if ($p{'password'}) {
 	    $self->password($p{'password'});
 	}
 
+#	# Note the side effect - if a client secret is explicitly specified, it
+#	# will override anything specified with the keyfile argument
+#	if ($p{'client_secret'}) {
+#	    $self->client_secret($p{'client_secret'});
+#	}
+#	if ($p{sshagent_keyname}) {
+#	    $self->{sshagent_keyname} = $p{sshagent_keyname};
+#	}
+
 	# Make sure we have the right combo of creds
-	if ($self->{'user_id'} && ($self->{'client_secret'} || $self->{'password'} || $self->{sshagent_keyname})) {
+	if ($self->{'user_id'} && $self->{'password'}) {
 	    # no op
 	} else {
-	    die("Need either (user_id, client_secret || password || sshagent_keyname)  to be defined.");
+	    die("Need user_id and password to be defined.");
 	}
 	
 	my $u = URI->new($url);
@@ -446,92 +458,53 @@ sub canonical_time {
 #                     lifetime, overrides the class variable
 #                     $token_lifetime 
 sub validate {
+
+# to do: use auth service to validate
+# POST token to Login to verify
     my $self = shift;
     my %p = @_;
-    my $verify;
-    my $tok_sha1;
+    my $url = $Bio::KBase::Auth::AuthorizePath;
 
+# Use KBase auth service to get user (still todo: check local cache)
     eval {
-	unless ($self->{'token'}) {
-	    die "No token.";
-	}
 
-	# Check for kbase session id, if found, fetch it and replace
-	# the token with that value
-	if ( $self->{token} =~ m/^[0-9a-fA-F]{64}$/ && $AuthzDB) {
-	    my $token = get_sessDB_token( $self->{token});
-	    unless ($token) {
-		die "Session ID does not refer to a legitimate session";
-	    }
-	}
-	my ($sig_data) = $self->{'token'} =~ /^(.*)\|sig=/;
-	unless ($sig_data) {
-	    die "Token lacks signature fields";
-	}
-	my %vars = map { split /=/ } split /\|/, $self->{'token'};
-	unless (defined($p{'lifetime'})) {
-	    $p{'lifetime'} = $token_lifetime;
-	}
-	unless (($vars{'expiry'} + $p{'lifetime'}) >= time) {
-	    die "Token expired at: ".scalar( localtime($vars{'expiry'} + $p{'lifetime'})) ;
-	}
-	# As a sanity check, we are going to verify that the
-	# signing subject has a URL that matches the URL for our
-	# Globus Nexus Rest service. A token that is signed by someone
-	# else isn't really that interesting to us.
-        warn $Bio::KBase::Auth::AuthSvcHost;
-	unless ( $vars{'SigningSubject'} =~ /^\Q$Bio::KBase::Auth::AuthSvcHost\E/) {
-	    warn "Token signed by unrecognized source: ".$vars{'SigningSubject'};
-	}
-	unless (length($vars{'sig'}) == 256) {
-	    die "Token has malformed signature field";
-	}
+        warn $self->user_id;
 	# Check the token cache first
-	my $cached = cache_get( \$TokenCache, $self->{'token'});
-	if ( $cached && $cached eq $vars{'un'} ) {
-	    $verify = 1;
+	my $cached_userid = cache_get( \$TokenCache, $self->{'token'});
+# need to figure out why it's comparing the username
+# (but could get from server if needed anyway)
+#	if ( $cached && $cached eq $vars{'un'} ) {
+        warn 'cached userid is ' . $cached_userid;
+
+	if ( $cached_userid and $cached_userid eq $self->{'user_id'}) {
+            return(1);
 	} else {
-	    # Check cache for signer public key
-	    my($response, $binary_sig, $client);
-	    $binary_sig = pack('H*',$vars{'sig'});
-	    my $data = cache_get( \$SignerCache, $vars{'SigningSubject'});
-	    unless ($data) {
-		$client = LWP::UserAgent->new();
-		$client->ssl_opts(verify_hostname => 0);
-		$client->timeout(5);
-		$response = $client->get( $vars{'SigningSubject'});
-                warn Dumper($response);
-		if ($response->is_success) {
-		    $data = from_json( $response->content());
-		    cache_set( \$SignerCache, $SignerCacheSize, $vars{'SigningSubject'}, encode_base64( $response->content(), ''));
-		} else {
-		    die "Failed to get signing subject: " . $response->status_line;
-		}
-	    } else {
-		$data = from_json(decode_base64( $data));
-	    }
-	    $data = $self->_SquashJSONBool( $data);
-	    unless ($data->{'valid'}) {
-		die "Signing key is not valid:".$response->content();
-	    }
+            my $client = LWP::UserAgent->new();
+	    $client->timeout(5);
+            my $content={
+                'token'   =>  $self->{'token'},
+                'fields'    =>  'token',
+                };
+    	    my $response = $client->post($url, $content);
+	    unless ($response->is_success) {
+	        die $response->status_line;
+        	}
+            my $json = decode_json( $response->content());
+#	    $json = $self->_SquashJSONBool($json);
 
-	    my $rsa = Crypt::OpenSSL::RSA->new_public_key( $data->{'pubkey'});
-	    $rsa->use_sha1_hash();
-
-	    $verify = $rsa->verify($sig_data,$binary_sig);
-	    if ($verify) {
-		# write the sha1 hash of the token into the cache
-		# we don't actually want to store the tokens themselves
-		cache_set( \$TokenCache, $TokenCacheSize, $self->{'token'}, $vars{'un'});
-	    }
+            # write the sha1 hash of the token into the cache
+            # we don't actually want to store the tokens themselves
+            cache_set( \$TokenCache, $TokenCacheSize, $self->{'token'}, $self->{'user_id'});
 	}
+	my $cached2 = cache_get( \$TokenCache, $self->{'token'});
+        warn 'cached2 userid is ' . $cached2;
     };
+
     if ($@) {
-	$self->error_message("Failed to verify token: $@");
-	return( undef);
+	$self->{'error_message'} = "Failed to query KBase auth: $@";
+        return(undef);
     } else {
-	$self->{'error_message'} = $verify ? undef : "Token failed RSA signature verification";
-	return( $verify);
+	return(1);
     }
 }
 
@@ -550,6 +523,8 @@ sub validate {
 # throw an exception if there is an error, make sure you
 # trap this with an eval{}!
 
+# This method will be deprecated as soon as all client functions
+# go through the KBase auth service.
 sub go_request {
     my $self = shift @_;
     my %p = @_;
@@ -592,50 +567,35 @@ sub go_request {
 
 }
 
+# New method, uses the auth service specified (currently in
+# the .kbase_config file, authentication.authpath)
+
 sub _get_token {
     my $self = shift @_;
     my %p = @_;
+    my $url = $Bio::KBase::Auth::AuthorizePath;
 
     my $json;
     eval {
-	my $baseurl = $Bio::KBase::Auth::AuthSvcHost;
-#	my %headers;
-#        warn $p{'path'};
-	unless ($p{'path'}) {
-	    die "No path specified";
-	}
-#	$headers{'Content-Type'} = 'application/json';
-#	if (defined($p{'headers'})) {
-#	    %headers = (%headers, %{$p{'headers'}});
-#	}
-#	my $headers = HTTP::Headers->new( %headers);
-    
-#	my $client = LWP::UserAgent->new(default_headers => $headers);
-	my $client = LWP::UserAgent->new();
+
+        my $client = LWP::UserAgent->new();
 	$client->timeout(5);
-	$client->ssl_opts(verify_hostname => 0);
-	my $method = $p{'method'} ? $p{'method'} : "POST";
-	my $url = sprintf('%s%s', $baseurl,$p{'path'});
-        $url=$p{'path'};
         my $content={
             'user_id'   =>  $p{'user_id'},
             'password'  =>  $p{'password'},
             'fields'    =>  'token',
             };
 	my $response = $client->post($url, $content);
-#	if ($p{'body'}) {
-#	    $req->content( $p{'body'});
-#	}
 	unless ($response->is_success) {
 	    die $response->status_line;
 	}
 	$json = decode_json( $response->content());
-	$json = $self->_SquashJSONBool( $json);
+#	$json = $self->_SquashJSONBool($json);
     };
     if ($@) {
 	die "Failed to query KBase auth: $@";
     } else {
-	return( $json);
+	return($json);
     }
 
 }
@@ -697,20 +657,22 @@ sub decryptPEM {
 # in as the only param. If the session is expired, or the lookup fails,
 # return undef
 
-sub get_sessDB_token {
-    my( $ssid) = shift @_;
-    my( $session) = undef;
+# To be deprecated
 
-    my $token = undef;
-
-    if ( $AuthzDB ) {
-	$session = $AuthzDB->sessions->find_one( { kbase_sessionid => $ssid } );
-	if ($session && DateTime->compare($session->{expiration}, DateTime->now()) <= 0) {
-	    $token = $session->{token};
-	}
-    }
-    return( $token);
-}
+#sub get_sessDB_token {
+#    my( $ssid) = shift @_;
+#    my( $session) = undef;
+#
+#    my $token = undef;
+#
+#    if ( $AuthzDB ) {
+#	$session = $AuthzDB->sessions->find_one( { kbase_sessionid => $ssid } );
+#	if ($session && DateTime->compare($session->{expiration}, DateTime->now()) <= 0) {
+#	    $token = $session->{token};
+#	}
+#    }
+#    return( $token);
+#}
 
 # Check to see if we have an active ssh-agent session, and if so, examine the keys
 # that are being stored, and return a hashref containing only the RSA keys. The hash
@@ -719,33 +681,36 @@ sub get_sessDB_token {
 # is not actually the private key, but just a handle that can be passed back to ssh-agent
 # when requesting that a private key operation be performed. Assumes that SSH_AUTH_SOCK and
 # all that stuff is properly configured
-sub get_agent_rsakeys {
-    my( $self ) = shift;
-    my( %p) = @_;
-    my( $keys ) = {};
 
-    unless ($self->{sshagent}) {
-	$self->{sshagent} = Bio::KBase::SSHAgent::Agent->new(2);
-    }
+# To be deprecated
+
+#sub get_agent_rsakeys {
+#    my( $self ) = shift;
+#    my( %p) = @_;
+#    my( $keys ) = {};
+#
+#    unless ($self->{sshagent}) {
+#	$self->{sshagent} = Bio::KBase::SSHAgent::Agent->new(2);
+#    }
     
-    # If the agent wasn't there, or there are no keys, just bail
-    return $keys unless ($self->{sshagent} && $self->{sshagent}->num_identities()); 
-    $keys = $self->{sshagent}->keys();
-    # Walk through keys and delete any that aren't of type "ssh-rsa"
-    foreach my $name ( keys %$keys) {
-	my $key = $keys->{ $name };
-	unless (substr($key,4,7) eq 'ssh-rsa') {
-	    delete $keys->{$name};
-	}
-    }
+#    # If the agent wasn't there, or there are no keys, just bail
+#    return $keys unless ($self->{sshagent} && $self->{sshagent}->num_identities()); 
+#    $keys = $self->{sshagent}->keys();
+#    # Walk through keys and delete any that aren't of type "ssh-rsa"
+#    foreach my $name ( keys %$keys) {
+#	my $key = $keys->{ $name };
+#	unless (substr($key,4,7) eq 'ssh-rsa') {
+#	    delete $keys->{$name};
+#	}
+#    }
     # if there is only a single RSA key, then make that the default
     # sshagent_keyname
-    if (length(keys %$keys) == 1) {
-	my @keys = keys %$keys;
-	$self->{sshagent_keyname} = $keys[0];
-    }
-    return ($self->{sshagent_keys} = $keys);
-}
+#    if (length(keys %$keys) == 1) {
+#	my @keys = keys %$keys;
+#	$self->{sshagent_keyname} = $keys[0];
+#    }
+#    return ($self->{sshagent_keys} = $keys);
+#}
 
 
 1;
