@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use JSON;
 use LWP::UserAgent;
-use Digest::SHA1 qw(sha1_base64);
+use Digest::SHA qw(sha256_base64);
 use Crypt::OpenSSL::RSA;
 use Convert::PEM;
 use MIME::Base64;
@@ -44,7 +44,7 @@ our $SignerCacheSize = exists($Conf{'authentication.signer_cache_size'}) ?
                               $Conf{'authentication.signer_cache_size'} : 12;
 # For long running processes, like a server, we use a fixed length cache
 # to limit the number of entries we cache. The token cache only stores
-# the user_id and sha1 of the token, and not the actual token
+# the user_id and sha256 of the token, and not the actual token
 our $TokenCache;
 our $TokenCacheSize = exists($Conf{'authentication.token_cache_size'}) ?
                              $Conf{'authentication.token_cache_size'} : 50;
@@ -142,8 +142,8 @@ sub new {
 sub cache_get {
     my($cache, $key) = @_;
 
-    # Convert the key to a salted sha1 hash
-    my $keyhash = sha1_base64( $key.$CacheKeySalt);
+    # Convert the key to a salted sha256 hash
+    my $keyhash = sha256_base64( $key.$CacheKeySalt);
     my $key2 = quotemeta( $keyhash);
     if ($$cache =~ m/^(\d+),key:($key2),value:(.+)$/m ) {
 	my $last = $1;
@@ -168,7 +168,7 @@ sub cache_get {
 # returns the value stored if successful
 sub cache_set {
     my($cache, $maxrows, $key, $value) = @_;
-    my($keyhash) = sha1_base64( $key.$CacheKeySalt);
+    my($keyhash) = sha256_base64( $key.$CacheKeySalt);
     my(@cache) = split /\n/, $$cache;
     push @cache, sprintf("%d,key:%s,value:%s",time(),$keyhash,$value);
     my(@new) = sort {$b cmp $a} @cache;
@@ -313,7 +313,7 @@ sub validate {
             my $json = decode_json( $response->content());
 #	    $json = $self->_SquashJSONBool($json);
 
-            # write the sha1 hash of the token into the cache
+            # write the sha256 hash of the token into the cache
             # we don't actually want to store the tokens themselves
             cache_set( \$TokenCache, $TokenCacheSize, $self->{'token'}, $self->{'user_id'});
 	}
@@ -494,7 +494,7 @@ These are CSV formatted strings for the Token and TokenSigner caches that contai
 
 The last seen time is the output from time() when the record was last request or loaded
 
-The hash key is a salted SHA1 hash of the token string (for the TokenCache) or the Signer URL (for the SignerCache)
+The hash key is a salted SHA256 hash of the token string (for the TokenCache) or the Signer URL (for the SignerCache)
 
 The value is the username associated with the token (for TokenCache) or the JSON document at the Signer URL (for the SignerCache)
 
@@ -508,7 +508,7 @@ This is maximum the number of token validations or signer URL JSON docs that are
 
 =item B<$CacheKeySalt>
 
-String used to salt the sha1 hash calculated for cache keys. Set using authentication.cache_salt
+String used to salt the sha256 hash calculated for cache keys. Set using authentication.cache_salt
 
 =item B<$TokenVar>
 
@@ -540,7 +540,7 @@ It is a series of name value pairs:
    clientid = Globus Nexus client id
    expiry = time when the token was issued
    SigningSubject = url to the public key used to verify the signature
-   sig = RSA sha1 signature hash
+   sig = RSA sha256 signature hash
 
 =item B<password> (string)
 

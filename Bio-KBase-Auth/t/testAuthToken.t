@@ -33,7 +33,7 @@ my %old_config = map { $_ =~ s/authentication\.//; $_ => $Bio::KBase::Auth::Conf
 if ( -e $Bio::KBase::Auth::ConfPath) {
     # clear all the authentication fields that we may care about during testing
     my %new = %old_config;
-    foreach my $key ( 'user_id','password','keyfile','keyfile_passphrase','client_secret','token') {
+    foreach my $key ( 'user_id','password','token') {
 	$new{$key} = undef;
     }
     Bio::KBase::Auth::SetConfigs( %new);
@@ -104,14 +104,6 @@ ok(!($at->validate()), "Testing that empty token fails");
 
 #ok( $at = Bio::KBase::AuthToken->new('user_id' => 'kbasetest', 'password' => '@Suite525'), "Logging in using kbasetest account using username/password");
 #ok($at->validate(), "Validating token from kbasetest username/password");
-
-my $badtoken = <<EOT2;
-un=papa|clientid=papa|expiry=2376607863|SigningSubject=https://graph.not.api.test.globuscs.info/goauth/keys/861eb8e0-e634-11e1-ac2c-1231381a5994|sig=321ca03d17d984b70822e7414f20a73709f87ba4ed427ad7f41671dc58eae15911322a71787bdaece3885187da1158daf37f21eadd10ea2e75274ca0d8e3fc1f70ca7588078c2a4a96d1340f5ac26ccea89b406399486ba592be9f1d8ffe6273b7acdba8a0edf4154cb3da6caa6522f363d2f6f4d04e080d682e15b35f0bbc36
-EOT2
-
-#ok( $at = Bio::KBase::AuthToken->new('token' => $badtoken), "Creating token with bad SigningSubject");
-#ok(!($at->validate()), "Validating that bad SigningSubject fails");
-#ok(($at->error_message() =~ /Token signed by unrecognized source/), "Checking for 'unrecognized source' error message");
 
 note( "Creating settings for testing kbase_config");
 Bio::KBase::Auth::SetConfigs('authpath'=>$authurl,"password" =>$validpassword,"user_id" => $validuser);
