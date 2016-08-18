@@ -4,81 +4,27 @@
 #
 # sychan@lbl.gov
 # 8/13/2012
+# kkeller@lbl.gov August 2016
 
 use lib "../lib/";
 use lib "lib";
+
+use Test::More tests => 18;
+
 use HTTP::Request;
 use LWP::UserAgent;
 use JSON;
 use Digest::MD5 qw( md5_base64);
-use Test::More tests => 18;
+use Config::Simple;
 #use Time::HiRes qw( gettimeofday tv_interval);
 
 BEGIN {
     use_ok( Bio::KBase::AuthToken);
 }
 
+Config::Simple->import_from('test.cfg', \%Config);
+
 my @users = ();
-
-sub testServer {
-    my $d = shift;
-    my $res = new HTTP::Response;
-    my $msg = new HTTP::Message;
-    my $at = new Bio::KBase::AuthToken;
-
-    while (my $c = $d->accept()) {
-	while (my $r = $c->get_request) {
-	    note( sprintf "Server: Recieved a connection: %s %s\n\t%s\n", $r->method, $r->url->path, $r->content);
-	    note( sprintf "        Authorization header: %s\n", $r->header('Authorization'));
-	    my $body = sprintf("You sent a %s for %s.\n\n",$r->method(), $r->url->path);
-	    my ($token) = $r->header('Authorization') =~ /OAuth (.+)/;
-	    
-	    if ($token) {
-		$at->token( $token);
-	    } else {
-		$at->{'token'} = undef;
-	    }
-	    note( "Server received request with token: ". ($token ? $token : "NULL"));
-	    note( sprintf("Validation result on server side: %s", $at->validate() ? $at->validate() : 0 ));
-	    if ($at->validate()) {
-		$res->code(200);
-		$body .= sprintf( "Successfully logged in as user %s\n",
-				  $at->user_id);
-	    } else {
-		$res->code(401);
-		$body .= sprintf("You failed to login: %s.\n", $at->error_message);
-	    }
-	    $res->content( $body);
-	    $c->send_response($res);
-	}
-	$c->close;
-	undef($c);
-    }
-}
-
-sub testClient {
-    my $server = shift;
-
-    my $ua = LWP::UserAgent->new();
-
-    ok( $at = Bio::KBase::AuthToken->new('user_id' => 'kbasetest', 'password' => '@Suite525'), "Logging in using papa account using username/password");
-    ok($at->validate(), "Valid client token for user kbasetest");
-    $ua->default_header( "Authorization" => "OAuth " . $at->token);
-
-    ok( $res = $ua->get( $server."someurl"), "Submitting authenticated request to server");
-    ok( ($res->code >= 200) && ($res->code < 300), "Querying server with token in Authorization header");
-    note( sprintf "Client: Recieved a response: %d %s\n", $res->code, $res->content);
-
-    # As a sanity check, trash the oauth_secret and make sure that
-    # we get a negative result
-    $ua->default_header( "Authorization" => "BogoToken ");
-
-    note( "Client: Sending bad request (expecting failure)\n");
-    ok( $res = $ua->get( $server."someurl"), "Submitting improperly authenticated request to server");
-    ok( ($res->code < 200) || ($res->code >= 300), "Querying server with bad oauth creds, expected 401 error");
-    note( sprintf "Client: Recieved a response: %d %s\n", $res->code, $res->content);
-
-}
 
 if ( defined $ENV{ $Bio::KBase::AuthToken::TokenEnv }) {
     undef $ENV{ $Bio::KBase::AuthToken::TokenEnv };
