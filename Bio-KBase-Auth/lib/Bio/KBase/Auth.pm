@@ -3,10 +3,10 @@ package Bio::KBase::Auth;
 # Common information across the apps
 #
 # sychan 4/24/2012
+# kkeller August 2016
+
 use strict;
 use Config::Simple;
-use URI;
-use Bio::KBase::AuthConstants qw(:kbase :globus);
 
 our $VERSION = '0.9.0';
 
@@ -52,24 +52,18 @@ sub LoadConfig {
 	$Conf{'authentication.client_secret'} =~ s/\\n/\n/g;
     }
 
-    my $token_url = URI->new(globus_token_url);
-    my $profile_url = URI->new(globus_profile_url);
 
-    my $bare = $token_url->clone();
-    $bare->query(undef);
-    $bare->path('/');
-
-    $AuthSvcHost = $Conf{'authentication.servicehost'} ?
-	$Conf{'authentication.servicehost'} : $bare->as_string;
+#    $AuthSvcHost = $Conf{'authentication.servicehost'} ?
+#	$Conf{'authentication.servicehost'} : $bare->as_string;
     
     $AuthorizePath = $Conf{'authentication.authpath'} ?
-	$Conf{'authentication.authpath'} : $token_url->path;
+	$Conf{'authentication.authpath'} : 'https://kbase.us/services/authorization/Sessions/Login';
     
-    $ProfilePath = $Conf{'authentication.profilepath'} ?
-	$Conf{'authentication.profilepath'} : $profile_url->path;
+#    $ProfilePath = $Conf{'authentication.profilepath'} ?
+#	$Conf{'authentication.profilepath'} : $profile_url->path;
     
-    $RoleSvcURL = $Conf{'authentication.rolesvcurl'} ?
-	$Conf{'authentication.rolesvcurl'} : role_service_url;
+#    $RoleSvcURL = $Conf{'authentication.rolesvcurl'} ?
+#	$Conf{'authentication.rolesvcurl'} : role_service_url;
 
     %AuthConf = map { $_, $Conf{ $_} } grep /^authentication\./, keys( %Conf);
 

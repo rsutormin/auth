@@ -1,8 +1,5 @@
 package Bio::KBase::AuthToken;
 
-# may not even need this any longer
-#use Bio::KBase::AuthConstants ':kbase';
-
 use strict;
 use warnings;
 use JSON;
@@ -83,6 +80,9 @@ sub new {
         'error_message' => undef,
         @_
     );
+
+    $self->{'auth_svc'} = $Bio::KBase::Auth::AuthorizePath
+        unless ($self->{'auth_svc'});
 
     eval {
 	# make ignore_kbase_config an alias for ignore_authrc if it isn't specified
@@ -184,7 +184,7 @@ sub cache_set {
 sub token {
     my $self = shift @_;
     my $token = shift;
-    my $url = $Bio::KBase::Auth::AuthorizePath;
+    my $url = $self->{'auth_svc'};
 
     unless($token) {
 	return( $self->{'token'});
@@ -229,10 +229,6 @@ sub token {
 sub get {
     my $self = shift @_;
     my %p = @_;
-    my $path = $Bio::KBase::Auth::AuthorizePath;
-    my $url = $Bio::KBase::Auth::AuthSvcHost;
-    my $method = "GET";
-    my %headers;
     my $res;
 
     eval {
@@ -250,38 +246,7 @@ sub get {
 	    die("Need user_id and password to be defined.");
 	}
 	
-	my $u = URI->new($url);
-	my %qparams = ("grant_type" => "client_credentials",
-		       "client_id" => $self->{'client_id'} ? $self->{'client_id'} : $self->{'user_id'});
-	$u->query_form( %qparams );
-	my $query=$u->query();
-	
-	# Okay, if we have user_id/password, create a basic auth header and extract it
-	# otherwise create a set of RSA signature headers using
-	# user_id and client_secret
-	my $headers;
-	if ( $self->{'user_id'} && $self->{'password'}) {
-	    $headers = HTTP::Headers->new;
-	    $headers->authorization_basic( $self->{'user_id'}, $self->{'password'});
-	    $headers{'Authorization'} = $headers->header('Authorization');
-	} else {
-	    my %p2 = ( path => $path,
-		       method => $method,
-		       user_id => $self->{'user_id'},
-		       query => $query,
-		       body => $self->{'body'} );
-	    if ( $self->{client_secret}) {
-		$p2{rsakey} = $self->{client_secret};
-	    } else {
-		$p2{agent} = $self->{sshagent};
-		$p2{sshagent_keyname} = $self->{sshagent_keyname};
-	    }
-	    
-	    %headers = sign_with_rsa( %p2);
-	}
-	my $path2 = sprintf('%s?%s',$path,$query);
-#	$res = $self->go_request( "path" => $path2, 'headers' => \%headers);
-	$res = $self->_get_token( "path" => $path, 'user_id'=>$self->{'user_id'},
+	$res = $self->_get_token( 'user_id'=>$self->{'user_id'},
             'password'=>$self->{'password'});
 	unless ($res->{'token'}) {
 	    die "No token returned by service";
@@ -312,7 +277,7 @@ sub validate {
 # POST token to Login to verify
     my $self = shift;
     my %p = @_;
-    my $url = $Bio::KBase::Auth::AuthorizePath;
+    my $url = $self->{'auth_svc'};
 
     unless ($self->{'token'})
     {
@@ -370,7 +335,7 @@ sub validate {
 sub _get_token {
     my $self = shift @_;
     my %p = @_;
-    my $url = $Bio::KBase::Auth::AuthorizePath;
+    my $url = $self->{'auth_svc'};
 
     my $json;
     eval {
