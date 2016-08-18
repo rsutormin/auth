@@ -314,18 +314,22 @@ sub validate {
     my %p = @_;
     my $url = $Bio::KBase::Auth::AuthorizePath;
 
-    return 'No token provided' unless $self->{'token'};
+    unless ($self->{'token'})
+    {
+        $self->{'error_message'} = 'No token provided';
+        return(undef);
+    }
     
 # Use KBase auth service to get user (still todo: check local cache)
     eval {
 
-        warn $self->user_id;
+#        warn $self->user_id;
 	# Check the token cache first
 	my $cached_userid = cache_get( \$TokenCache, $self->{'token'});
 # need to figure out why it's comparing the username
 # (but could get from server if needed anyway)
 #	if ( $cached && $cached eq $vars{'un'} ) {
-        warn 'cached userid is ' . $cached_userid;
+#        warn 'cached userid is ' . $cached_userid;
 
 	if ( $cached_userid and $cached_userid eq $self->{'user_id'}) {
             return(1);
@@ -336,6 +340,7 @@ sub validate {
                 'token'   =>  $self->{'token'},
                 'fields'    =>  'token',
                 };
+#            warn $url;
     	    my $response = $client->post($url, $content);
 	    unless ($response->is_success) {
 	        die $response->status_line;
@@ -348,7 +353,7 @@ sub validate {
             cache_set( \$TokenCache, $TokenCacheSize, $self->{'token'}, $self->{'user_id'});
 	}
 	my $cached2 = cache_get( \$TokenCache, $self->{'token'});
-        warn 'cached2 userid is ' . $cached2;
+#        warn 'cached2 userid is ' . $cached2;
     };
 
     if ($@) {
