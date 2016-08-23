@@ -117,8 +117,10 @@ ok( $at->validate(), "Verifying that valid user token was acquired properly with
 ok( $at = Bio::KBase::AuthToken->new('auth_svc'=>$authurl, ignore_kbase_config => 1), "Creating a blank object by ignoring the kbase_config file");
 ok( ! defined($at->user_id()), "Verifying that kbase_config was ignored");
 
+# SetConfigs seems to be remembering configs set during the test
 if ( -e $Bio::KBase::Auth::ConfPath) {
     # restore old config
+    $old_config{'password'} = undef;
     Bio::KBase::Auth::SetConfigs( %old_config);
 }
 
