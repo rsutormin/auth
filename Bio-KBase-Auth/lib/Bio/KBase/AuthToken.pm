@@ -39,6 +39,7 @@ our @attrs = ( 'user_id', 'token', 'password',);
 our $LWPTimeout = 5;
 
 # Some hashes to cache tokens and Token Signers we have seen before
+# We should probably remove the SignerCache since it's not being used
 our $SignerCache;
 our $SignerCacheSize = exists($Conf{'authentication.signer_cache_size'}) ?
                               $Conf{'authentication.signer_cache_size'} : 12;
@@ -105,7 +106,6 @@ sub new {
 	# token
 	if ($self->{'token'}) {
 	    $self->token( $self->{'token'});
-	    $self->validate();
 	} elsif ($self->{'user_id'} && $self->{'password'} ) {
 	    $self->get();
 	} elsif ( defined( $ENV{$TokenEnv})) {
@@ -115,7 +115,6 @@ sub new {
 	    # otherwise set the other attributes and fetch the token
 	    if (exists( $c{'authentication.token'})) {
 		$self->token( $c{'authentication.token'});
-		$self->validate();
 	    } else {
 		foreach my $attr ( @attrs) {
 		    if (exists( $c{ 'authentication.'.$attr })) {
@@ -152,9 +151,6 @@ sub cache_get {
     
     if ($cache->{$keyhash} and (time() - $cache->{$keyhash}{'timestamp'} < $TokenCacheExpire))
     {
-        # update last seen time: the old Perl code did this
-        # but the current Python code does not
-        $cache->{$keyhash}{'timestamp'} = time();
         return $cache->{$keyhash}{'value'};
     }
 
@@ -184,7 +180,6 @@ sub cache_set {
         timestamp   =>  time(),
         };
 
-    # still to do: reduce cache if too many keys
     if ( (scalar keys(%$cache)) > $maxsize)
     {
         my $deletesize = int($maxsize/2)-1;
@@ -231,13 +226,13 @@ sub token {
 	if ( $cached_userid and $cached_userid eq $self->{'user_id'}) {
             return($token);
         }
-	my $res = $self->_auth_svc_req( 'user_id'=>$self->{'user_id'},
-            'password'=>$self->{'password'}, 'fields' => 'token');
-	unless ($res->{'user_id'}) {
+	my $res = $self->_auth_svc_req( 'user_id'=>$self->{'token'},
+            'fields' => 'token');
+	unless ($res->{'token'}) {
 	    die "No user_id returned by service";
         }
 #	$json = $self->_SquashJSONBool($json);
-        $self->{'user_id'} = $res->{'user_id'};
+        $self->{'token'} = $res->{'token'};
         # write the cache
         cache_set( $TokenCache, $TokenCacheSize, $self->{'token'}, $self->{'user_id'});
     };
@@ -319,9 +314,9 @@ sub validate {
             return(1);
 	} else {
 	my $res = $self->_auth_svc_req( 'token'=>$self->{'token'},
-            'fields' => 'token');
-	unless ($res->{'token'}) {
-	    die "No token returned by service";
+            'fields' => 'user_id');
+	unless ($res->{'user_id'}) {
+	    die "No user_id returned by service";
         }
             # write the cache
             cache_set( $TokenCache, $TokenCacheSize, $self->{'token'}, $self->{'user_id'});
