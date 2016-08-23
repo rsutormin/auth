@@ -8,15 +8,16 @@
 
 use strict;
 
-use lib "../lib/";
+#use lib "../lib/";
 
-use Test::More tests => 26;
+use Test::More tests => 27;
+#use Test::More;
 
+use Data::Dumper;
 use Config::Simple;
 
 BEGIN {
-    no strict;
-    use_ok( Bio::KBase::AuthToken);
+    use_ok( 'Bio::KBase::AuthToken');
 }
 
 my %testConfig;
@@ -48,10 +49,11 @@ my $validtoken1=$testConfig{'auth_test.test.validtoken1'};
 my $validtoken2=$testConfig{'auth_test.test.validtoken2'};
 my $invalidtoken=$testConfig{'auth_test.test.invalidtoken'};
 
-
 note("Using auth server $authurl for testing");
 
 my $at;
+ok( $at = Bio::KBase::AuthToken->new(), "Creating empty object with no config");
+
 ok( $at = Bio::KBase::AuthToken->new('auth_svc'=>$authurl), "Creating empty token");
 ok( (not defined($at->error_message())), "Making sure empty token doesn't generate error");
 

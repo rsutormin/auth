@@ -48,23 +48,10 @@ sub LoadConfig {
 
     my $c = Config::Simple->new( $newConfPath);
     %Conf = $c ? $c->vars() : ();
-    if (defined( $Conf{'authentication.client_secret'})) {
-	$Conf{'authentication.client_secret'} =~ s/\\n/\n/g;
-    }
 
-
-#    $AuthSvcHost = $Conf{'authentication.servicehost'} ?
-#	$Conf{'authentication.servicehost'} : $bare->as_string;
+    $AuthorizePath = $Conf{'authentication.auth_svc'} ?
+	$Conf{'authentication.auth_svc'} : 'https://kbase.us/services/authorization/Sessions/Login';
     
-    $AuthorizePath = $Conf{'authentication.authpath'} ?
-	$Conf{'authentication.authpath'} : 'https://kbase.us/services/authorization/Sessions/Login';
-    
-#    $ProfilePath = $Conf{'authentication.profilepath'} ?
-#	$Conf{'authentication.profilepath'} : $profile_url->path;
-    
-#    $RoleSvcURL = $Conf{'authentication.rolesvcurl'} ?
-#	$Conf{'authentication.rolesvcurl'} : role_service_url;
-
     %AuthConf = map { $_, $Conf{ $_} } grep /^authentication\./, keys( %Conf);
 
 }
@@ -184,7 +171,7 @@ A string specifying the base URL for the authentication and profile service. It 
 
 =item B<%AuthorizePath>
 
-The path beneath $AuthSvcHost that supports authentication token requests, defaults to "/goauth/token". Set by 'authentication.authpath' in .kbase_config
+The path beneath $AuthSvcHost that supports authentication token requests, defaults to "/goauth/token". Set by 'authentication.auth_svc' in .kbase_config
 
 =item B<$ProfilePath>
 

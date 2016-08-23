@@ -34,9 +34,9 @@ our $VERSION = $Bio::KBase::Auth::VERSION;
 # used to add extra time to the lifetime of tokens. The unit is seconds.
 # This can be be overridden  with a parameter passed into the validate() function.
 our $token_lifetime = 0;
-our @attrs = ( 'user_id', 'token','client_secret', 'keyfile',
-	       'keyfile_passphrase','password','sshagent_keys',
-	       'sshagent_keyname');
+our @attrs = ( 'user_id', 'token', 'password',);
+
+our $LWPTimeout = 5;
 
 # Some hashes to cache tokens and Token Signers we have seen before
 our $SignerCache;
@@ -47,7 +47,11 @@ our $SignerCacheSize = exists($Conf{'authentication.signer_cache_size'}) ?
 # the user_id and sha256 of the token, and not the actual token
 our $TokenCache;
 our $TokenCacheSize = exists($Conf{'authentication.token_cache_size'}) ?
-                             $Conf{'authentication.token_cache_size'} : 50;
+                             $Conf{'authentication.token_cache_size'} : 2000;
+
+# Expire cache entries which are older than this
+our $TokenCacheExpire = exists($Conf{'authentication.token_cache_expire'}) ?
+                             $Conf{'authentication.token_cache_expire'} : 5*60;
 
 # Pickup the cache hashing salt from configs
 our $CacheKeySalt = exists($Conf{'authentication.cache_salt'}) ?
@@ -56,10 +60,11 @@ our $CacheKeySalt = exists($Conf{'authentication.cache_salt'}) ?
 # If enabled, create some shared memory hashes for our cache.
 # Make them only readable/writeable by ourselves
 if ($Conf{'authentication.shm_cache'}) {
+    die 'not supported!';
 }
 
-$TokenCache = "";
-$SignerCache = "";
+$TokenCache = {};
+$SignerCache = '';
 
 # This is the name of the environment variable that contains a
 # pregenerated token
@@ -100,6 +105,7 @@ sub new {
 	# token
 	if ($self->{'token'}) {
 	    $self->token( $self->{'token'});
+	    $self->validate();
 	} elsif ($self->{'user_id'} && $self->{'password'} ) {
 	    $self->get();
 	} elsif ( defined( $ENV{$TokenEnv})) {
@@ -107,7 +113,7 @@ sub new {
 	} elsif (! $self->{'ignore_kbase_config'} && $def_attr ) {
 	    # If we get a token, use that immediately and ignore the rest,
 	    # otherwise set the other attributes and fetch the token
-	    if (exists( $c{ 'authentication.token'})) {
+	    if (exists( $c{'authentication.token'})) {
 		$self->token( $c{'authentication.token'});
 		$self->validate();
 	    } else {
@@ -126,13 +132,6 @@ sub new {
     return($self);
 }
 
-# Caches are implemented as a largish string structures in CSV
-# format with the following entries per line:
-# last_seen,key:lookup_key,value:cached_value
-# This is to simplify storage in memory for a shared memory
-# segment, and also to allow the use of fast regex functions
-# to manage the cache
-
 # fetch something from the cache
 # cache_get( cache, key)
 # cache is a reference to the string used to store the cache
@@ -142,24 +141,28 @@ sub new {
 sub cache_get {
     my($cache, $key) = @_;
 
+    unless ($key)
+    {
+        warn 'Must supply a key';
+        return undef;
+    }
+    
     # Convert the key to a salted sha256 hash
     my $keyhash = sha256_base64( $key.$CacheKeySalt);
-    my $key2 = quotemeta( $keyhash);
-    if ($$cache =~ m/^(\d+),key:($key2),value:(.+)$/m ) {
-	my $last = $1;
-	$key = $2;
-	my $value = $3;
-	# Update last seen time
-	my $now = time();
-	$$cache =~ s/^$last,key:$key2/$now,key:$key/m;
-	return($value);
-    } else {
-	return( undef );
+    
+    if ($cache->{$keyhash} and (time() - $cache->{$keyhash}{'timestamp'} < $TokenCacheExpire))
+    {
+        # update last seen time: the old Perl code did this
+        # but the current Python code does not
+        $cache->{$keyhash}{'timestamp'} = time();
+        return $cache->{$keyhash}{'value'};
     }
+
+    return undef;
 }
 
-# cache_set( cache, maxrows, key, value)
-# cache is a reference to the string used for the cache
+# cache_set( cache, maxsize, key, value)
+# cache is a hashref used for the cache
 # maxrows is the maximum number of rows that can be in the cache
 # key is the value of the object to use for future comparison
 # value is the value to be stored there - it is expected to be a scalar
@@ -167,15 +170,41 @@ sub cache_get {
 # maxrows is dropped
 # returns the value stored if successful
 sub cache_set {
-    my($cache, $maxrows, $key, $value) = @_;
-    my($keyhash) = sha256_base64( $key.$CacheKeySalt);
-    my(@cache) = split /\n/, $$cache;
-    push @cache, sprintf("%d,key:%s,value:%s",time(),$keyhash,$value);
-    my(@new) = sort {$b cmp $a} @cache;
-    if ($#new >= $maxrows) {
-	@new = @new[0..($maxrows-1)];
+    my($cache, $maxsize, $key, $value) = @_;
+    unless ($key and $value)
+    {
+        warn 'Must supply a key and a value';
+        return undef;
     }
-    $$cache = join "\n", @new;
+
+    my($keyhash) = sha256_base64( $key.$CacheKeySalt);
+    $cache->{$keyhash} = {
+        key =>  $keyhash,
+        value   =>  $value,
+        timestamp   =>  time(),
+        };
+
+    # still to do: reduce cache if too many keys
+    if ( (scalar keys(%$cache)) > $maxsize)
+    {
+        my $deletesize = int($maxsize/2)-1;
+
+#        warn 'cache size ' . scalar keys (%$cache) . ", need to reduce cache, deleting $deletesize keys";
+
+        # sort by timestamp
+        my @sortedKeys = sort {
+            $cache->{$a}{'timestamp'} <=> $cache->{$b}{'timestamp'} 
+            } keys %$cache;
+        my @deleteKeys = @sortedKeys[0..$deletesize];
+# this may be too unreadable
+        my @deletedKeys = delete @{$cache}{@deleteKeys};
+# more readable but deleting from hash slice is probably faster
+#        foreach my $deleteKey (@deleteKeys)
+#        {
+#            delete $cache->{$deleteKey};
+#        }
+    }
+
     return $value;
 }
 
@@ -194,20 +223,23 @@ sub token {
     eval {
 	$self->{'token'} = $token;
 
-# Use KBase auth service to get user (still todo: check local cache)
-	my $client = LWP::UserAgent->new();
-	$client->timeout(5);
-        my $content={
-            'token'     =>  $self->{'token'},
-            'fields'    =>  'user_id',
-            };
-	my $response = $client->post($url, $content);
-	unless ($response->is_success) {
-	    die $response->status_line;
-	}
-	my $json = decode_json( $response->content());
+# Use KBase auth service to get user
+	# Check the token cache first
+	my $cached_userid = cache_get( $TokenCache, $self->{'token'});
+# need to figure out why it's comparing the username
+# (but could get from server if needed anyway)
+	if ( $cached_userid and $cached_userid eq $self->{'user_id'}) {
+            return($token);
+        }
+	my $res = $self->_auth_svc_req( 'user_id'=>$self->{'user_id'},
+            'password'=>$self->{'password'}, 'fields' => 'token');
+	unless ($res->{'user_id'}) {
+	    die "No user_id returned by service";
+        }
 #	$json = $self->_SquashJSONBool($json);
-        $self->{'user_id'} = $json->{'user_id'};
+        $self->{'user_id'} = $res->{'user_id'};
+        # write the cache
+        cache_set( $TokenCache, $TokenCacheSize, $self->{'token'}, $self->{'user_id'});
     };
 
     if ($@) {
@@ -221,7 +253,6 @@ sub token {
 
 # Get a nexus token, using user_id, password
 # Parameters looked for within $self:
-# body => body of the http message, if any, can be undefined
 # user_id => user name recognized on globus online for login
 # password => Globus online password
 # Throws an exception if either invalid set of creds or failed login
@@ -240,21 +271,22 @@ sub get {
 	}
 
 	# Make sure we have the right combo of creds
-	if ($self->{'user_id'} && $self->{'password'}) {
-	    # no op
-	} else {
+	unless ($self->{'user_id'} && $self->{'password'}) {
 	    die("Need user_id and password to be defined.");
 	}
 	
-	$res = $self->_get_token( 'user_id'=>$self->{'user_id'},
-            'password'=>$self->{'password'});
+	$res = $self->_auth_svc_req( 'user_id'=>$self->{'user_id'},
+            'password'=>$self->{'password'}, 'fields' => 'token');
 	unless ($res->{'token'}) {
 	    die "No token returned by service";
 	}
+        # write the cache
+        cache_set( $TokenCache, $TokenCacheSize, $res->{'token'}, $self->{'user_id'});
     };
     if ($@) {
 	$self->{'token'} = undef;
 	$self->{'user_id'} = undef;
+        # should this set error_message instead of dieing?
 	die "Failed to get auth token: $@";
     } else {
 	return($self->token( $res->{'token'}));
@@ -263,18 +295,9 @@ sub get {
 
 # Function that returns if the token is valid or not
 # optionally accepts hash as parameters
-# If the token is a 64 byte hex string, then it treats it as
-# a kbase_sessionid and will attempt to retrieve the actual token
-# from a mongodb session collection. This only works if the
-# sessiondb is enabled
 #
-# lifetime => seconds The number of seconds to use for token
-#                     lifetime, overrides the class variable
-#                     $token_lifetime 
 sub validate {
 
-# to do: use auth service to validate
-# POST token to Login to verify
     my $self = shift;
     my %p = @_;
     my $url = $self->{'auth_svc'};
@@ -285,40 +308,24 @@ sub validate {
         return(undef);
     }
     
-# Use KBase auth service to get user (still todo: check local cache)
+# Use KBase auth service to get user
+# todo: check local cache
     eval {
-
-#        warn $self->user_id;
 	# Check the token cache first
-	my $cached_userid = cache_get( \$TokenCache, $self->{'token'});
+	my $cached_userid = cache_get( $TokenCache, $self->{'token'});
 # need to figure out why it's comparing the username
 # (but could get from server if needed anyway)
-#	if ( $cached && $cached eq $vars{'un'} ) {
-#        warn 'cached userid is ' . $cached_userid;
-
 	if ( $cached_userid and $cached_userid eq $self->{'user_id'}) {
             return(1);
 	} else {
-            my $client = LWP::UserAgent->new();
-	    $client->timeout(5);
-            my $content={
-                'token'   =>  $self->{'token'},
-                'fields'    =>  'token',
-                };
-#            warn $url;
-    	    my $response = $client->post($url, $content);
-	    unless ($response->is_success) {
-	        die $response->status_line;
-        	}
-            my $json = decode_json( $response->content());
-#	    $json = $self->_SquashJSONBool($json);
-
-            # write the sha256 hash of the token into the cache
-            # we don't actually want to store the tokens themselves
-            cache_set( \$TokenCache, $TokenCacheSize, $self->{'token'}, $self->{'user_id'});
+	my $res = $self->_auth_svc_req( 'token'=>$self->{'token'},
+            'fields' => 'token');
+	unless ($res->{'token'}) {
+	    die "No token returned by service";
+        }
+            # write the cache
+            cache_set( $TokenCache, $TokenCacheSize, $self->{'token'}, $self->{'user_id'});
 	}
-	my $cached2 = cache_get( \$TokenCache, $self->{'token'});
-#        warn 'cached2 userid is ' . $cached2;
     };
 
     if ($@) {
@@ -329,24 +336,30 @@ sub validate {
     }
 }
 
-# Uses the auth service specified (currently in
-# the .kbase_config file, authentication.authpath)
-
-sub _get_token {
+sub _auth_svc_req {
     my $self = shift @_;
     my %p = @_;
     my $url = $self->{'auth_svc'};
+
+    # $p{'fields'} should have only one field
 
     my $json;
     eval {
 
         my $client = LWP::UserAgent->new();
-	$client->timeout(5);
+	$client->timeout($LWPTimeout);
         my $content={
             'user_id'   =>  $p{'user_id'},
             'password'  =>  $p{'password'},
-            'fields'    =>  'token',
+            'fields'    =>  $p{'fields'},
             };
+        if ($p{'token'})
+        {
+            $content = {
+                'token'   =>  $p{'token'},
+                'fields'    => $p{'fields'},
+            };
+        }
 	my $response = $client->post($url, $content);
 	unless ($response->is_success) {
 	    die $response->status_line;
@@ -362,25 +375,6 @@ sub _get_token {
 
 }
 
-sub _SquashJSONBool {
-    # Walk an object ref returned by from_json() and squash references
-    # to JSON::XS::Boolean into a simple 0 or 1
-    my $self = shift;
-    my $json_ref = shift;
-    my $type;
-
-    foreach (keys %$json_ref) {
-	$type = ref $json_ref->{$_};
-	next unless ($type);
-	if ( 'HASH' eq $type) {
-	    _SquashJSONBool( $self, $json_ref->{$_});
-	} elsif ( 'JSON::XS::Boolean' eq $type) {
-	    $json_ref->{$_} = ( $json_ref->{$_} ? 1 : 0 );
-	}
-    }
-    return $json_ref;
-}
-
 1;
 
 __END__
@@ -389,24 +383,15 @@ __END__
 
 =head1 Bio::KBase::AuthToken
 
-Token object for Globus Online/Globus Nexus tokens. For general information about Globus Nexus service see:
-http://globusonline.github.com/nexus-docs/api.html
-
+Token object for KBase tokens.
 
 =head2 Examples
 
    # Acquiring a new token when you have username/password credentials
-   my $token = Bio::KBase::AuthToken->new( 'user_id' => 'mrbig', 'password' => 'bigP@SSword');
+   my $token = Bio::KBase::AuthToken->new( 'auth_svc'=>$authurl, 'user_id' => 'mrbig', 'password' => 'bigP@SSword');
 
-   # or if you have an SSH private key for RSA authentication
-   my $token2 = Bio::KBase::AuthToken->new( 'user_id' => 'mrbig', 'client_secret' => $rsakey);
-
-   # or if you have an unencrypted token in the file $keyfile, you can use
-   my $token3 = Bio::KBase::AuthToken->new( 'user_id' => 'mrbig', 'keyfile' => $keyfile);
-
-   # or if you have a token in the file $keyfile, protected by passphrase "testing" 
-   my $token3 = Bio::KBase::AuthToken->new( 'user_id' => 'mrbig', 'keyfile' => $keyfile,
-                                            'keyfile_passphrase' => 'testing');
+   # or if you have a token in the variable $token, you can use
+   my $token2 = Bio::KBase::AuthToken->new( 'auth_svc'=>$authurl, 'user_id' => 'mrbig', 'token' => $token);
 
    # If you have a token in the shell environment variable $KB_AUTH_TOKEN you can
    # just instantiate an object with no parameters and it will use that as if it
@@ -434,8 +419,7 @@ http://globusonline.github.com/nexus-docs/api.html
    #
    # Then the constructor will try to acquire a token with the user_id and password
    # settings provided.
-   # Currently this library recognizes user_id, token,client_secret,keyfile,
-   #	       keyfile_passphrase,password
+   # Currently this library recognizes user_id,token,password,auth_svc
    #
    # To login as jqpublic with an ssh key in ~jqpublic/.ssh/id_kbase that has the passphrase
    # "MostlySecret" you can set this in the .kbase_config file:
