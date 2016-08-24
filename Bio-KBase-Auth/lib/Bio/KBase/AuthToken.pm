@@ -235,11 +235,12 @@ sub token {
             return($token);
         }
 	my $res = $self->_auth_svc_req( 'user_id'=>$self->{'token'},
-            'fields' => 'token');
+            'fields' => 'token,user_id');
 	unless ($res->{'token'}) {
 	    die "No token returned by service";
         }
 #	$json = $self->_SquashJSONBool($json);
+        $self->{'user_id'} = $res->{'user_id'};
         $self->{'token'} = $res->{'token'};
         # write the cache
         cache_set( $TokenCache, $TokenCacheSize, $self->{'token'}, $self->{'user_id'});
@@ -279,12 +280,12 @@ sub get {
 	}
 	
 	$res = $self->_auth_svc_req( 'user_id'=>$self->{'user_id'},
-            'password'=>$self->{'password'}, 'fields' => 'token');
+            'password'=>$self->{'password'}, 'fields' => 'token,user_id');
 	unless ($res->{'token'}) {
 	    die "No token returned by service";
 	}
         # write the cache
-        cache_set( $TokenCache, $TokenCacheSize, $res->{'token'}, $self->{'user_id'});
+        cache_set( $TokenCache, $TokenCacheSize, $res->{'token'}, $res->{'user_id'});
     };
     if ($@) {
 	$self->{'token'} = undef;
@@ -327,7 +328,7 @@ sub validate {
 	    die "No user_id returned by service";
         }
             # write the cache
-            cache_set( $TokenCache, $TokenCacheSize, $self->{'token'}, $self->{'user_id'});
+            cache_set( $TokenCache, $TokenCacheSize, $self->{'token'}, $res->{'user_id'});
 	}
     };
 
