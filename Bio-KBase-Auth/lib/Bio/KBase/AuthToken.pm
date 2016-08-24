@@ -39,6 +39,7 @@ our @attrs = ( 'user_id', 'token', 'password',);
 our $LWPTimeout = 5;
 
 # Some hashes to cache tokens and Token Signers we have seen before
+# We should probably remove the SignerCache since it's not being used
 our $SignerCache;
 our $SignerCacheSize = exists($Conf{'authentication.signer_cache_size'}) ?
                               $Conf{'authentication.signer_cache_size'} : 12;
@@ -158,9 +159,6 @@ sub cache_get {
     
     if ($cache->{$keyhash} and (time() - $cache->{$keyhash}{'timestamp'} < $TokenCacheExpire))
     {
-        # update last seen time: the old Perl code did this
-        # but the current Python code does not
-        $cache->{$keyhash}{'timestamp'} = time();
         return $cache->{$keyhash}{'value'};
     }
 
@@ -190,7 +188,6 @@ sub cache_set {
         timestamp   =>  time(),
         };
 
-    # still to do: reduce cache if too many keys
     if ( (scalar keys(%$cache)) > $maxsize)
     {
         my $deletesize = int($maxsize/2)-1;
@@ -325,9 +322,9 @@ sub validate {
             return(1);
 	} else {
 	my $res = $self->_auth_svc_req( 'token'=>$self->{'token'},
-            'fields' => 'token');
-	unless ($res->{'token'}) {
-	    die "No token returned by service";
+            'fields' => 'user_id');
+	unless ($res->{'user_id'}) {
+	    die "No user_id returned by service";
         }
             # write the cache
             cache_set( $TokenCache, $TokenCacheSize, $self->{'token'}, $self->{'user_id'});
