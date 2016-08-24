@@ -36,6 +36,7 @@ our %Conf;
 our %AuthConf;
 our $AuthSvcHost;
 our $AuthorizePath;
+our $AuthorizePathDefault = 'https://kbase.us/services/authorization/Sessions/Login';
 
 our $ProfilePath;
 our $RoleSvcURL;
@@ -50,8 +51,8 @@ sub LoadConfig {
     %Conf = $c ? $c->vars() : ();
 
     $AuthorizePath = $Conf{'authentication.auth_svc'} ?
-	$Conf{'authentication.auth_svc'} : 'https://kbase.us/services/authorization/Sessions/Login';
-    
+	$Conf{'authentication.auth_svc'} : $AuthorizePathDefault;
+
     %AuthConf = map { $_, $Conf{ $_} } grep /^authentication\./, keys( %Conf);
 
 }

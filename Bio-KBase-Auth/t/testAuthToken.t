@@ -104,11 +104,8 @@ ok( $at = Bio::KBase::AuthToken->new('auth_svc'=>$authurl,
     ), "Logging in using empty token");
 ok(!($at->validate()), "Testing that empty token fails");
 
-#ok( $at = Bio::KBase::AuthToken->new('user_id' => 'kbasetest', 'password' => '@Suite525'), "Logging in using kbasetest account using username/password");
-#ok($at->validate(), "Validating token from kbasetest username/password");
-
 note( "Creating settings for testing kbase_config");
-Bio::KBase::Auth::SetConfigs('authpath'=>$authurl,"password" =>$validpassword,"user_id" => $validuser);
+Bio::KBase::Auth::SetConfigs('auth_svc'=>$authurl,"password" =>$validpassword,"user_id" => $validuser);
 
 ok( $at = Bio::KBase::AuthToken->new(), "Creating a new token object for testing kbase_config with password");
 ok( $at->user_id() eq $validuser, "Verifying that valid user was read from kbase_config");
