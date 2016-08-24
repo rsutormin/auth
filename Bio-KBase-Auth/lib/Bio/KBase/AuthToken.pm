@@ -284,6 +284,7 @@ sub get {
 	unless ($res->{'token'}) {
 	    die "No token returned by service";
 	}
+
         # write the cache
         cache_set( $TokenCache, $TokenCacheSize, $res->{'token'}, $res->{'user_id'});
     };
@@ -293,6 +294,7 @@ sub get {
         # should this set error_message instead of dieing?
 	die "Failed to get auth token: $@";
     } else {
+        $self->{'user_id'} = $res->{'user_id'};
 	return($self->token( $res->{'token'}));
     }
 }
@@ -327,8 +329,9 @@ sub validate {
 	unless ($res->{'user_id'}) {
 	    die "No user_id returned by service";
         }
+        $self->{'user_id'} = $res->{'user_id'};
             # write the cache
-            cache_set( $TokenCache, $TokenCacheSize, $self->{'token'}, $res->{'user_id'});
+            cache_set( $TokenCache, $TokenCacheSize, $self->{'token'}, $self->{'user_id'});
 	}
     };
 
