@@ -87,15 +87,23 @@ sub new {
         @_
     );
 
-    $self->{'auth_svc'} = $Bio::KBase::Auth::AuthorizePath
-        unless ($self->{'auth_svc'});
-
     eval {
 	# make ignore_kbase_config an alias for ignore_authrc if it isn't specified
 	if ( !exists( $self->{'ignore_kbase_config'}) &&
 	     exists( $self->{'ignore_authrc'})) {
 	    $self->{'ignore_kbase_config'} = $self->{'ignore_authrc'};
 	}
+
+        # if this already exists, it was provided to new() and should
+        # override everything
+        # otherwise, if not provided, use the .kbase_config value unless
+        # asked to ignore_kbase_config
+        unless ($self->{'auth_svc'})
+        {
+            $self->{'auth_svc'} = $Bio::KBase::Auth::AuthorizePath;
+            $self->{'auth_svc'} = $Bio::KBase::Auth::AuthorizePathDefault
+                if ($self->{'ignore_kbase_config'});
+        }
 
 	# Do we have any default attributes from the $Conf hash?
 	my %c = %Bio::KBase::Auth::AuthConf;
@@ -229,7 +237,7 @@ sub token {
 	my $res = $self->_auth_svc_req( 'user_id'=>$self->{'token'},
             'fields' => 'token');
 	unless ($res->{'token'}) {
-	    die "No user_id returned by service";
+	    die "No token returned by service";
         }
 #	$json = $self->_SquashJSONBool($json);
         $self->{'token'} = $res->{'token'};

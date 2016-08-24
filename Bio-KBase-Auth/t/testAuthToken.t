@@ -104,9 +104,6 @@ ok( $at = Bio::KBase::AuthToken->new('auth_svc'=>$authurl,
     ), "Logging in using empty token");
 ok(!($at->validate()), "Testing that empty token fails");
 
-#ok( $at = Bio::KBase::AuthToken->new('user_id' => 'kbasetest', 'password' => '@Suite525'), "Logging in using kbasetest account using username/password");
-#ok($at->validate(), "Validating token from kbasetest username/password");
-
 note( "Creating settings for testing kbase_config");
 Bio::KBase::Auth::SetConfigs('auth_svc'=>$authurl,"password" =>$validpassword,"user_id" => $validuser);
 
@@ -117,8 +114,10 @@ ok( $at->validate(), "Verifying that valid user token was acquired properly with
 ok( $at = Bio::KBase::AuthToken->new('auth_svc'=>$authurl, ignore_kbase_config => 1), "Creating a blank object by ignoring the kbase_config file");
 ok( ! defined($at->user_id()), "Verifying that kbase_config was ignored");
 
+# SetConfigs seems to be remembering configs set during the test
 if ( -e $Bio::KBase::Auth::ConfPath) {
     # restore old config
+    $old_config{'password'} = undef;
     Bio::KBase::Auth::SetConfigs( %old_config);
 }
 

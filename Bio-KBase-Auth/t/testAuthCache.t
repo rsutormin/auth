@@ -23,34 +23,6 @@ BEGIN {
 my %testConfig;
 Config::Simple->import_from('./test.cfg', \%testConfig);
 
-my @users = ();
-
-if ( defined $ENV{ $Bio::KBase::AuthToken::TokenEnv }) {
-    undef $ENV{ $Bio::KBase::AuthToken::TokenEnv };
-}
-
-my %old_config = map { $_ =~ s/authentication\.//; $_ => $Bio::KBase::Auth::Conf{'authentication.' . $_ } } keys %Bio::KBase::Auth::AuthConf;
-
-if ( -e $Bio::KBase::Auth::ConfPath) {
-    # clear all the authentication fields that we may care about during testing
-    my %new = %old_config;
-    foreach my $key ( 'user_id','password','token') {
-	$new{$key} = undef;
-    }
-    Bio::KBase::Auth::SetConfigs( %new);
-
-}
-
-my $authurl=$testConfig{'auth_test.test.authurl'};
-my $authBadUrl='https://auth.invalid';
-my $validuser=$testConfig{'auth_test.test.validuser'};
-my $validpassword=$testConfig{'auth_test.test.validpassword'};
-my $validtoken1=$testConfig{'auth_test.test.validtoken1'};
-my $validtoken2=$testConfig{'auth_test.test.validtoken2'};
-my $invalidtoken=$testConfig{'auth_test.test.invalidtoken'};
-
-note("Using auth server $authurl for testing");
-
 my $tokenCache={};
 my $maxsize=5;
 
@@ -79,11 +51,6 @@ ok(scalar keys (%$tokenCache) <= $maxsize, "Should be fewer or equal than $maxsi
 $Bio::KBase::AuthToken::TokenCacheExpire = 1;
 sleep 1;
 ok(! (Bio::KBase::AuthToken::cache_get($tokenCache,'foo6')), 'Checking cache expiry');
-
-if ( -e $Bio::KBase::Auth::ConfPath) {
-    # restore old config
-    Bio::KBase::Auth::SetConfigs( %old_config);
-}
 
 done_testing();
 
