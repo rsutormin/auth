@@ -228,13 +228,13 @@ sub token {
 
 # Use KBase auth service to get user
 	# Check the token cache first
-	my $cached_userid = cache_get( $TokenCache, $self->{'token'});
+	my $cached_userid = cache_get( $TokenCache, $token);
 # need to figure out why it's comparing the username
 # (but could get from server if needed anyway)
 	if ( $cached_userid and $cached_userid eq $self->{'user_id'}) {
             return($token);
         }
-	my $res = $self->_auth_svc_req( 'user_id'=>$self->{'token'},
+	my $res = $self->_auth_svc_req( 'token'=>$token,
             'fields' => 'token,user_id');
 	unless ($res->{'token'}) {
 	    die "No token returned by service";
@@ -251,7 +251,7 @@ sub token {
 	return( undef);
     } else {
 	$self->{'error_message'} = undef;
-	return( $token);
+	return( $self->{'token'});
     }
 }
 
@@ -347,8 +347,6 @@ sub _auth_svc_req {
     my $self = shift @_;
     my %p = @_;
     my $url = $self->{'auth_svc'};
-
-    # $p{'fields'} should have only one field
 
     my $json;
     eval {
