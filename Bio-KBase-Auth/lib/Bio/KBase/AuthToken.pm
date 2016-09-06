@@ -5,13 +5,7 @@ use warnings;
 use JSON;
 use LWP::UserAgent;
 use Digest::SHA qw(sha256_base64);
-use Crypt::OpenSSL::RSA;
-use Convert::PEM;
-use MIME::Base64;
-use URI;
-use POSIX;
-use DateTime;
-use Data::Dumper;
+#use Data::Dumper;
 
 use Bio::KBase::Auth;
 
@@ -228,19 +222,19 @@ sub token {
 
 # Use KBase auth service to get user
 	# Check the token cache first
-	my $cached_userid = cache_get( $TokenCache, $self->{'token'});
+	my $cached_userid = cache_get( $TokenCache, $token);
 # need to figure out why it's comparing the username
 # (but could get from server if needed anyway)
 	if ( $cached_userid and $cached_userid eq $self->{'user_id'}) {
             return($token);
         }
-	my $res = $self->_auth_svc_req( 'user_id'=>$self->{'token'},
-            'fields' => 'token');
-	unless ($res->{'token'}) {
-	    die "No token returned by service";
+	my $res = $self->_auth_svc_req( 'token'=>$token,
+            'fields' => 'user_id');
+	unless ($res->{'user_id'}) {
+	    die "No user_id returned by service";
         }
 #	$json = $self->_SquashJSONBool($json);
-        $self->{'token'} = $res->{'token'};
+        $self->{'user_id'} = $res->{'user_id'};
         # write the cache
         cache_set( $TokenCache, $TokenCacheSize, $self->{'token'}, $self->{'user_id'});
     };
@@ -250,7 +244,7 @@ sub token {
 	return( undef);
     } else {
 	$self->{'error_message'} = undef;
-	return( $token);
+	return( $self->{'token'});
     }
 }
 
@@ -279,12 +273,13 @@ sub get {
 	}
 	
 	$res = $self->_auth_svc_req( 'user_id'=>$self->{'user_id'},
-            'password'=>$self->{'password'}, 'fields' => 'token');
+            'password'=>$self->{'password'}, 'fields' => 'token,user_id');
 	unless ($res->{'token'}) {
 	    die "No token returned by service";
 	}
+
         # write the cache
-        cache_set( $TokenCache, $TokenCacheSize, $res->{'token'}, $self->{'user_id'});
+        cache_set( $TokenCache, $TokenCacheSize, $res->{'token'}, $res->{'user_id'});
     };
     if ($@) {
 	$self->{'token'} = undef;
@@ -292,6 +287,7 @@ sub get {
         # should this set error_message instead of dieing?
 	die "Failed to get auth token: $@";
     } else {
+        $self->{'user_id'} = $res->{'user_id'};
 	return($self->token( $res->{'token'}));
     }
 }
@@ -326,6 +322,7 @@ sub validate {
 	unless ($res->{'user_id'}) {
 	    die "No user_id returned by service";
         }
+        $self->{'user_id'} = $res->{'user_id'};
             # write the cache
             cache_set( $TokenCache, $TokenCacheSize, $self->{'token'}, $self->{'user_id'});
 	}
@@ -343,8 +340,6 @@ sub _auth_svc_req {
     my $self = shift @_;
     my %p = @_;
     my $url = $self->{'auth_svc'};
-
-    # $p{'fields'} should have only one field
 
     my $json;
     eval {
