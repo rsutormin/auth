@@ -5,13 +5,7 @@ use warnings;
 use JSON;
 use LWP::UserAgent;
 use Digest::SHA qw(sha256_base64);
-use Crypt::OpenSSL::RSA;
-use Convert::PEM;
-use MIME::Base64;
-use URI;
-use POSIX;
-use DateTime;
-use Data::Dumper;
+#use Data::Dumper;
 
 use Bio::KBase::Auth;
 
@@ -235,13 +229,12 @@ sub token {
             return($token);
         }
 	my $res = $self->_auth_svc_req( 'token'=>$token,
-            'fields' => 'token,user_id');
-	unless ($res->{'token'}) {
-	    die "No token returned by service";
+            'fields' => 'user_id');
+	unless ($res->{'user_id'}) {
+	    die "No user_id returned by service";
         }
 #	$json = $self->_SquashJSONBool($json);
         $self->{'user_id'} = $res->{'user_id'};
-        $self->{'token'} = $res->{'token'};
         # write the cache
         cache_set( $TokenCache, $TokenCacheSize, $self->{'token'}, $self->{'user_id'});
     };

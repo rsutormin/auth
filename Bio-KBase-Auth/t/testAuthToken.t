@@ -10,7 +10,7 @@ use strict;
 
 #use lib "../lib/";
 
-use Test::More tests => 31;
+use Test::More tests => 32;
 #use Test::More;
 
 use Data::Dumper;
@@ -118,8 +118,7 @@ ok( $at = Bio::KBase::AuthToken->new('auth_svc'=>$authurl,
     ), "Logging in using empty token");
 ok(!($at->validate()), "Testing that empty token fails");
 
-note( "Creating settings for testing kbase_config");
-Bio::KBase::Auth::SetConfigs('auth_svc'=>$authurl,"password" =>$validpassword,"user_id" => $validuser);
+ok(Bio::KBase::Auth::SetConfigs('auth_svc'=>$authurl,"password" =>$validpassword,"user_id" => $validuser), 'Creating settings for testing kbase_config');
 
 my $at = '';
 ok( $at = Bio::KBase::AuthToken->new(), "Creating a new token object for testing kbase_config with password");
