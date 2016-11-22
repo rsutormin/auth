@@ -258,7 +258,7 @@ public class AuthService {
 				/** Encoding the HTTP response into JSON format */
 				final BufferedReader br = new BufferedReader(
 						new InputStreamReader(conn.getInputStream()));
-				String responseText = "" + readFromReaderAndClose(br);
+				String responseText = readFromReaderAndClose(br);
 
 				final Map<String, Object> userdetail;
 				try {
@@ -362,7 +362,7 @@ public class AuthService {
 
 			/** Encoding the HTTP response into JSON format */
 			final BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-			String responseText = "" + readFromReaderAndClose(br);
+			String responseText = readFromReaderAndClose(br);
 			
 			final AuthUser user;
 			try {
