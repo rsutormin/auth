@@ -258,7 +258,7 @@ public class AuthService {
 				/** Encoding the HTTP response into JSON format */
 				final BufferedReader br = new BufferedReader(
 						new InputStreamReader(conn.getInputStream()));
-				String responseText = readFromReaderAndClose(br);
+				String responseText = "" + readFromReaderAndClose(br);
 
 				final Map<String, Object> userdetail;
 				try {
@@ -267,7 +267,10 @@ public class AuthService {
 						.readValue(responseText, Map.class);
 					userdetail = foo;
 				} catch (Exception ex) {
-					throw new AuthException(ex.getMessage(), ex, responseText);
+					String responseHead = responseText.length() <= 100 ? responseText :
+							(responseText.substring(0, 97) + "...");
+					throw new AuthException("Error fetching user details (" + ex.getMessage() + "), " +
+							"response head is: " + responseHead, ex, responseText);
 				}
 				final String user = (String) userdetail.get("username");
 				USER_CACHE.putString(user);
@@ -359,13 +362,16 @@ public class AuthService {
 
 			/** Encoding the HTTP response into JSON format */
 			final BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-			String responseText = readFromReaderAndClose(br);
+			String responseText = "" + readFromReaderAndClose(br);
 			
 			final AuthUser user;
 			try {
 				user = new ObjectMapper().readValue(responseText, AuthUser.class);
 			} catch (Exception ex) {
-				throw new AuthException(ex.getMessage(), ex, responseText);
+				String responseHead = responseText.length() <= 100 ? responseText :
+						(responseText.substring(0, 97) + "...");
+				throw new AuthException("Error fetching user token (" + ex.getMessage() + "), " +
+						"response head is: " + responseHead, ex, responseText);
 			}
 
 			if (user == null) { // if still null, throw an exception 
